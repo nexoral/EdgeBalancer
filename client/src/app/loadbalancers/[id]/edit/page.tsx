@@ -8,8 +8,10 @@ import { Sidebar, Topbar } from '@/components/dashboard/Sidebar';
 import { Icons } from '@/components/shared/Icons';
 import { DeploymentOverlay, DeploymentSuccessModal } from '@/components/loadbalancers/DeploymentExperience';
 import { MultiSelect } from '@/components/ui/MultiSelect';
+import { LoadBalancerVisualization } from '@/components/loadbalancers/LoadBalancerVisualization';
 import { CONTINENTS, COUNTRIES, getRegionsByCountry, getAllRegions } from '@/lib/geoData';
-import type { LoadBalancer } from '@/types/api';
+import { ALL_CLOUD_REGIONS, REGIONS_BY_PROVIDER } from '@/lib/cloudRegions';
+import type { LoadBalancer, LoadBalancerStrategy } from '@/types/api';
 import toast from 'react-hot-toast';
 
 const STRATEGIES = [
@@ -290,7 +292,9 @@ export default function EditLoadBalancerPage() {
           }
         />
 
-        <div style={{ padding: 'clamp(16px, 4vw, 32px)', maxWidth: 820, display: 'flex', flexDirection: 'column', gap: 'clamp(12px, 2vw, 20px)', overflow: 'auto', flex: 1 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 400px', gap: 32, padding: 'clamp(16px, 4vw, 32px)', overflow: 'auto', flex: 1 }}>
+          {/* Form Column */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'clamp(12px, 2vw, 20px)' }}>
           <FieldBlock n={1} title="Subdomain"
             subtitle="Optional hostname prefix for the active edge route">
             <div className="field">
@@ -555,15 +559,76 @@ export default function EditLoadBalancerPage() {
               </label>
 
               <div className="field">
-                <label className="field-label">Placement Hint</label>
-                <input
-                  className="input input-mono"
-                  placeholder="e.g., aws:us-east-1, gcp:europe-west1, azure:eastus2"
-                  value={form.placementHint}
-                  onChange={e => update('placementHint', e.target.value)}
-                />
-                <div className="hint">
-                  Optional provider region hint for deployments that need to stay close to a specific origin geography.
+                <label className="field-label">
+                  Placement Hint
+                  {!form.smartPlacement && <span style={{ color: 'var(--red)', marginLeft: 4 }}>*</span>}
+                  {form.smartPlacement && <span style={{ color: 'var(--text-3)', fontWeight: 'normal', fontSize: 11, marginLeft: 4 }}>(disabled when Smart Placement is on)</span>}
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <select
+                    value={ALL_CLOUD_REGIONS.find(r => r.code === form.placementHint) ? form.placementHint : 'custom'}
+                    onChange={(e) => {
+                      if (e.target.value === 'custom') {
+                        update('placementHint', '');
+                      } else {
+                        update('placementHint', e.target.value);
+                      }
+                    }}
+                    disabled={form.smartPlacement}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      border: '1px solid var(--line)',
+                      borderRadius: 'var(--radius)',
+                      background: form.smartPlacement ? 'var(--bg-3)' : 'var(--bg-1)',
+                      color: 'var(--text)',
+                      fontSize: 12,
+                      fontFamily: 'var(--mono)',
+                      cursor: form.smartPlacement ? 'not-allowed' : 'pointer',
+                      opacity: form.smartPlacement ? 0.5 : 1,
+                      colorScheme: 'dark',
+                    }}
+                  >
+                    <option value="">Select cloud region...</option>
+                    <optgroup label="AWS">
+                      {REGIONS_BY_PROVIDER.aws.map(region => (
+                        <option key={region.code} value={region.code}>{region.name}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Google Cloud">
+                      {REGIONS_BY_PROVIDER.gcp.map(region => (
+                        <option key={region.code} value={region.code}>{region.name}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Azure">
+                      {REGIONS_BY_PROVIDER.azure.map(region => (
+                        <option key={region.code} value={region.code}>{region.name}</option>
+                      ))}
+                    </optgroup>
+                    <option value="custom">✏️ Custom (write your own)...</option>
+                  </select>
+                </div>
+
+                {!form.smartPlacement && form.placementHint === '' && (
+                  <input
+                    className="input input-mono"
+                    placeholder="e.g., aws:us-east-1, gcp:europe-west1, azure:eastus2"
+                    value={form.placementHint}
+                    onChange={e => update('placementHint', e.target.value)}
+                    style={{ marginTop: 8, fontSize: 12 }}
+                  />
+                )}
+
+                {!ALL_CLOUD_REGIONS.find(r => r.code === form.placementHint) && form.placementHint && (
+                  <div style={{ marginTop: 8, padding: 8, background: 'var(--bg-2)', borderRadius: 4, fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-2)' }}>
+                    Custom: {form.placementHint}
+                  </div>
+                )}
+
+                <div className="hint" style={{ marginTop: 4 }}>
+                  {form.smartPlacement
+                    ? 'Cloudflare automatically positions the Worker near your origins when Smart Placement is enabled.'
+                    : 'Required. Choose a cloud region where your origin servers are located, or enter a custom hint.'}
                 </div>
               </div>
             </div>
@@ -605,6 +670,22 @@ export default function EditLoadBalancerPage() {
               </button>
             </div>
           </div>
+          </div>
+
+          {/* Visualization Column */}
+          <div className="visualization-panel" style={{ display: 'flex', flexDirection: 'column' }}>
+            <LoadBalancerVisualization
+              domain={loadBalancer?.domain}
+              subdomain={form.subdomain}
+              strategy={form.strategy as LoadBalancerStrategy}
+              originCount={form.origins.filter(o => o.url.trim()).length}
+              isGeoSteering={form.strategy === 'geo-steering' && form.origins.some(o =>
+                (o.geoCountries && o.geoCountries.length > 0) ||
+                (o.geoColos && o.geoColos.length > 0) ||
+                (o.geoContinents && o.geoContinents.length > 0)
+              )}
+            />
+          </div>
         </div>
 
         <DeploymentOverlay
@@ -628,6 +709,7 @@ export default function EditLoadBalancerPage() {
       <style jsx>{`
         @media (max-width: 768px) {
           .hide-md { display: none; }
+          .visualization-panel { display: none !important; }
           main {
             padding: 16px !important;
           }
