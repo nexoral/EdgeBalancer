@@ -63,7 +63,7 @@ export const createLoadBalancerValidator = [
     if (!origins || origins.length === 0) {
       errors.push('At least one origin server is required');
     } else {
-      origins.forEach((origin: any) => {
+      origins.forEach((origin: any, index: number) => {
         const url = typeof origin?.url === 'string' ? origin.url.trim() : '';
         const weight = origin?.weight;
 
@@ -98,6 +98,17 @@ export const createLoadBalancerValidator = [
             errors.push('geoContinents must be an array');
           } else if (origin.geoContinents.some((code: any) => typeof code !== 'string' || !GEO_CONTINENT_REGEX.test(code.trim()))) {
             errors.push('Geo continent codes must be one of AF, AN, AS, EU, NA, OC, SA');
+          }
+        }
+
+        // Validate geo-steering requirements
+        if (strategy === 'geo-steering') {
+          const hasCountries = Array.isArray(origin.geoCountries) && origin.geoCountries.length > 0;
+          const hasColos = Array.isArray(origin.geoColos) && origin.geoColos.length > 0;
+          const hasContinents = Array.isArray(origin.geoContinents) && origin.geoContinents.length > 0;
+
+          if (!hasCountries && !hasColos && !hasContinents) {
+            errors.push(`Origin ${index + 1} requires at least one geo field (countries, regions, or continents) when using geo-steering`);
           }
         }
       });
