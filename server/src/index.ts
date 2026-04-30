@@ -3,8 +3,9 @@
  * Fastify-based API server with MongoDB, JWT auth, and Firebase integration
  */
 import dotenv from 'dotenv';
-import { connectDatabase } from './utils/database';
+import { connectDatabase, disconnectDatabase } from './utils/database';
 import { buildServer } from './app';
+import type { FastifyInstance } from 'fastify';
 
 dotenv.config();
 
@@ -35,6 +36,35 @@ if (process.env.ENCRYPTION_KEY && process.env.ENCRYPTION_KEY.length !== 64) {
 
 const PORT = process.env.PORT || 8000;
 
+// Store app instance for graceful shutdown
+let app: FastifyInstance | null = null;
+
+// Graceful shutdown handler
+async function gracefulShutdown(signal: string) {
+  console.log(`\n📡 Received ${signal}, starting graceful shutdown...`);
+
+  try {
+    // Close Fastify server (stops accepting new connections)
+    if (app) {
+      await app.close();
+      console.log('✅ Fastify server closed');
+    }
+
+    // Disconnect from MongoDB
+    await disconnectDatabase();
+
+    console.log('✅ Graceful shutdown complete');
+    process.exit(0);
+  } catch (error) {
+    console.error('❌ Error during shutdown:', error);
+    process.exit(1);
+  }
+}
+
+// Register signal handlers
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
 // Bootstrap server with proper async initialization
 async function bootstrap() {
   try {
@@ -42,7 +72,7 @@ async function bootstrap() {
     await connectDatabase();
 
     // Then build and start server
-    const app = await buildServer();
+    app = await buildServer();
 
     await app.listen({ port: Number(PORT), host: '0.0.0.0' });
 

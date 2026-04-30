@@ -162,7 +162,14 @@ export function LoadBalancerForm({
       };
     });
 
-    setErrors((current) => ({ ...current, [`origin-${index}-${field}`]: '' }));
+    setErrors((current) => {
+      const nextErrors = { ...current, [`origin-${index}-${field}`]: '' };
+      // Clear general geo error when any geo field is updated
+      if (field === 'geoCountries' || field === 'geoColos' || field === 'geoContinents') {
+        nextErrors[`origin-${index}-geo`] = '';
+      }
+      return nextErrors;
+    });
   };
 
   const validateForm = () => {
@@ -204,6 +211,14 @@ export function LoadBalancerForm({
       }
 
       if (formData.strategy === 'geo-steering') {
+        const hasCountries = origin.geoCountries && origin.geoCountries.length > 0;
+        const hasColos = origin.geoColos && origin.geoColos.length > 0;
+        const hasContinents = origin.geoContinents && origin.geoContinents.length > 0;
+
+        if (!hasCountries && !hasColos && !hasContinents) {
+          nextErrors[`origin-${index}-geo`] = 'Specify at least one: countries, regions, or continents for geo-steering';
+        }
+
         origin.geoCountries?.forEach((code) => {
           if (!GEO_COUNTRY_REGEX.test(code)) {
             nextErrors[`origin-${index}-geoCountries`] = 'Use comma-separated 2-letter country codes like US, IN, DE';
@@ -212,7 +227,7 @@ export function LoadBalancerForm({
 
         origin.geoColos?.forEach((code) => {
           if (!GEO_COLO_REGEX.test(code)) {
-            nextErrors[`origin-${index}-geoColos`] = 'Use comma-separated Cloudflare colo codes like DFW, SIN, FRA';
+            nextErrors[`origin-${index}-geoColos`] = 'Use comma-separated region codes like DFW, SIN, FRA';
           }
         });
 
@@ -436,137 +451,6 @@ export function LoadBalancerForm({
 
         <FormSection
           number={4}
-          title="Origin Servers"
-          description="Add, remove, or rebalance the backends that receive traffic here"
-        >
-          <div className="space-y-4">
-            {formData.origins.map((origin, index) => (
-              <div key={index} className="flex gap-4 items-start">
-                <div className="flex-1">
-                  <label htmlFor={`origin-${index}`} className="block text-sm font-medium mb-2">
-                    Server {index + 1}
-                  </label>
-                  <Input
-                    id={`origin-${index}`}
-                    type="text"
-                    placeholder="https://domain.com, http://127.0.0.1, or 192.168.1.100"
-                    value={origin.url}
-                    onChange={(event) => updateOrigin(index, 'url', event.target.value)}
-                    disabled={submitting}
-                    className={errors[`origin-${index}-url`] ? 'border-red-500' : ''}
-                  />
-                  {errors[`origin-${index}-url`] && (
-                    <p className="text-sm text-red-500 mt-1">{errors[`origin-${index}-url`]}</p>
-                  )}
-                  {!errors[`origin-${index}-url`] && origin.url.trim() && !/^https?:\/\//i.test(origin.url.trim()) && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Will use: <span className="font-mono">http://{origin.url.trim()}</span>
-                    </p>
-                  )}
-
-                  {formData.strategy === 'geo-steering' && (
-                    <div className="mt-4 grid gap-4 md:grid-cols-3">
-                      <div>
-                        <label htmlFor={`origin-${index}-countries`} className="block text-sm font-medium mb-2">
-                          Countries
-                        </label>
-                        <Input
-                          id={`origin-${index}-countries`}
-                          type="text"
-                          placeholder="US, IN, DE"
-                          value={joinGeoList(origin.geoCountries)}
-                          onChange={(event) => updateOrigin(index, 'geoCountries', parseGeoList(event.target.value))}
-                          disabled={submitting}
-                          className={errors[`origin-${index}-geoCountries`] ? 'border-red-500' : ''}
-                        />
-                        {errors[`origin-${index}-geoCountries`] && (
-                          <p className="text-sm text-red-500 mt-1">{errors[`origin-${index}-geoCountries`]}</p>
-                        )}
-                      </div>
-
-                      <div>
-                        <label htmlFor={`origin-${index}-colos`} className="block text-sm font-medium mb-2">
-                          Colos
-                        </label>
-                        <Input
-                          id={`origin-${index}-colos`}
-                          type="text"
-                          placeholder="DFW, SIN, FRA"
-                          value={joinGeoList(origin.geoColos)}
-                          onChange={(event) => updateOrigin(index, 'geoColos', parseGeoList(event.target.value))}
-                          disabled={submitting}
-                          className={errors[`origin-${index}-geoColos`] ? 'border-red-500' : ''}
-                        />
-                        {errors[`origin-${index}-geoColos`] && (
-                          <p className="text-sm text-red-500 mt-1">{errors[`origin-${index}-geoColos`]}</p>
-                        )}
-                      </div>
-
-                      <div>
-                        <label htmlFor={`origin-${index}-continents`} className="block text-sm font-medium mb-2">
-                          Continents
-                        </label>
-                        <Input
-                          id={`origin-${index}-continents`}
-                          type="text"
-                          placeholder="NA, EU, AS"
-                          value={joinGeoList(origin.geoContinents)}
-                          onChange={(event) => updateOrigin(index, 'geoContinents', parseGeoList(event.target.value))}
-                          disabled={submitting}
-                          className={errors[`origin-${index}-geoContinents`] ? 'border-red-500' : ''}
-                        />
-                        {errors[`origin-${index}-geoContinents`] && (
-                          <p className="text-sm text-red-500 mt-1">{errors[`origin-${index}-geoContinents`]}</p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {weightedEnabled && (
-                  <div className="w-32">
-                    <label htmlFor={`weight-${index}`} className="block text-sm font-medium mb-2">
-                      Weight
-                    </label>
-                    <Input
-                      id={`weight-${index}`}
-                      type="number"
-                      min="1"
-                      max="100"
-                      value={origin.weight}
-                      onChange={(event) => updateOrigin(index, 'weight', parseInt(event.target.value, 10) || 1)}
-                      disabled={submitting}
-                      className={errors[`origin-${index}-weight`] ? 'border-red-500' : ''}
-                    />
-                    {errors[`origin-${index}-weight`] && (
-                      <p className="text-sm text-red-500 mt-1">{errors[`origin-${index}-weight`]}</p>
-                    )}
-                  </div>
-                )}
-
-                {formData.origins.length > 1 && (
-                  <div className="pt-8">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => removeOrigin(index)}
-                      disabled={submitting}
-                    >
-                      Remove
-                    </Button>
-                  </div>
-                )}
-              </div>
-            ))}
-
-            <Button type="button" variant="outline" onClick={addOrigin} disabled={submitting}>
-              + Add Server
-            </Button>
-          </div>
-        </FormSection>
-
-        <FormSection
-          number={5}
           title="Traffic Strategy"
           description="Switch how requests are distributed across your origin fleet"
         >
@@ -615,7 +499,7 @@ export function LoadBalancerForm({
             />
             <StrategyCard
               title="Geo Steering"
-              description="Route by Cloudflare country, colo, or continent matches before falling back."
+              description="Route users to different servers based on their geographic location (country, region, or continent)."
               selected={formData.strategy === 'geo-steering'}
               onSelect={() => setFormData((current) => ({ ...current, strategy: 'geo-steering' }))}
               disabled={submitting}
@@ -633,9 +517,153 @@ export function LoadBalancerForm({
           )}
           {formData.strategy === 'geo-steering' && (
             <p className="mt-4 text-sm text-muted-foreground">
-              Configure countries, Cloudflare colo codes, or continents on each origin. Matching priority is colo, then country, then continent, then a round-robin fallback.
+              Each server can target specific countries, regions, or continents. Traffic from those locations will be routed to the matching server. Matching priority: region first, then country, then continent. Unmatched traffic uses round-robin.
             </p>
           )}
+        </FormSection>
+
+        <FormSection
+          number={5}
+          title="Origin Servers"
+          description="Add, remove, or rebalance the backends that receive traffic here"
+        >
+          <div className="space-y-4">
+            {formData.origins.map((origin, index) => (
+              <div key={index} className="flex gap-4 items-start">
+                <div className="flex-1">
+                  <label htmlFor={`origin-${index}`} className="block text-sm font-medium mb-2">
+                    Server {index + 1}
+                  </label>
+                  <Input
+                    id={`origin-${index}`}
+                    type="text"
+                    placeholder="https://domain.com, http://127.0.0.1, or 192.168.1.100"
+                    value={origin.url}
+                    onChange={(event) => updateOrigin(index, 'url', event.target.value)}
+                    disabled={submitting}
+                    className={errors[`origin-${index}-url`] ? 'border-red-500' : ''}
+                  />
+                  {errors[`origin-${index}-url`] && (
+                    <p className="text-sm text-red-500 mt-1">{errors[`origin-${index}-url`]}</p>
+                  )}
+                  {!errors[`origin-${index}-url`] && origin.url.trim() && !/^https?:\/\//i.test(origin.url.trim()) && (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Will use: <span className="font-mono">http://{origin.url.trim()}</span>
+                    </p>
+                  )}
+
+                  {formData.strategy === 'geo-steering' && (
+                    <div className="mt-4 space-y-4">
+                      <div className={`p-3 rounded-lg ${errors[`origin-${index}-geo`] ? 'bg-red-500/10 border border-red-500' : 'bg-muted/50'}`}>
+                        <p className={`text-sm ${errors[`origin-${index}-geo`] ? 'text-red-500' : 'text-muted-foreground'}`}>
+                          Configure which locations should use this server. <strong>At least one field is required</strong>: countries, regions, or continents.
+                        </p>
+                        {errors[`origin-${index}-geo`] && (
+                          <p className="text-sm text-red-500 mt-1 font-medium">{errors[`origin-${index}-geo`]}</p>
+                        )}
+                      </div>
+                      <div className="grid gap-4 md:grid-cols-3">
+                        <div>
+                          <label htmlFor={`origin-${index}-countries`} className="block text-sm font-medium mb-2">
+                            Countries <span className="text-muted-foreground font-normal">(optional)</span>
+                          </label>
+                          <Input
+                            id={`origin-${index}-countries`}
+                            type="text"
+                            placeholder="e.g., US, IN, DE"
+                            value={joinGeoList(origin.geoCountries)}
+                            onChange={(event) => updateOrigin(index, 'geoCountries', parseGeoList(event.target.value))}
+                            disabled={submitting}
+                            className={errors[`origin-${index}-geoCountries`] ? 'border-red-500' : ''}
+                          />
+                          {errors[`origin-${index}-geoCountries`] && (
+                            <p className="text-sm text-red-500 mt-1">{errors[`origin-${index}-geoCountries`]}</p>
+                          )}
+                          <p className="text-xs text-muted-foreground mt-1">2-letter country codes</p>
+                        </div>
+
+                        <div>
+                          <label htmlFor={`origin-${index}-colos`} className="block text-sm font-medium mb-2">
+                            Regions <span className="text-muted-foreground font-normal">(optional)</span>
+                          </label>
+                          <Input
+                            id={`origin-${index}-colos`}
+                            type="text"
+                            placeholder="e.g., DFW, SIN, FRA"
+                            value={joinGeoList(origin.geoColos)}
+                            onChange={(event) => updateOrigin(index, 'geoColos', parseGeoList(event.target.value))}
+                            disabled={submitting}
+                            className={errors[`origin-${index}-geoColos`] ? 'border-red-500' : ''}
+                          />
+                          {errors[`origin-${index}-geoColos`] && (
+                            <p className="text-sm text-red-500 mt-1">{errors[`origin-${index}-geoColos`]}</p>
+                          )}
+                          <p className="text-xs text-muted-foreground mt-1">Specific data center codes</p>
+                        </div>
+
+                        <div>
+                          <label htmlFor={`origin-${index}-continents`} className="block text-sm font-medium mb-2">
+                            Continents <span className="text-muted-foreground font-normal">(optional)</span>
+                          </label>
+                          <Input
+                            id={`origin-${index}-continents`}
+                            type="text"
+                            placeholder="e.g., NA, EU, AS"
+                            value={joinGeoList(origin.geoContinents)}
+                            onChange={(event) => updateOrigin(index, 'geoContinents', parseGeoList(event.target.value))}
+                            disabled={submitting}
+                            className={errors[`origin-${index}-geoContinents`] ? 'border-red-500' : ''}
+                          />
+                          {errors[`origin-${index}-geoContinents`] && (
+                            <p className="text-sm text-red-500 mt-1">{errors[`origin-${index}-geoContinents`]}</p>
+                          )}
+                          <p className="text-xs text-muted-foreground mt-1">AF, AN, AS, EU, NA, OC, SA</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {weightedEnabled && (
+                  <div className="w-32">
+                    <label htmlFor={`weight-${index}`} className="block text-sm font-medium mb-2">
+                      Weight
+                    </label>
+                    <Input
+                      id={`weight-${index}`}
+                      type="number"
+                      min="1"
+                      max="100"
+                      value={origin.weight}
+                      onChange={(event) => updateOrigin(index, 'weight', parseInt(event.target.value, 10) || 1)}
+                      disabled={submitting}
+                      className={errors[`origin-${index}-weight`] ? 'border-red-500' : ''}
+                    />
+                    {errors[`origin-${index}-weight`] && (
+                      <p className="text-sm text-red-500 mt-1">{errors[`origin-${index}-weight`]}</p>
+                    )}
+                  </div>
+                )}
+
+                {formData.origins.length > 1 && (
+                  <div className="pt-8">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => removeOrigin(index)}
+                      disabled={submitting}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            <Button type="button" variant="outline" onClick={addOrigin} disabled={submitting}>
+              + Add Server
+            </Button>
+          </div>
         </FormSection>
 
         <FormSection

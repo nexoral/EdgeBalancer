@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import { Sidebar, Topbar } from '@/components/dashboard/Sidebar';
 import { Icons } from '@/components/shared/Icons';
 import { DeploymentOverlay, DeploymentSuccessModal } from '@/components/loadbalancers/DeploymentExperience';
+import { MultiSelect } from '@/components/ui/MultiSelect';
+import { CONTINENTS, COUNTRIES, getRegionsByCountry, getAllRegions } from '@/lib/geoData';
 import type { LoadBalancer } from '@/types/api';
 import toast from 'react-hot-toast';
 
@@ -17,7 +19,7 @@ const STRATEGIES = [
   { id: 'cookie-sticky', title: 'Sticky Session', desc: 'Set a cookie so repeat visitors stay on the same origin.', icon: 'Link' },
   { id: 'weighted-cookie-sticky', title: 'Weighted Sticky', desc: 'Assign first visit by weight, then keep that visitor pinned with a cookie.', icon: 'Layers' },
   { id: 'failover', title: 'Failover', desc: 'Try origins in order and move to the next one when an origin fails.', icon: 'Shield' },
-  { id: 'geo-steering', title: 'Geo Steering', desc: 'Route by Cloudflare country, colo, or continent matches before falling back.', icon: 'Globe' },
+  { id: 'geo-steering', title: 'Geo Steering', desc: 'Route users to different servers based on their geographic location (country, region, or continent).', icon: 'Globe' },
 ];
 
 interface FieldBlockProps {
@@ -60,7 +62,7 @@ export default function EditLoadBalancerPage() {
   const [loadBalancer, setLoadBalancer] = useState<LoadBalancer | null>(null);
   const [form, setForm] = useState({
     subdomain: '',
-    origins: [{ id: 1, url: '', weight: 100 }],
+    origins: [{ id: 1, url: '', weight: 100, geoCountries: [], geoColos: [], geoContinents: [] }],
     strategy: 'round-robin',
     smartPlacement: true,
     placementHint: '',
@@ -89,7 +91,14 @@ export default function EditLoadBalancerPage() {
         setLoadBalancer(lb);
         setForm({
           subdomain: lb.subdomain || '',
-          origins: lb.origins.map((o: any, i: number) => ({ id: i + 1, url: o.url, weight: o.weight || 100 })),
+          origins: lb.origins.map((o: any, i: number) => ({
+            id: i + 1,
+            url: o.url,
+            weight: o.weight || 100,
+            geoCountries: o.geoCountries || [],
+            geoColos: o.geoColos || [],
+            geoContinents: o.geoContinents || [],
+          })),
           strategy: lb.strategyValue,
           smartPlacement: lb.placement?.smartPlacement !== false,
           placementHint: lb.placement?.region || '',
@@ -106,7 +115,7 @@ export default function EditLoadBalancerPage() {
   const update = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
 
   const addOrigin = () => {
-    setForm(f => ({ ...f, origins: [...f.origins, { id: Date.now(), url: '', weight: 100 }] }));
+    setForm(f => ({ ...f, origins: [...f.origins, { id: Date.now(), url: '', weight: 100, geoCountries: [], geoColos: [], geoContinents: [] }] }));
   };
 
   const removeOrigin = (id: number) => {
@@ -141,7 +150,13 @@ export default function EditLoadBalancerPage() {
         origins: form.origins.map((o) => {
           const url = o.url.trim();
           const finalUrl = /^https?:\/\//i.test(url) ? url : `http://${url}`;
-          return { url: finalUrl, weight: o.weight };
+          return {
+            url: finalUrl,
+            weight: o.weight,
+            geoCountries: o.geoCountries || [],
+            geoColos: o.geoColos || [],
+            geoContinents: o.geoContinents || [],
+          };
         }),
         strategy: form.strategy,
         weightedEnabled,
@@ -310,57 +325,135 @@ export default function EditLoadBalancerPage() {
 
           <FieldBlock n={2} title="Origin Servers"
             subtitle="Add, remove, or rebalance the backends that receive traffic here">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {form.origins.map((s, i) => (
-                <div key={s.id} style={{
-                  display: 'grid',
-                  gridTemplateColumns: showWeights ? '56px minmax(0, 1fr) 110px 40px' : '56px minmax(0, 1fr) 40px',
-                  gap: 8, alignItems: 'center',
-                }}>
+                <div key={s.id} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    height: 44, border: '1px solid var(--line)',
-                    borderRadius: 'var(--radius)', background: 'var(--bg-2)',
-                    fontFamily: 'var(--mono)', fontSize: 11,
-                    color: 'var(--text-3)', textTransform: 'uppercase',
-                  }}>#{i + 1}</div>
-                  <input
-                    className="input input-mono"
-                    placeholder="https://domain.com, http://127.0.0.1, or 192.168.1.100"
-                    value={s.url}
-                    onChange={e => updateOrigin(s.id, { url: e.target.value })}
-                  />
-                  {showWeights && (
-                    <div style={{ position: 'relative' }}>
-                      <input
-                        className="input input-mono"
-                        type="number" min={1} max={100}
-                        value={s.weight}
-                        onChange={(e) => {
-                          const nextWeight = Number.parseInt(e.target.value, 10);
-                          const safeWeight = Number.isNaN(nextWeight) ? 1 : Math.max(1, Math.min(100, nextWeight));
-                          updateOrigin(s.id, { weight: safeWeight });
-                        }}
-                        style={{ paddingRight: 32 }}
-                      />
-                      <span style={{
-                        position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-                        fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-3)',
-                      }}>wt</span>
-                    </div>
-                  )}
-                  <button
-                    onClick={() => removeOrigin(s.id)}
-                    disabled={form.origins.length === 1}
-                    style={{
-                      height: 44, borderRadius: 'var(--radius)',
-                      border: '1px solid var(--line)',
-                      color: 'var(--text-3)',
-                      opacity: form.origins.length === 1 ? 0.3 : 1,
+                    display: 'grid',
+                    gridTemplateColumns: showWeights ? '56px minmax(0, 1fr) 110px 40px' : '56px minmax(0, 1fr) 40px',
+                    gap: 8, alignItems: 'center',
+                  }}>
+                    <div style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                    <Icons.Trash size={14} />
-                  </button>
+                      height: 44, border: '1px solid var(--line)',
+                      borderRadius: 'var(--radius)', background: 'var(--bg-2)',
+                      fontFamily: 'var(--mono)', fontSize: 11,
+                      color: 'var(--text-3)', textTransform: 'uppercase',
+                    }}>#{i + 1}</div>
+                    <input
+                      className="input input-mono"
+                      placeholder="https://domain.com, http://127.0.0.1, or 192.168.1.100"
+                      value={s.url}
+                      onChange={e => updateOrigin(s.id, { url: e.target.value })}
+                    />
+                    {showWeights && (
+                      <div style={{ position: 'relative' }}>
+                        <input
+                          className="input input-mono"
+                          type="number" min={1} max={100}
+                          value={s.weight}
+                          onChange={(e) => {
+                            const nextWeight = Number.parseInt(e.target.value, 10);
+                            const safeWeight = Number.isNaN(nextWeight) ? 1 : Math.max(1, Math.min(100, nextWeight));
+                            updateOrigin(s.id, { weight: safeWeight });
+                          }}
+                          style={{ paddingRight: 32 }}
+                        />
+                        <span style={{
+                          position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+                          fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-3)',
+                        }}>wt</span>
+                      </div>
+                    )}
+                    <button
+                      onClick={() => removeOrigin(s.id)}
+                      disabled={form.origins.length === 1}
+                      style={{
+                        height: 44, borderRadius: 'var(--radius)',
+                        border: '1px solid var(--line)',
+                        color: 'var(--text-3)',
+                        opacity: form.origins.length === 1 ? 0.3 : 1,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                      <Icons.Trash size={14} />
+                    </button>
+                  </div>
+
+                  {form.strategy === 'geo-steering' && (() => {
+                    const selectedCountries = s.geoCountries || [];
+                    const selectedContinents = s.geoContinents || [];
+
+                    // Smart filtering: Countries ↔ Continents bidirectional
+                    // If continents selected → show only countries in those continents
+                    // If countries selected → show only continents those countries belong to
+                    const availableCountries = selectedContinents.length > 0
+                      ? COUNTRIES.filter(c => (selectedContinents as string[]).includes(c.continent))
+                      : COUNTRIES;
+
+                    const availableContinents = selectedCountries.length > 0
+                      ? (() => {
+                          const countryObjects = COUNTRIES.filter(c => (selectedCountries as string[]).includes(c.code));
+                          const continentCodes = [...new Set(countryObjects.map(c => c.continent))];
+                          return CONTINENTS.filter(cont => (continentCodes as string[]).includes(cont.code));
+                        })()
+                      : CONTINENTS;
+
+                    // Regions filter by selected countries
+                    const availableRegions = selectedCountries.length > 0
+                      ? selectedCountries.flatMap(country => getRegionsByCountry(country))
+                      : getAllRegions();
+
+                    return (
+                      <div style={{
+                        padding: 12, border: '1px solid var(--line)',
+                        borderRadius: 'var(--radius)', background: 'var(--bg-2)',
+                        marginLeft: 64,
+                      }}>
+                        <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 10 }}>
+                          Geographic routing for this server <span style={{ color: 'var(--text-2)', fontWeight: 500 }}>(at least one required)</span>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
+                          <div className="field">
+                            <label className="field-label" style={{ fontSize: 11, marginBottom: 6 }}>
+                              Countries {selectedContinents.length > 0 && <span style={{ color: 'var(--text-3)', fontWeight: 'normal' }}>(filtered by continents)</span>}
+                            </label>
+                            <MultiSelect
+                              options={availableCountries.map(c => ({ code: c.code, name: c.name }))}
+                              value={s.geoCountries || []}
+                              onChange={(codes) => updateOrigin(s.id, { geoCountries: codes })}
+                              placeholder="Select countries..."
+                            />
+                            <div className="hint" style={{ fontSize: 10, marginTop: 4 }}>Traffic from these countries</div>
+                          </div>
+                          <div className="field">
+                            <label className="field-label" style={{ fontSize: 11, marginBottom: 6 }}>
+                              Regions {selectedCountries.length > 0 && <span style={{ color: 'var(--text-3)', fontWeight: 'normal' }}>(filtered by countries)</span>}
+                            </label>
+                            <MultiSelect
+                              options={availableRegions}
+                              value={s.geoColos || []}
+                              onChange={(codes) => updateOrigin(s.id, { geoColos: codes })}
+                              placeholder={selectedCountries.length > 0 ? "Select regions..." : "Select countries first..."}
+                              disabled={selectedCountries.length === 0}
+                            />
+                            <div className="hint" style={{ fontSize: 10, marginTop: 4 }}>Specific data center locations</div>
+                          </div>
+                          <div className="field">
+                            <label className="field-label" style={{ fontSize: 11, marginBottom: 6 }}>
+                              Continents {selectedCountries.length > 0 && <span style={{ color: 'var(--text-3)', fontWeight: 'normal' }}>(filtered by countries)</span>}
+                            </label>
+                            <MultiSelect
+                              options={availableContinents.map(c => ({ code: c.code, name: c.name }))}
+                              value={s.geoContinents || []}
+                              onChange={(codes) => updateOrigin(s.id, { geoContinents: codes })}
+                              placeholder="Select continents..."
+                            />
+                            <div className="hint" style={{ fontSize: 10, marginTop: 4 }}>Traffic from these continents</div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               ))}
               <button
