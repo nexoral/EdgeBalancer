@@ -10,6 +10,8 @@ export interface IUser extends Document {
   cloudflareApiToken?: string;
   cloudflareAccountIdIv?: string;
   cloudflareTokenIv?: string;
+  cloudflareAccountIdTag?: string;
+  cloudflareTokenTag?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -72,6 +74,14 @@ const UserSchema = new Schema<IUser>(
       default: null,
     },
     cloudflareTokenIv: {
+      type: String,
+      default: null,
+    },
+    cloudflareAccountIdTag: {
+      type: String,
+      default: null,
+    },
+    cloudflareTokenTag: {
       type: String,
       default: null,
     },

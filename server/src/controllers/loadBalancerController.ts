@@ -123,15 +123,22 @@ const getCloudflareCredentialsForUser = async (userId: string) => {
     throw error;
   }
 
-  if (!user.cloudflareAccountId || !user.cloudflareApiToken || !user.cloudflareAccountIdIv || !user.cloudflareTokenIv) {
+  if (
+    !user.cloudflareAccountId ||
+    !user.cloudflareApiToken ||
+    !user.cloudflareAccountIdIv ||
+    !user.cloudflareTokenIv ||
+    !user.cloudflareAccountIdTag ||
+    !user.cloudflareTokenTag
+  ) {
     const error = new Error('Cloudflare credentials not configured. Please complete onboarding first.');
     (error as any).statusCode = 400;
     throw error;
   }
 
   return {
-    accountId: decrypt(user.cloudflareAccountId, user.cloudflareAccountIdIv),
-    apiToken: decrypt(user.cloudflareApiToken, user.cloudflareTokenIv),
+    accountId: decrypt(user.cloudflareAccountId, user.cloudflareAccountIdIv, user.cloudflareAccountIdTag),
+    apiToken: decrypt(user.cloudflareApiToken, user.cloudflareTokenIv, user.cloudflareTokenTag),
   };
 };
 
