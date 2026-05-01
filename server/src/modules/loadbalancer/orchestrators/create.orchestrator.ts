@@ -25,9 +25,11 @@ export interface CreateLoadBalancerInput {
   origins: Array<{
     url: string;
     weight: number;
+    geoCities?: string[];
+    geoSubdivisions?: string[];
     geoCountries?: string[];
-    geoColos?: string[];
     geoContinents?: string[];
+    isFallback?: boolean;
   }>;
   strategy?: string;
   weightedEnabled?: boolean;

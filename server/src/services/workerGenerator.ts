@@ -6,9 +6,11 @@ import { normalizeWorkerScriptName } from '../utils/workerName';
 export interface OriginServer {
   url: string;
   weight: number;
+  geoCities?: string[];
+  geoSubdivisions?: string[];
   geoCountries?: string[];
-  geoColos?: string[];
   geoContinents?: string[];
+  isFallback?: boolean;
 }
 
 export type WorkerStrategy =
@@ -47,9 +49,15 @@ const toWorkerOrigin = (origin: OriginServer, index: number) => ({
   id: `origin_${index}_${createHash('sha1').update(origin.url.trim().toLowerCase()).digest('hex').slice(0, 12)}`,
   url: origin.url.trim(),
   weight: origin.weight,
+  geoCities: Array.isArray(origin.geoCities)
+    ? origin.geoCities.map((value) => value.trim().toUpperCase()).filter(Boolean)
+    : [],
+  geoSubdivisions: Array.isArray(origin.geoSubdivisions)
+    ? origin.geoSubdivisions.map((value) => value.trim().toUpperCase()).filter(Boolean)
+    : [],
   geoCountries: Array.isArray(origin.geoCountries) ? origin.geoCountries : [],
-  geoColos: Array.isArray(origin.geoColos) ? origin.geoColos : [],
   geoContinents: Array.isArray(origin.geoContinents) ? origin.geoContinents : [],
+  isFallback: origin.isFallback === true,
 });
 
 export const generateWorkerCode = (config: WorkerConfig): string => {

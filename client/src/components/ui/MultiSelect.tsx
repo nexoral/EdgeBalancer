@@ -5,6 +5,7 @@ import { useState, useRef, useEffect } from 'react';
 interface Option {
   code: string;
   name: string;
+  icon?: string;
 }
 
 interface MultiSelectProps {
@@ -75,43 +76,57 @@ export function MultiSelect({ options, value, onChange, placeholder = 'Select...
         {selectedOptions.length === 0 ? (
           <span style={{ color: 'var(--text-3)', fontSize: 12 }}>{placeholder}</span>
         ) : (
-          selectedOptions.map(opt => (
-            <span
-              key={opt.code}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '4px 8px',
-                background: 'var(--accent-dim)',
-                color: 'var(--accent)',
-                borderRadius: 4,
-                fontSize: 11,
-                fontFamily: 'var(--mono)',
-              }}
-            >
-              <span>{opt.code}</span>
-              <span style={{ color: 'var(--text-2)' }}>·</span>
-              <span style={{ fontFamily: 'inherit' }}>{opt.name}</span>
-              {!disabled && (
-                <button
-                  onClick={(e) => removeOption(opt.code, e)}
-                  style={{
-                    marginLeft: 2,
-                    padding: 0,
-                    border: 'none',
-                    background: 'none',
-                    color: 'var(--accent)',
-                    cursor: 'pointer',
-                    fontSize: 14,
-                    lineHeight: 1,
-                  }}
-                >
-                  ×
-                </button>
-              )}
-            </span>
-          ))
+          selectedOptions.map(opt => {
+            const codeMatchesName = opt.code.toLowerCase() === opt.name.toLowerCase();
+            return (
+              <span
+                key={opt.code}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '4px 8px',
+                  background: 'var(--accent-dim)',
+                  color: 'var(--accent)',
+                  borderRadius: 4,
+                  fontSize: 11,
+                  fontFamily: 'var(--mono)',
+                }}
+              >
+                {opt.icon ? (
+                  <>
+                    <span style={{ fontFamily: 'inherit', fontSize: 14 }}>{opt.icon}</span>
+                    <span style={{ fontFamily: 'inherit' }}>{opt.name}</span>
+                  </>
+                ) : codeMatchesName ? (
+                  <span style={{ fontFamily: 'inherit' }}>{opt.name}</span>
+                ) : (
+                  <>
+                    <span>{opt.code}</span>
+                    <span style={{ color: 'var(--text-2)' }}>·</span>
+                    <span style={{ fontFamily: 'inherit' }}>{opt.name}</span>
+                  </>
+                )}
+                {!disabled && (
+                  <button
+                    onClick={(e) => removeOption(opt.code, e)}
+                    style={{
+                      marginLeft: 2,
+                      padding: 0,
+                      border: 'none',
+                      background: 'none',
+                      color: 'var(--accent)',
+                      cursor: 'pointer',
+                      fontSize: 14,
+                      lineHeight: 1,
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
+              </span>
+            );
+          })
         )}
       </div>
 
@@ -202,9 +217,13 @@ export function MultiSelect({ options, value, onChange, placeholder = 'Select...
                     )}
                   </div>
                   <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--accent)' }}>
-                      {option.code}
-                    </span>
+                    {option.icon ? (
+                      <span style={{ fontSize: 16, lineHeight: 1 }}>{option.icon}</span>
+                    ) : option.code.toLowerCase() !== option.name.toLowerCase() && (
+                      <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--accent)' }}>
+                        {option.code}
+                      </span>
+                    )}
                     <span style={{ fontSize: 12, color: 'var(--text)' }}>
                       {option.name}
                     </span>

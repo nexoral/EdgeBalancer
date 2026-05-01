@@ -9,7 +9,7 @@ import { Icons } from '@/components/shared/Icons';
 import { DeploymentOverlay, DeploymentSuccessModal } from '@/components/loadbalancers/DeploymentExperience';
 import { MultiSelect } from '@/components/ui/MultiSelect';
 import { LoadBalancerVisualization } from '@/components/loadbalancers/LoadBalancerVisualization';
-import { CONTINENTS, COUNTRIES, getRegionsByCountry, getAllRegions } from '@/lib/geoData';
+import { CONTINENTS, COUNTRIES, getCitiesByCountry, getSubdivisionsByCountry, getFlagEmoji } from '@/lib/geoData';
 import { ALL_CLOUD_REGIONS, REGIONS_BY_PROVIDER } from '@/lib/cloudRegions';
 import type { LoadBalancer, LoadBalancerStrategy } from '@/types/api';
 import toast from 'react-hot-toast';
@@ -64,7 +64,7 @@ export default function EditLoadBalancerPage() {
   const [loadBalancer, setLoadBalancer] = useState<LoadBalancer | null>(null);
   const [form, setForm] = useState({
     subdomain: '',
-    origins: [{ id: 1, url: '', weight: 100, geoCountries: [], geoColos: [], geoContinents: [] }],
+    origins: [{ id: 1, url: '', weight: 100, geoCities: [], geoSubdivisions: [], geoCountries: [], geoContinents: [], isFallback: false }],
     strategy: 'round-robin',
     smartPlacement: true,
     placementHint: '',
@@ -97,9 +97,11 @@ export default function EditLoadBalancerPage() {
             id: i + 1,
             url: o.url,
             weight: o.weight || 100,
+            geoCities: o.geoCities || [],
+            geoSubdivisions: o.geoSubdivisions || [],
             geoCountries: o.geoCountries || [],
-            geoColos: o.geoColos || [],
             geoContinents: o.geoContinents || [],
+            isFallback: o.isFallback || false,
           })),
           strategy: lb.strategyValue,
           smartPlacement: lb.placement?.smartPlacement !== false,
@@ -117,7 +119,7 @@ export default function EditLoadBalancerPage() {
   const update = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
 
   const addOrigin = () => {
-    setForm(f => ({ ...f, origins: [...f.origins, { id: Date.now(), url: '', weight: 100, geoCountries: [], geoColos: [], geoContinents: [] }] }));
+    setForm(f => ({ ...f, origins: [...f.origins, { id: Date.now(), url: '', weight: 100, geoCities: [], geoSubdivisions: [], geoCountries: [], geoContinents: [], isFallback: false }] }));
   };
 
   const removeOrigin = (id: number) => {
@@ -155,9 +157,11 @@ export default function EditLoadBalancerPage() {
           return {
             url: finalUrl,
             weight: o.weight,
+            geoCities: o.geoCities || [],
+            geoSubdivisions: o.geoSubdivisions || [],
             geoCountries: o.geoCountries || [],
-            geoColos: o.geoColos || [],
             geoContinents: o.geoContinents || [],
+            isFallback: o.isFallback || false,
           };
         }),
         strategy: form.strategy,
@@ -384,28 +388,58 @@ export default function EditLoadBalancerPage() {
                   </div>
 
                   {form.strategy === 'geo-steering' && (() => {
-                    const selectedCountries = s.geoCountries || [];
-                    const selectedContinents = s.geoContinents || [];
+                    const selCountries = (s.geoCountries || []) as string[];
+                    const selContinents = (s.geoContinents || []) as string[];
 
-                    // Smart filtering: Countries ↔ Continents bidirectional
-                    // If continents selected → show only countries in those continents
-                    // If countries selected → show only continents those countries belong to
-                    const availableCountries = selectedContinents.length > 0
-                      ? COUNTRIES.filter(c => (selectedContinents as string[]).includes(c.continent))
+                    const availableCountries = selContinents.length > 0
+                      ? COUNTRIES.filter(c => selContinents.includes(c.continent))
                       : COUNTRIES;
 
-                    const availableContinents = selectedCountries.length > 0
+                    const availableContinents = selCountries.length > 0
                       ? (() => {
-                          const countryObjects = COUNTRIES.filter(c => (selectedCountries as string[]).includes(c.code));
-                          const continentCodes = [...new Set(countryObjects.map(c => c.continent))];
-                          return CONTINENTS.filter(cont => (continentCodes as string[]).includes(cont.code));
+                          const codes = new Set(
+                            COUNTRIES.filter(c => selCountries.includes(c.code)).map(c => c.continent)
+                          );
+                          return CONTINENTS.filter(c => (codes as Set<string>).has(c.code));
                         })()
                       : CONTINENTS;
 
-                    // Regions filter by selected countries
-                    const availableRegions = selectedCountries.length > 0
-                      ? selectedCountries.flatMap(country => getRegionsByCountry(country))
-                      : getAllRegions();
+                    const availableCities = selCountries.flatMap(c => getCitiesByCountry(c));
+                    const availableStates = selCountries.flatMap(c => getSubdivisionsByCountry(c));
+
+                    const onCountriesChange = (codes: string[]) => {
+                      const validCities = (s.geoCities || []).filter((city: string) =>
+                        codes.some(c => getCitiesByCountry(c).some(x => x.code === city))
+                      );
+                      const validStates = (s.geoSubdivisions || []).filter((st: string) =>
+                        codes.some(c => getSubdivisionsByCountry(c).some(x => x.code === st))
+                      );
+                      updateOrigin(s.id, { geoCountries: codes, geoCities: validCities, geoSubdivisions: validStates });
+                    };
+
+                    const onContinentsChange = (codes: string[]) => {
+                      const validCountries = selCountries.filter(c => {
+                        const country = COUNTRIES.find(co => co.code === c);
+                        return country && codes.includes(country.continent);
+                      });
+                      const validCities = (s.geoCities || []).filter((city: string) =>
+                        validCountries.some(c => getCitiesByCountry(c).some(x => x.code === city))
+                      );
+                      const validStates = (s.geoSubdivisions || []).filter((st: string) =>
+                        validCountries.some(c => getSubdivisionsByCountry(c).some(x => x.code === st))
+                      );
+                      updateOrigin(s.id, { geoContinents: codes, geoCountries: validCountries, geoCities: validCities, geoSubdivisions: validStates });
+                    };
+
+                    const toggleFallback = () => {
+                      const next = !s.isFallback;
+                      setForm(f => ({
+                        ...f,
+                        origins: f.origins.map(o =>
+                          o.id === s.id ? { ...o, isFallback: next } : { ...o, isFallback: false }
+                        ),
+                      }));
+                    };
 
                     return (
                       <div style={{
@@ -414,45 +448,93 @@ export default function EditLoadBalancerPage() {
                         marginLeft: 64,
                       }}>
                         <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 10 }}>
-                          Geographic routing for this server <span style={{ color: 'var(--text-2)', fontWeight: 500 }}>(at least one required)</span>
+                          Geographic routing for this origin —{' '}
+                          <span style={{ color: 'var(--text-2)', fontWeight: 500 }}>at least one field required, or mark as fallback</span>
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                           <div className="field">
                             <label className="field-label" style={{ fontSize: 11, marginBottom: 6 }}>
-                              Countries {selectedContinents.length > 0 && <span style={{ color: 'var(--text-3)', fontWeight: 'normal' }}>(filtered by continents)</span>}
+                              Country
+                              {selContinents.length > 0 && <span style={{ color: 'var(--text-3)', fontWeight: 'normal', marginLeft: 4 }}>· filtered by continent</span>}
                             </label>
                             <MultiSelect
-                              options={availableCountries.map(c => ({ code: c.code, name: c.name }))}
-                              value={s.geoCountries || []}
-                              onChange={(codes) => updateOrigin(s.id, { geoCountries: codes })}
+                              options={availableCountries.map(c => ({ code: c.code, name: c.name, icon: getFlagEmoji(c.code) }))}
+                              value={selCountries}
+                              onChange={onCountriesChange}
                               placeholder="Select countries..."
                             />
-                            <div className="hint" style={{ fontSize: 10, marginTop: 4 }}>Traffic from these countries</div>
                           </div>
                           <div className="field">
                             <label className="field-label" style={{ fontSize: 11, marginBottom: 6 }}>
-                              Regions {selectedCountries.length > 0 && <span style={{ color: 'var(--text-3)', fontWeight: 'normal' }}>(filtered by countries)</span>}
-                            </label>
-                            <MultiSelect
-                              options={availableRegions}
-                              value={s.geoColos || []}
-                              onChange={(codes) => updateOrigin(s.id, { geoColos: codes })}
-                              placeholder={selectedCountries.length > 0 ? "Select regions..." : "Select countries first..."}
-                              disabled={selectedCountries.length === 0}
-                            />
-                            <div className="hint" style={{ fontSize: 10, marginTop: 4 }}>Specific data center locations</div>
-                          </div>
-                          <div className="field">
-                            <label className="field-label" style={{ fontSize: 11, marginBottom: 6 }}>
-                              Continents {selectedCountries.length > 0 && <span style={{ color: 'var(--text-3)', fontWeight: 'normal' }}>(filtered by countries)</span>}
+                              Continent
+                              {selCountries.length > 0 && <span style={{ color: 'var(--text-3)', fontWeight: 'normal', marginLeft: 4 }}>· filtered by country</span>}
                             </label>
                             <MultiSelect
                               options={availableContinents.map(c => ({ code: c.code, name: c.name }))}
-                              value={s.geoContinents || []}
-                              onChange={(codes) => updateOrigin(s.id, { geoContinents: codes })}
+                              value={selContinents}
+                              onChange={onContinentsChange}
                               placeholder="Select continents..."
                             />
-                            <div className="hint" style={{ fontSize: 10, marginTop: 4 }}>Traffic from these continents</div>
+                          </div>
+
+                          <div className="field">
+                            <label className="field-label" style={{ fontSize: 11, marginBottom: 6 }}>
+                              City
+                              {selCountries.length === 0 && <span style={{ color: 'var(--text-3)', fontWeight: 'normal', marginLeft: 4 }}>· select country first</span>}
+                            </label>
+                            <MultiSelect
+                              options={availableCities}
+                              value={s.geoCities || []}
+                              onChange={(codes) => updateOrigin(s.id, { geoCities: codes })}
+                              placeholder={selCountries.length > 0 ? 'Select cities...' : 'Select country first...'}
+                              disabled={selCountries.length === 0}
+                            />
+                          </div>
+                          <div className="field">
+                            <label className="field-label" style={{ fontSize: 11, marginBottom: 6 }}>
+                              State / Province
+                              {selCountries.length === 0 && <span style={{ color: 'var(--text-3)', fontWeight: 'normal', marginLeft: 4 }}>· select country first</span>}
+                            </label>
+                            <MultiSelect
+                              options={availableStates}
+                              value={s.geoSubdivisions || []}
+                              onChange={(codes) => updateOrigin(s.id, { geoSubdivisions: codes })}
+                              placeholder={selCountries.length > 0 ? 'Select states...' : 'Select country first...'}
+                              disabled={selCountries.length === 0}
+                            />
+                          </div>
+                        </div>
+
+                        <div
+                          onClick={toggleFallback}
+                          style={{
+                            marginTop: 10, padding: '10px 12px',
+                            borderRadius: 'var(--radius)',
+                            border: `1px solid ${s.isFallback ? 'var(--accent)' : 'var(--line)'}`,
+                            background: s.isFallback ? 'var(--accent-dim)' : 'transparent',
+                            display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+                          }}
+                        >
+                          <div style={{
+                            width: 16, height: 16, borderRadius: 3, flexShrink: 0,
+                            border: `2px solid ${s.isFallback ? 'var(--accent)' : 'var(--line)'}`,
+                            background: s.isFallback ? 'var(--accent)' : 'transparent',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            {s.isFallback && (
+                              <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                                <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            )}
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 12, fontWeight: 500, color: s.isFallback ? 'var(--accent)' : 'var(--text-2)' }}>
+                              Fallback origin
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 1 }}>
+                              Catches all traffic when no geo rule matches — only one origin can be fallback
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -681,7 +763,6 @@ export default function EditLoadBalancerPage() {
               originCount={form.origins.filter(o => o.url.trim()).length}
               isGeoSteering={form.strategy === 'geo-steering' && form.origins.some(o =>
                 (o.geoCountries && o.geoCountries.length > 0) ||
-                (o.geoColos && o.geoColos.length > 0) ||
                 (o.geoContinents && o.geoContinents.length > 0)
               )}
             />

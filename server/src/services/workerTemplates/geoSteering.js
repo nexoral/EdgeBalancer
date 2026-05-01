@@ -23,24 +23,25 @@ export default {
 
 function selectGeoSteeredOrigins(origins, request) {
   const cf = request.cf || {};
-  const colo = normalizeGeoCode(cf.colo);
+  const city = normalizeGeoCode(cf.city);
+  const subdivision = normalizeGeoCode(cf.regionCode);
   const country = normalizeGeoCode(cf.country);
   const continent = normalizeGeoCode(cf.continent);
 
-  const coloMatches = origins.filter((origin) => Array.isArray(origin.geoColos) && colo && origin.geoColos.includes(colo));
-  if (coloMatches.length > 0) {
-    return rotateOrigins(coloMatches);
-  }
+  const cityMatches = origins.filter((origin) => Array.isArray(origin.geoCities) && city && origin.geoCities.includes(city));
+  if (cityMatches.length > 0) return rotateOrigins(cityMatches);
+
+  const subdivisionMatches = origins.filter((origin) => Array.isArray(origin.geoSubdivisions) && subdivision && origin.geoSubdivisions.includes(subdivision));
+  if (subdivisionMatches.length > 0) return rotateOrigins(subdivisionMatches);
 
   const countryMatches = origins.filter((origin) => Array.isArray(origin.geoCountries) && country && origin.geoCountries.includes(country));
-  if (countryMatches.length > 0) {
-    return rotateOrigins(countryMatches);
-  }
+  if (countryMatches.length > 0) return rotateOrigins(countryMatches);
 
   const continentMatches = origins.filter((origin) => Array.isArray(origin.geoContinents) && continent && origin.geoContinents.includes(continent));
-  if (continentMatches.length > 0) {
-    return rotateOrigins(continentMatches);
-  }
+  if (continentMatches.length > 0) return rotateOrigins(continentMatches);
+
+  const fallbacks = origins.filter((origin) => origin.isFallback === true);
+  if (fallbacks.length > 0) return rotateOrigins(fallbacks);
 
   return rotateOrigins(origins);
 }
@@ -57,16 +58,34 @@ function normalizeGeoCode(value) {
 
 async function proxyToOrigin(origin, request) {
   const url = new URL(request.url);
-  const originUrl = origin.url + url.pathname + url.search;
+  const originBase = new URL(origin.url);
+  const targetUrl = origin.url.replace(/\/$/, "") + url.pathname + url.search;
   const requestClone = request.clone();
   const headers = new Headers(requestClone.headers);
 
-  headers.set("Host", url.hostname);
+  headers.set("Host", originBase.hostname);
+
+  const referer = headers.get("Referer");
+  if (referer) {
+    try {
+      const refUrl = new URL(referer);
+      refUrl.protocol = originBase.protocol;
+      refUrl.host = originBase.host;
+      headers.set("Referer", refUrl.toString());
+    } catch {}
+  }
+
+  const originHeader = headers.get("Origin");
+  if (originHeader) {
+    headers.set("Origin", originBase.origin);
+  }
+
   headers.set("X-Forwarded-For", request.headers.get("cf-connecting-ip") || "");
   headers.set("X-Forwarded-Proto", url.protocol.replace(":", ""));
+  headers.delete("X-Forwarded-Host");
 
   try {
-    return await fetch(originUrl, {
+    return await fetch(targetUrl, {
       method: request.method,
       headers,
       body: allowsBody(request.method) ? requestClone.body : undefined,

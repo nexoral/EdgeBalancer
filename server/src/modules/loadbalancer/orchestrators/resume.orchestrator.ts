@@ -62,7 +62,6 @@ export async function resumeLoadBalancerOrchestrator(params: {
       url: origin.url,
       weight: origin.weight,
       geoCountries: origin.geoCountries,
-      geoColos: origin.geoColos,
       geoContinents: origin.geoContinents,
     })),
     strategy: loadBalancer.strategy as WorkerStrategy,

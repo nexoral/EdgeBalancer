@@ -34,9 +34,11 @@ export const snapshotLoadBalancer = (loadBalancer: any): LoadBalancerSnapshot =>
   origins: loadBalancer.origins.map((origin: any) => ({
     url: origin.url,
     weight: origin.weight,
+    geoCities: Array.isArray(origin.geoCities) ? origin.geoCities : [],
+    geoSubdivisions: Array.isArray(origin.geoSubdivisions) ? origin.geoSubdivisions : [],
     geoCountries: Array.isArray(origin.geoCountries) ? origin.geoCountries : [],
-    geoColos: Array.isArray(origin.geoColos) ? origin.geoColos : [],
     geoContinents: Array.isArray(origin.geoContinents) ? origin.geoContinents : [],
+    isFallback: origin.isFallback === true,
   })),
   strategy: normalizeStoredStrategy(loadBalancer.strategy, loadBalancer.weightedEnabled),
   weightedEnabled: isWeightedStrategy(loadBalancer.strategy),
@@ -67,15 +69,19 @@ export const configSignature = ({
   origins: origins.map((origin) => ({
     url: origin.url.trim(),
     weight: origin.weight,
+    geoCities: Array.isArray((origin as any).geoCities)
+      ? (origin as any).geoCities.map((value: string) => value.trim().toUpperCase()).filter(Boolean)
+      : [],
+    geoSubdivisions: Array.isArray((origin as any).geoSubdivisions)
+      ? (origin as any).geoSubdivisions.map((code: string) => code.trim().toUpperCase()).filter(Boolean)
+      : [],
     geoCountries: Array.isArray((origin as any).geoCountries)
       ? (origin as any).geoCountries.map((code: string) => code.trim().toUpperCase()).filter(Boolean)
-      : [],
-    geoColos: Array.isArray((origin as any).geoColos)
-      ? (origin as any).geoColos.map((code: string) => code.trim().toUpperCase()).filter(Boolean)
       : [],
     geoContinents: Array.isArray((origin as any).geoContinents)
       ? (origin as any).geoContinents.map((code: string) => code.trim().toUpperCase()).filter(Boolean)
       : [],
+    isFallback: (origin as any).isFallback === true,
   })),
   strategy,
   weightedEnabled,

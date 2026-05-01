@@ -45,9 +45,11 @@ export interface CloudflareZone {
 export interface OriginServer {
   url: string;
   weight: number;
+  geoCities?: string[];
+  geoSubdivisions?: string[];
   geoCountries?: string[];
-  geoColos?: string[];
   geoContinents?: string[];
+  isFallback?: boolean;
 }
 
 export interface PlacementConfig {
