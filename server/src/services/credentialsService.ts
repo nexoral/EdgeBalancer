@@ -63,8 +63,10 @@ export const saveCloudflareCredentials = async (
   await User.findByIdAndUpdate(userId, {
     cloudflareAccountId: encryptedAccountId.encrypted,
     cloudflareAccountIdIv: encryptedAccountId.iv,
+    cloudflareAccountIdTag: encryptedAccountId.tag,
     cloudflareApiToken: encryptedApiToken.encrypted,
     cloudflareTokenIv: encryptedApiToken.iv,
+    cloudflareTokenTag: encryptedApiToken.tag,
   });
 };
 
@@ -78,8 +80,8 @@ export const getCloudflareCredentials = async (userId: string): Promise<{
   }
 
   // Decrypt credentials
-  const accountId = decrypt(user.cloudflareAccountId, user.cloudflareAccountIdIv!);
-  const apiToken = decrypt(user.cloudflareApiToken, user.cloudflareTokenIv!);
+  const accountId = decrypt(user.cloudflareAccountId, user.cloudflareAccountIdIv!, user.cloudflareAccountIdTag!);
+  const apiToken = decrypt(user.cloudflareApiToken, user.cloudflareTokenIv!, user.cloudflareTokenTag!);
 
   return { accountId, apiToken };
 };
@@ -101,8 +103,8 @@ export const getMaskedCredentials = async (userId: string): Promise<{
   }
 
   // Decrypt and mask
-  const accountId = decrypt(user.cloudflareAccountId, user.cloudflareAccountIdIv!);
-  const apiToken = decrypt(user.cloudflareApiToken, user.cloudflareTokenIv!);
+  const accountId = decrypt(user.cloudflareAccountId, user.cloudflareAccountIdIv!, user.cloudflareAccountIdTag!);
+  const apiToken = decrypt(user.cloudflareApiToken, user.cloudflareTokenIv!, user.cloudflareTokenTag!);
 
   return {
     accountId: maskAccountId(accountId),

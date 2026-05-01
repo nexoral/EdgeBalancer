@@ -1,44 +1,47 @@
 import crypto from 'crypto';
 
-const ALGORITHM = 'aes-256-cbc';
-const IV_LENGTH = 16;
+const ALGORITHM = 'aes-256-gcm';
+const IV_LENGTH = 12;
+const KEY_LENGTH_HEX = 64;
 
 export interface EncryptedData {
   encrypted: string;
   iv: string;
+  tag: string;
 }
 
-export const encrypt = (text: string): EncryptedData => {
+const getKey = (): Buffer => {
   const key = process.env.ENCRYPTION_KEY;
-  if (!key || key.length !== 64) {
+  if (!key || key.length !== KEY_LENGTH_HEX) {
     throw new Error('ENCRYPTION_KEY must be a 32-byte hex string (64 characters)');
   }
+  return Buffer.from(key, 'hex');
+};
 
-  const keyBuffer = Buffer.from(key, 'hex');
+export const encrypt = (text: string): EncryptedData => {
   const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipheriv(ALGORITHM, keyBuffer, iv);
+  const cipher = crypto.createCipheriv(ALGORITHM, getKey(), iv);
 
-  let encrypted = cipher.update(text, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
+  const encrypted = Buffer.concat([cipher.update(text, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
 
   return {
-    encrypted,
+    encrypted: encrypted.toString('hex'),
     iv: iv.toString('hex'),
+    tag: tag.toString('hex'),
   };
 };
 
-export const decrypt = (encrypted: string, ivHex: string): string => {
-  const key = process.env.ENCRYPTION_KEY;
-  if (!key || key.length !== 64) {
-    throw new Error('ENCRYPTION_KEY must be a 32-byte hex string (64 characters)');
-  }
-
-  const keyBuffer = Buffer.from(key, 'hex');
+export const decrypt = (encrypted: string, ivHex: string, tagHex: string): string => {
   const iv = Buffer.from(ivHex, 'hex');
-  const decipher = crypto.createDecipheriv(ALGORITHM, keyBuffer, iv);
+  const tag = Buffer.from(tagHex, 'hex');
+  const decipher = crypto.createDecipheriv(ALGORITHM, getKey(), iv);
+  decipher.setAuthTag(tag);
 
-  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-  decrypted += decipher.final('utf8');
+  const decrypted = Buffer.concat([
+    decipher.update(Buffer.from(encrypted, 'hex')),
+    decipher.final(),
+  ]);
 
-  return decrypted;
+  return decrypted.toString('utf8');
 };
