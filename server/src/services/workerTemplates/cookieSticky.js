@@ -83,16 +83,34 @@ function withStickyCookie(response, cookieHeader) {
 
 async function proxyToOrigin(origin, request) {
   const url = new URL(request.url);
-  const originUrl = origin.url + url.pathname + url.search;
+  const originBase = new URL(origin.url);
+  const targetUrl = origin.url.replace(/\/$/, "") + url.pathname + url.search;
   const requestClone = request.clone();
   const headers = new Headers(requestClone.headers);
 
-  headers.set("Host", url.hostname);
+  headers.set("Host", originBase.hostname);
+
+  const referer = headers.get("Referer");
+  if (referer) {
+    try {
+      const refUrl = new URL(referer);
+      refUrl.protocol = originBase.protocol;
+      refUrl.host = originBase.host;
+      headers.set("Referer", refUrl.toString());
+    } catch {}
+  }
+
+  const originHeader = headers.get("Origin");
+  if (originHeader) {
+    headers.set("Origin", originBase.origin);
+  }
+
   headers.set("X-Forwarded-For", request.headers.get("cf-connecting-ip") || "");
   headers.set("X-Forwarded-Proto", url.protocol.replace(":", ""));
+  headers.delete("X-Forwarded-Host");
 
   try {
-    return await fetch(originUrl, {
+    return await fetch(targetUrl, {
       method: request.method,
       headers,
       body: allowsBody(request.method) ? requestClone.body : undefined,

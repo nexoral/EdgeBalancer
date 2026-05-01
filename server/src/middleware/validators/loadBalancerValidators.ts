@@ -5,8 +5,9 @@ const DOMAIN_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9-_.]*[a-zA-Z0-9]$/;
 const SUBDOMAIN_REGEX = /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$/;
 const REGION_REGEX = /^(aws|gcp|azure):[a-z0-9-]+$/;
 const GEO_COUNTRY_REGEX = /^[A-Z]{2}$/;
-const GEO_COLO_REGEX = /^[A-Z0-9]{3,4}$/;
 const GEO_CONTINENT_REGEX = /^(AF|AN|AS|EU|NA|OC|SA)$/;
+const GEO_SUBDIVISION_REGEX = /^[A-Z0-9]{1,3}$/;
+const GEO_CITY_REGEX = /^[A-Z0-9 .'\-]{2,64}$/;
 
 const SUPPORTED_STRATEGIES = new Set([
   'round-robin',
@@ -77,19 +78,27 @@ export const createLoadBalancerValidator = [
           errors.push('Weight must be an integer between 1 and 100');
         }
 
+        if (origin?.geoCities !== undefined) {
+          if (!Array.isArray(origin.geoCities)) {
+            errors.push('geoCities must be an array');
+          } else if (origin.geoCities.some((value: any) => typeof value !== 'string' || !GEO_CITY_REGEX.test(value.trim().toUpperCase()))) {
+            errors.push('Geo city names must be 2-64 characters: letters, digits, spaces, hyphens, dots, or apostrophes');
+          }
+        }
+
+        if (origin?.geoSubdivisions !== undefined) {
+          if (!Array.isArray(origin.geoSubdivisions)) {
+            errors.push('geoSubdivisions must be an array');
+          } else if (origin.geoSubdivisions.some((code: any) => typeof code !== 'string' || !GEO_SUBDIVISION_REGEX.test(code.trim().toUpperCase()))) {
+            errors.push('Geo subdivision codes must be 1-3 uppercase letters or digits (ISO 3166-2 subdivision)');
+          }
+        }
+
         if (origin?.geoCountries !== undefined) {
           if (!Array.isArray(origin.geoCountries)) {
             errors.push('geoCountries must be an array');
           } else if (origin.geoCountries.some((code: any) => typeof code !== 'string' || !GEO_COUNTRY_REGEX.test(code.trim()))) {
             errors.push('Geo country codes must use 2-letter uppercase ISO country codes');
-          }
-        }
-
-        if (origin?.geoColos !== undefined) {
-          if (!Array.isArray(origin.geoColos)) {
-            errors.push('geoColos must be an array');
-          } else if (origin.geoColos.some((code: any) => typeof code !== 'string' || !GEO_COLO_REGEX.test(code.trim()))) {
-            errors.push('Geo colo codes must use 3-4 uppercase letters or digits');
           }
         }
 
@@ -101,17 +110,31 @@ export const createLoadBalancerValidator = [
           }
         }
 
+        if (origin?.isFallback !== undefined && typeof origin.isFallback !== 'boolean') {
+          errors.push('isFallback must be a boolean');
+        }
+
         // Validate geo-steering requirements
         if (strategy === 'geo-steering') {
+          const hasCities = Array.isArray(origin.geoCities) && origin.geoCities.length > 0;
+          const hasSubdivisions = Array.isArray(origin.geoSubdivisions) && origin.geoSubdivisions.length > 0;
           const hasCountries = Array.isArray(origin.geoCountries) && origin.geoCountries.length > 0;
-          const hasColos = Array.isArray(origin.geoColos) && origin.geoColos.length > 0;
           const hasContinents = Array.isArray(origin.geoContinents) && origin.geoContinents.length > 0;
+          const isFallback = origin?.isFallback === true;
 
-          if (!hasCountries && !hasColos && !hasContinents) {
-            errors.push(`Origin ${index + 1} requires at least one geo field (countries, regions, or continents) when using geo-steering`);
+          if (!isFallback && !hasCities && !hasSubdivisions && !hasCountries && !hasContinents) {
+            errors.push(`Origin ${index + 1} requires at least one geo field (cities, subdivisions, countries, or continents), or must be marked as a fallback origin`);
           }
         }
       });
+
+      // Enforce single fallback origin for geo-steering
+      if (strategy === 'geo-steering') {
+        const fallbackCount = origins.filter((o: any) => o?.isFallback === true).length;
+        if (fallbackCount > 1) {
+          errors.push('Only one origin can be marked as the fallback origin');
+        }
+      }
     }
 
     if (!strategy) {

@@ -21,16 +21,38 @@ function selectRoundRobinOrigin(origins) {
 
 async function proxyToOrigin(origin, request) {
   const url = new URL(request.url);
-  const originUrl = origin.url + url.pathname + url.search;
+  const originBase = new URL(origin.url);
+  const targetUrl = origin.url.replace(/\/$/, "") + url.pathname + url.search;
   const requestClone = request.clone();
   const headers = new Headers(requestClone.headers);
 
-  headers.set("Host", url.hostname);
+  // Set Host to the origin's hostname — fixes virtual-host routing and image/favicon loading
+  headers.set("Host", originBase.hostname);
+
+  // Rewrite Referer so the origin never sees the load balancer's domain
+  const referer = headers.get("Referer");
+  if (referer) {
+    try {
+      const refUrl = new URL(referer);
+      refUrl.protocol = originBase.protocol;
+      refUrl.host = originBase.host;
+      headers.set("Referer", refUrl.toString());
+    } catch {}
+  }
+
+  // Rewrite Origin header to the actual origin domain
+  const originHeader = headers.get("Origin");
+  if (originHeader) {
+    headers.set("Origin", originBase.origin);
+  }
+
+  // Forward real client IP; strip any header that reveals the load balancer domain
   headers.set("X-Forwarded-For", request.headers.get("cf-connecting-ip") || "");
   headers.set("X-Forwarded-Proto", url.protocol.replace(":", ""));
+  headers.delete("X-Forwarded-Host");
 
   try {
-    return await fetch(originUrl, {
+    return await fetch(targetUrl, {
       method: request.method,
       headers,
       body: allowsBody(request.method) ? requestClone.body : undefined,

@@ -4,9 +4,11 @@ import { WORKER_SCRIPT_NAME_REGEX } from '../utils/workerName';
 export interface IOriginServer {
   url: string;
   weight: number;
+  geoCities?: string[];
+  geoSubdivisions?: string[];
   geoCountries?: string[];
-  geoColos?: string[];
   geoContinents?: string[];
+  isFallback?: boolean;
 }
 
 export interface IPlacementConfig {
@@ -65,9 +67,11 @@ const LoadBalancerSchema = new Schema<ILoadBalancer>(
         {
           url: { type: String, required: true },
           weight: { type: Number, required: true, default: 1, min: 1 },
+          geoCities: { type: [String], default: [] },
+          geoSubdivisions: { type: [String], default: [] },
           geoCountries: { type: [String], default: [] },
-          geoColos: { type: [String], default: [] },
           geoContinents: { type: [String], default: [] },
+          isFallback: { type: Boolean, default: false },
         },
       ],
       required: [true, 'At least one origin server is required'],

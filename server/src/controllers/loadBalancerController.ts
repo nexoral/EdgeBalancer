@@ -190,7 +190,6 @@ const snapshotLoadBalancer = (loadBalancer: any) => ({
     url: origin.url,
     weight: origin.weight,
     geoCountries: Array.isArray(origin.geoCountries) ? origin.geoCountries : [],
-    geoColos: Array.isArray(origin.geoColos) ? origin.geoColos : [],
     geoContinents: Array.isArray(origin.geoContinents) ? origin.geoContinents : [],
   })),
   strategy: normalizeStoredStrategy(loadBalancer.strategy, loadBalancer.weightedEnabled),
@@ -224,9 +223,6 @@ const configSignature = ({
     weight: origin.weight,
     geoCountries: Array.isArray((origin as any).geoCountries)
       ? (origin as any).geoCountries.map((code: string) => code.trim().toUpperCase()).filter(Boolean)
-      : [],
-    geoColos: Array.isArray((origin as any).geoColos)
-      ? (origin as any).geoColos.map((code: string) => code.trim().toUpperCase()).filter(Boolean)
       : [],
     geoContinents: Array.isArray((origin as any).geoContinents)
       ? (origin as any).geoContinents.map((code: string) => code.trim().toUpperCase()).filter(Boolean)

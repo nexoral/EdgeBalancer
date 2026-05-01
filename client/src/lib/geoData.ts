@@ -187,6 +187,426 @@ export const REGIONS_BY_COUNTRY: Record<string, Array<{ code: string; name: stri
   ],
 };
 
+// City names exactly as returned by cf.city (Cloudflare/IPinfo, title case).
+// Worker generator uppercases these before embedding; worker also uppercases cf.city at runtime.
+export const CITIES_BY_COUNTRY: Record<string, Array<{ code: string; name: string }>> = {
+  'IN': [
+    { code: 'Kolkata', name: 'Kolkata' },
+    { code: 'Mumbai', name: 'Mumbai' },
+    { code: 'Delhi', name: 'Delhi' },
+    { code: 'Bangalore', name: 'Bangalore' },
+    { code: 'Chennai', name: 'Chennai' },
+    { code: 'Hyderabad', name: 'Hyderabad' },
+    { code: 'Pune', name: 'Pune' },
+    { code: 'Ahmedabad', name: 'Ahmedabad' },
+    { code: 'Surat', name: 'Surat' },
+    { code: 'Jaipur', name: 'Jaipur' },
+    { code: 'Lucknow', name: 'Lucknow' },
+    { code: 'Kanpur', name: 'Kanpur' },
+    { code: 'Patna', name: 'Patna' },
+    { code: 'Chandigarh', name: 'Chandigarh' },
+    { code: 'Kochi', name: 'Kochi' },
+    { code: 'Coimbatore', name: 'Coimbatore' },
+  ],
+  'US': [
+    { code: 'New York', name: 'New York' },
+    { code: 'Los Angeles', name: 'Los Angeles' },
+    { code: 'Chicago', name: 'Chicago' },
+    { code: 'Houston', name: 'Houston' },
+    { code: 'Dallas', name: 'Dallas' },
+    { code: 'San Francisco', name: 'San Francisco' },
+    { code: 'Seattle', name: 'Seattle' },
+    { code: 'Atlanta', name: 'Atlanta' },
+    { code: 'Boston', name: 'Boston' },
+    { code: 'Miami', name: 'Miami' },
+    { code: 'Phoenix', name: 'Phoenix' },
+    { code: 'Denver', name: 'Denver' },
+    { code: 'Washington', name: 'Washington' },
+    { code: 'Philadelphia', name: 'Philadelphia' },
+    { code: 'Detroit', name: 'Detroit' },
+    { code: 'Minneapolis', name: 'Minneapolis' },
+    { code: 'Las Vegas', name: 'Las Vegas' },
+    { code: 'San Jose', name: 'San Jose' },
+    { code: 'Newark', name: 'Newark' },
+  ],
+  'GB': [
+    { code: 'London', name: 'London' },
+    { code: 'Manchester', name: 'Manchester' },
+    { code: 'Birmingham', name: 'Birmingham' },
+    { code: 'Edinburgh', name: 'Edinburgh' },
+    { code: 'Glasgow', name: 'Glasgow' },
+    { code: 'Bristol', name: 'Bristol' },
+    { code: 'Leeds', name: 'Leeds' },
+  ],
+  'DE': [
+    { code: 'Berlin', name: 'Berlin' },
+    { code: 'Munich', name: 'Munich' },
+    { code: 'Hamburg', name: 'Hamburg' },
+    { code: 'Frankfurt', name: 'Frankfurt' },
+    { code: 'Cologne', name: 'Cologne' },
+    { code: 'Stuttgart', name: 'Stuttgart' },
+    { code: 'Düsseldorf', name: 'Düsseldorf' },
+  ],
+  'FR': [
+    { code: 'Paris', name: 'Paris' },
+    { code: 'Lyon', name: 'Lyon' },
+    { code: 'Marseille', name: 'Marseille' },
+    { code: 'Toulouse', name: 'Toulouse' },
+    { code: 'Nice', name: 'Nice' },
+    { code: 'Bordeaux', name: 'Bordeaux' },
+  ],
+  'JP': [
+    { code: 'Tokyo', name: 'Tokyo' },
+    { code: 'Osaka', name: 'Osaka' },
+    { code: 'Kyoto', name: 'Kyoto' },
+    { code: 'Yokohama', name: 'Yokohama' },
+    { code: 'Nagoya', name: 'Nagoya' },
+    { code: 'Sapporo', name: 'Sapporo' },
+    { code: 'Fukuoka', name: 'Fukuoka' },
+  ],
+  'AU': [
+    { code: 'Sydney', name: 'Sydney' },
+    { code: 'Melbourne', name: 'Melbourne' },
+    { code: 'Brisbane', name: 'Brisbane' },
+    { code: 'Perth', name: 'Perth' },
+    { code: 'Adelaide', name: 'Adelaide' },
+    { code: 'Canberra', name: 'Canberra' },
+  ],
+  'CA': [
+    { code: 'Toronto', name: 'Toronto' },
+    { code: 'Vancouver', name: 'Vancouver' },
+    { code: 'Montreal', name: 'Montreal' },
+    { code: 'Calgary', name: 'Calgary' },
+    { code: 'Ottawa', name: 'Ottawa' },
+    { code: 'Edmonton', name: 'Edmonton' },
+  ],
+  'BR': [
+    { code: 'São Paulo', name: 'São Paulo' },
+    { code: 'Rio de Janeiro', name: 'Rio de Janeiro' },
+    { code: 'Brasília', name: 'Brasília' },
+    { code: 'Salvador', name: 'Salvador' },
+    { code: 'Fortaleza', name: 'Fortaleza' },
+    { code: 'Belo Horizonte', name: 'Belo Horizonte' },
+  ],
+  'SG': [
+    { code: 'Singapore', name: 'Singapore' },
+  ],
+  'NL': [
+    { code: 'Amsterdam', name: 'Amsterdam' },
+    { code: 'Rotterdam', name: 'Rotterdam' },
+    { code: 'The Hague', name: 'The Hague' },
+  ],
+  'CN': [
+    { code: 'Beijing', name: 'Beijing' },
+    { code: 'Shanghai', name: 'Shanghai' },
+    { code: 'Guangzhou', name: 'Guangzhou' },
+    { code: 'Shenzhen', name: 'Shenzhen' },
+    { code: 'Chengdu', name: 'Chengdu' },
+    { code: 'Wuhan', name: 'Wuhan' },
+    { code: 'Hangzhou', name: 'Hangzhou' },
+  ],
+  'HK': [
+    { code: 'Hong Kong', name: 'Hong Kong' },
+  ],
+  'AE': [
+    { code: 'Dubai', name: 'Dubai' },
+    { code: 'Abu Dhabi', name: 'Abu Dhabi' },
+  ],
+  'KR': [
+    { code: 'Seoul', name: 'Seoul' },
+    { code: 'Busan', name: 'Busan' },
+    { code: 'Incheon', name: 'Incheon' },
+  ],
+  'TH': [
+    { code: 'Bangkok', name: 'Bangkok' },
+    { code: 'Chiang Mai', name: 'Chiang Mai' },
+  ],
+  'MY': [
+    { code: 'Kuala Lumpur', name: 'Kuala Lumpur' },
+    { code: 'Penang', name: 'Penang' },
+    { code: 'Johor Bahru', name: 'Johor Bahru' },
+  ],
+  'ZA': [
+    { code: 'Johannesburg', name: 'Johannesburg' },
+    { code: 'Cape Town', name: 'Cape Town' },
+    { code: 'Durban', name: 'Durban' },
+  ],
+  'NG': [
+    { code: 'Lagos', name: 'Lagos' },
+    { code: 'Abuja', name: 'Abuja' },
+  ],
+  'TR': [
+    { code: 'Istanbul', name: 'Istanbul' },
+    { code: 'Ankara', name: 'Ankara' },
+    { code: 'Izmir', name: 'Izmir' },
+  ],
+  'RU': [
+    { code: 'Moscow', name: 'Moscow' },
+    { code: 'Saint Petersburg', name: 'Saint Petersburg' },
+    { code: 'Novosibirsk', name: 'Novosibirsk' },
+  ],
+  'IL': [
+    { code: 'Tel Aviv', name: 'Tel Aviv' },
+    { code: 'Jerusalem', name: 'Jerusalem' },
+  ],
+  'SA': [
+    { code: 'Riyadh', name: 'Riyadh' },
+    { code: 'Jeddah', name: 'Jeddah' },
+    { code: 'Mecca', name: 'Mecca' },
+  ],
+  'EG': [
+    { code: 'Cairo', name: 'Cairo' },
+    { code: 'Alexandria', name: 'Alexandria' },
+  ],
+  'AR': [
+    { code: 'Buenos Aires', name: 'Buenos Aires' },
+    { code: 'Córdoba', name: 'Córdoba' },
+  ],
+  'MX': [
+    { code: 'Mexico City', name: 'Mexico City' },
+    { code: 'Guadalajara', name: 'Guadalajara' },
+    { code: 'Monterrey', name: 'Monterrey' },
+  ],
+  'PK': [
+    { code: 'Karachi', name: 'Karachi' },
+    { code: 'Lahore', name: 'Lahore' },
+    { code: 'Islamabad', name: 'Islamabad' },
+  ],
+  'BD': [
+    { code: 'Dhaka', name: 'Dhaka' },
+    { code: 'Chittagong', name: 'Chittagong' },
+  ],
+  'PH': [
+    { code: 'Manila', name: 'Manila' },
+    { code: 'Quezon City', name: 'Quezon City' },
+  ],
+  'ID': [
+    { code: 'Jakarta', name: 'Jakarta' },
+    { code: 'Surabaya', name: 'Surabaya' },
+    { code: 'Bandung', name: 'Bandung' },
+  ],
+  'VN': [
+    { code: 'Ho Chi Minh City', name: 'Ho Chi Minh City' },
+    { code: 'Hanoi', name: 'Hanoi' },
+  ],
+  'TW': [
+    { code: 'Taipei', name: 'Taipei' },
+    { code: 'Kaohsiung', name: 'Kaohsiung' },
+  ],
+  'NZ': [
+    { code: 'Auckland', name: 'Auckland' },
+    { code: 'Wellington', name: 'Wellington' },
+  ],
+  'KE': [
+    { code: 'Nairobi', name: 'Nairobi' },
+  ],
+  'LK': [
+    { code: 'Colombo', name: 'Colombo' },
+  ],
+  'CO': [
+    { code: 'Bogotá', name: 'Bogotá' },
+    { code: 'Medellín', name: 'Medellín' },
+  ],
+  'CL': [
+    { code: 'Santiago', name: 'Santiago' },
+  ],
+  'PE': [
+    { code: 'Lima', name: 'Lima' },
+  ],
+  'ES': [
+    { code: 'Madrid', name: 'Madrid' },
+    { code: 'Barcelona', name: 'Barcelona' },
+    { code: 'Valencia', name: 'Valencia' },
+  ],
+  'IT': [
+    { code: 'Rome', name: 'Rome' },
+    { code: 'Milan', name: 'Milan' },
+    { code: 'Naples', name: 'Naples' },
+  ],
+  'PT': [
+    { code: 'Lisbon', name: 'Lisbon' },
+    { code: 'Porto', name: 'Porto' },
+  ],
+  'SE': [
+    { code: 'Stockholm', name: 'Stockholm' },
+    { code: 'Gothenburg', name: 'Gothenburg' },
+  ],
+  'NO': [
+    { code: 'Oslo', name: 'Oslo' },
+  ],
+  'DK': [
+    { code: 'Copenhagen', name: 'Copenhagen' },
+  ],
+  'FI': [
+    { code: 'Helsinki', name: 'Helsinki' },
+  ],
+  'PL': [
+    { code: 'Warsaw', name: 'Warsaw' },
+    { code: 'Kraków', name: 'Kraków' },
+  ],
+  'CH': [
+    { code: 'Zurich', name: 'Zurich' },
+    { code: 'Geneva', name: 'Geneva' },
+  ],
+  'AT': [
+    { code: 'Vienna', name: 'Vienna' },
+  ],
+  'BE': [
+    { code: 'Brussels', name: 'Brussels' },
+    { code: 'Antwerp', name: 'Antwerp' },
+  ],
+  'IE': [
+    { code: 'Dublin', name: 'Dublin' },
+  ],
+};
+
+export function getCitiesByCountry(countryCode: string) {
+  return CITIES_BY_COUNTRY[countryCode] || [];
+}
+
+// ISO 3166-2 subdivision codes as returned by cf.regionCode (subdivision part only, e.g. "WB" not "IN-WB")
+export const SUBDIVISIONS_BY_COUNTRY: Record<string, Array<{ code: string; name: string }>> = {
+  'IN': [
+    { code: 'AP', name: 'Andhra Pradesh' },
+    { code: 'AS', name: 'Assam' },
+    { code: 'BR', name: 'Bihar' },
+    { code: 'DL', name: 'Delhi' },
+    { code: 'GJ', name: 'Gujarat' },
+    { code: 'HR', name: 'Haryana' },
+    { code: 'JH', name: 'Jharkhand' },
+    { code: 'KA', name: 'Karnataka' },
+    { code: 'KL', name: 'Kerala' },
+    { code: 'MP', name: 'Madhya Pradesh' },
+    { code: 'MH', name: 'Maharashtra' },
+    { code: 'OR', name: 'Odisha' },
+    { code: 'PB', name: 'Punjab' },
+    { code: 'RJ', name: 'Rajasthan' },
+    { code: 'TN', name: 'Tamil Nadu' },
+    { code: 'TS', name: 'Telangana' },
+    { code: 'UP', name: 'Uttar Pradesh' },
+    { code: 'WB', name: 'West Bengal' },
+  ],
+  'US': [
+    { code: 'AZ', name: 'Arizona' },
+    { code: 'CA', name: 'California' },
+    { code: 'CO', name: 'Colorado' },
+    { code: 'FL', name: 'Florida' },
+    { code: 'GA', name: 'Georgia' },
+    { code: 'IL', name: 'Illinois' },
+    { code: 'MA', name: 'Massachusetts' },
+    { code: 'MI', name: 'Michigan' },
+    { code: 'MN', name: 'Minnesota' },
+    { code: 'NJ', name: 'New Jersey' },
+    { code: 'NV', name: 'Nevada' },
+    { code: 'NY', name: 'New York' },
+    { code: 'NC', name: 'North Carolina' },
+    { code: 'OH', name: 'Ohio' },
+    { code: 'OR', name: 'Oregon' },
+    { code: 'PA', name: 'Pennsylvania' },
+    { code: 'TN', name: 'Tennessee' },
+    { code: 'TX', name: 'Texas' },
+    { code: 'VA', name: 'Virginia' },
+    { code: 'WA', name: 'Washington' },
+  ],
+  'GB': [
+    { code: 'ENG', name: 'England' },
+    { code: 'NIR', name: 'Northern Ireland' },
+    { code: 'SCT', name: 'Scotland' },
+    { code: 'WLS', name: 'Wales' },
+  ],
+  'DE': [
+    { code: 'BE', name: 'Berlin' },
+    { code: 'BW', name: 'Baden-Württemberg' },
+    { code: 'BY', name: 'Bavaria' },
+    { code: 'HE', name: 'Hesse' },
+    { code: 'HH', name: 'Hamburg' },
+    { code: 'NI', name: 'Lower Saxony' },
+    { code: 'NW', name: 'North Rhine-Westphalia' },
+    { code: 'SN', name: 'Saxony' },
+  ],
+  'FR': [
+    { code: 'ARA', name: 'Auvergne-Rhône-Alpes' },
+    { code: 'BRE', name: 'Brittany' },
+    { code: 'IDF', name: 'Île-de-France' },
+    { code: 'NAQ', name: 'Nouvelle-Aquitaine' },
+    { code: 'OCC', name: 'Occitanie' },
+    { code: 'PAC', name: 'Provence-Alpes-Côte d\'Azur' },
+  ],
+  'JP': [
+    { code: '01', name: 'Hokkaido' },
+    { code: '13', name: 'Tokyo' },
+    { code: '14', name: 'Kanagawa' },
+    { code: '23', name: 'Aichi' },
+    { code: '26', name: 'Kyoto' },
+    { code: '27', name: 'Osaka' },
+    { code: '40', name: 'Fukuoka' },
+  ],
+  'AU': [
+    { code: 'ACT', name: 'Australian Capital Territory' },
+    { code: 'NSW', name: 'New South Wales' },
+    { code: 'QLD', name: 'Queensland' },
+    { code: 'SA', name: 'South Australia' },
+    { code: 'VIC', name: 'Victoria' },
+    { code: 'WA', name: 'Western Australia' },
+  ],
+  'CA': [
+    { code: 'AB', name: 'Alberta' },
+    { code: 'BC', name: 'British Columbia' },
+    { code: 'MB', name: 'Manitoba' },
+    { code: 'ON', name: 'Ontario' },
+    { code: 'QC', name: 'Quebec' },
+  ],
+  'BR': [
+    { code: 'BA', name: 'Bahia' },
+    { code: 'CE', name: 'Ceará' },
+    { code: 'DF', name: 'Distrito Federal' },
+    { code: 'MG', name: 'Minas Gerais' },
+    { code: 'RJ', name: 'Rio de Janeiro' },
+    { code: 'SP', name: 'São Paulo' },
+  ],
+  'CN': [
+    { code: 'BJ', name: 'Beijing' },
+    { code: 'GD', name: 'Guangdong' },
+    { code: 'HB', name: 'Hubei' },
+    { code: 'SC', name: 'Sichuan' },
+    { code: 'SH', name: 'Shanghai' },
+    { code: 'ZJ', name: 'Zhejiang' },
+  ],
+  'RU': [
+    { code: 'MOW', name: 'Moscow' },
+    { code: 'SPE', name: 'Saint Petersburg' },
+    { code: 'NVS', name: 'Novosibirsk Oblast' },
+  ],
+  'MX': [
+    { code: 'CMX', name: 'Mexico City' },
+    { code: 'JAL', name: 'Jalisco' },
+    { code: 'NLE', name: 'Nuevo León' },
+  ],
+  'ZA': [
+    { code: 'GP', name: 'Gauteng' },
+    { code: 'KZN', name: 'KwaZulu-Natal' },
+    { code: 'WC', name: 'Western Cape' },
+  ],
+  'KR': [
+    { code: '11', name: 'Seoul' },
+    { code: '26', name: 'Busan' },
+    { code: '28', name: 'Incheon' },
+  ],
+  'TR': [
+    { code: '34', name: 'Istanbul' },
+    { code: '06', name: 'Ankara' },
+    { code: '35', name: 'Izmir' },
+  ],
+};
+
+export function getSubdivisionsByCountry(countryCode: string) {
+  return SUBDIVISIONS_BY_COUNTRY[countryCode] || [];
+}
+
+export function getFlagEmoji(countryCode: string): string {
+  return [...countryCode.toUpperCase()].map(c => String.fromCodePoint(0x1F1E6 - 65 + c.charCodeAt(0))).join('');
+}
+
 // Helper function to get regions for a country
 export function getRegionsByCountry(countryCode: string) {
   return REGIONS_BY_COUNTRY[countryCode] || [];
