@@ -6,9 +6,6 @@ compatibility_flags = ["nodejs_compat"]
 keep_vars = true
 preview_urls = false
 
-[vars]
-NEXT_PUBLIC_API_URL = "https://apiedge.nexoral.in"
-
 [[rules]]
 type = "ESModule"
 globs = ["**/*.js", "**/*.mjs"]
