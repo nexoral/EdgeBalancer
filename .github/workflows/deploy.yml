@@ -181,6 +181,7 @@ jobs:
           username: ${{ vars.SERVER_USER }}
           key: ${{ vars.SSH_PRIVATE_KEY }}
           script: |
+            export PATH="$PATH:/usr/sbin"
             # Check if nginx is installed
             if ! command -v nginx &> /dev/null; then
                 echo "Error: nginx is not installed on the server"
