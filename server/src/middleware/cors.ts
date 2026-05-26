@@ -24,3 +24,4 @@ export const registerCors = (app: FastifyInstance) => {
     }
   });
 };
+
