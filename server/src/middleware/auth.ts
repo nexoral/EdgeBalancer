@@ -21,3 +21,4 @@ export const authenticate: AppHandler = async (req, res, next): Promise<void> =>
     next(error as Error);
   }
 };
+
