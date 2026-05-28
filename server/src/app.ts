@@ -1,4 +1,5 @@
 import Fastify from 'fastify';
+import mongoose from 'mongoose';
 import { registerCors } from './middleware/cors';
 import { registerErrorHandler } from './middleware/errorHandler';
 import idempotencyPlugin from './middleware/fastifyIdempotency';
@@ -42,11 +43,14 @@ export const buildServer = async () => {
     }
   });
 
-  // Health check
-  app.get('/health', async () => ({
-    success: true,
-    message: 'Server is running',
-  }));
+  // Health check — used by rolling deploy to verify instance is ready
+  app.get('/health', async (_, reply) => {
+    const dbReady = mongoose.connection.readyState === 1;
+    if (!dbReady) {
+      return reply.code(503).send({ status: 'degraded', db: 'disconnected' });
+    }
+    return reply.send({ status: 'ok' });
+  });
 
   // Register routes
   await app.register(authRoutes, { prefix: '/api/auth' });
