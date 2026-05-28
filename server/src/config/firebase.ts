@@ -101,3 +101,4 @@ export const verifyFirebaseToken = async (idToken: string): Promise<admin.auth.D
 export const getFirebaseAdmin = (): admin.app.App | null => {
   return firebaseAdmin;
 };
+
