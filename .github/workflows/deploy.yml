@@ -69,35 +69,9 @@ jobs:
           # Show archive size
           ls -lh ../server-deploy.tar.gz
 
-      - name: Deploy to VPS
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ vars.SERVER_HOST }}
-          username: ${{ vars.SERVER_USER }}
-          key: ${{ vars.SSH_PRIVATE_KEY }}
-          script: |
-            # Check if PM2 is installed
-            if ! command -v pm2 &> /dev/null; then
-                echo "Installing PM2..."
-                npm install -g pm2
-            fi
-
-            # Stop and delete existing PM2 process if running
-            if pm2 list | grep -q "edgebalancer-api"; then
-                echo "Stopping existing PM2 process..."
-                pm2 delete edgebalancer-api || true
-            fi
-
-            # Backup old deployment
-            if [ -d ~/edgebalancer ]; then
-                echo "Backing up old deployment..."
-                rm -rf ~/edgebalancer.backup
-                mv ~/edgebalancer ~/edgebalancer.backup
-            fi
-
-            # Create fresh directory
-            echo "Creating deployment directory..."
-            mkdir -p ~/edgebalancer
+      - name: Get server version
+        id: version
+        run: echo "version=$(node -p "require('./server/package.json').version")" >> $GITHUB_OUTPUT
 
       - name: Transfer files to VPS
         uses: appleboy/scp-action@v0.1.7
@@ -108,47 +82,58 @@ jobs:
           source: "server-deploy.tar.gz"
           target: "~/"
 
-      - name: Extract and setup application
+      - name: Extract, configure, and deploy
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ vars.SERVER_HOST }}
           username: ${{ vars.SERVER_USER }}
           key: ${{ vars.SSH_PRIVATE_KEY }}
           script: |
-            # Extract files (includes node_modules from CI/CD)
-            echo "Extracting deployment archive..."
-            cd ~/edgebalancer
-            tar -xzf ~/server-deploy.tar.gz
+            VERSION="${{ steps.version.outputs.version }}"
+            DEPLOY_DIR="$HOME/edgebalancer-$VERSION"
+
+            if ! command -v pm2 &> /dev/null; then
+                npm install -g pm2
+            fi
+
+            # --- old server still running during all of this ---
+
+            rm -rf "$DEPLOY_DIR"
+            mkdir -p "$DEPLOY_DIR"
+
+            echo "Extracting v$VERSION..."
+            tar -xzf ~/server-deploy.tar.gz -C "$DEPLOY_DIR"
             rm ~/server-deploy.tar.gz
 
-            # Verify extraction
-            echo "Deployment contents:"
-            ls -la
+            echo "Writing .env..."
+            echo "MONGODB_URI=${{ secrets.MONGODB_URI }}" > "$DEPLOY_DIR/.env"
+            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> "$DEPLOY_DIR/.env"
+            echo "ENCRYPTION_KEY=${{ secrets.ENCRYPTION_KEY }}" >> "$DEPLOY_DIR/.env"
+            echo "PORT=${{ secrets.PORT }}" >> "$DEPLOY_DIR/.env"
+            echo "CLIENT_URL=${{ secrets.CLIENT_URL }}" >> "$DEPLOY_DIR/.env"
+            echo "CORS_ORIGIN=${{ secrets.CORS_ORIGIN }}" >> "$DEPLOY_DIR/.env"
+            echo "NODE_ENV=${{ secrets.NODE_ENV }}" >> "$DEPLOY_DIR/.env"
+            echo "FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}" >> "$DEPLOY_DIR/.env"
+            echo "FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }}" >> "$DEPLOY_DIR/.env"
+            echo 'FIREBASE_PRIVATE_KEY=${{ secrets.FIREBASE_PRIVATE_KEY }}' >> "$DEPLOY_DIR/.env"
 
-            # Create .env file from GitHub Secrets
-            echo "Creating .env file..."
-            echo "MONGODB_URI=${{ secrets.MONGODB_URI }}" > .env
-            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
-            echo "ENCRYPTION_KEY=${{ secrets.ENCRYPTION_KEY }}" >> .env
-            echo "PORT=${{ secrets.PORT }}" >> .env
-            echo "CLIENT_URL=${{ secrets.CLIENT_URL }}" >> .env
-            echo "CORS_ORIGIN=${{ secrets.CORS_ORIGIN }}" >> .env
-            echo "NODE_ENV=${{ secrets.NODE_ENV }}" >> .env
-            echo "FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}" >> .env
-            echo "FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }}" >> .env
-            echo 'FIREBASE_PRIVATE_KEY=${{ secrets.FIREBASE_PRIVATE_KEY }}' >> .env
+            # --- downtime window starts here ---
 
-            # Start application with PM2
-            echo "Starting application with PM2..."
-            pm2 start dist/index.js --name edgebalancer-api
+            if pm2 list | grep -q "edgebalancer-api"; then
+                pm2 delete edgebalancer-api || true
+            fi
+
+            pm2 start "$DEPLOY_DIR/dist/index.js" --name edgebalancer-api
             pm2 save
-
-            # Setup PM2 startup script (only runs if not already configured)
             pm2 startup | tail -n 1 | bash || true
 
-            # Show status
+            # --- downtime window ends here ---
+
+            find "$HOME" -maxdepth 1 -type d -name 'edgebalancer-*' ! -name "edgebalancer-$VERSION" -exec rm -rf {} +
+            rm -rf "$HOME/edgebalancer" "$HOME/edgebalancer.backup"
+
             pm2 list
-            echo "Server deployment completed successfully!"
+            echo "Deployed v$VERSION successfully!"
 
   # Job 2: Deploy Nginx Configuration
   deploy-nginx:
