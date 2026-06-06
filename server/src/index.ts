@@ -17,6 +17,7 @@ const requiredEnvVars = [
   'CLIENT_URL',
 ];
 
+
 const missingEnvVars = requiredEnvVars.filter((varName) => !process.env[varName]);
 
 if (missingEnvVars.length > 0) {

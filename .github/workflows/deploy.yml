@@ -119,13 +119,13 @@ jobs:
 
             # --- downtime window starts here ---
 
+            cd "$DEPLOY_DIR"
             if pm2 list | grep -q "edgebalancer-api"; then
-                pm2 delete edgebalancer-api || true
+                pm2 delete edgebalancer-api
             fi
 
-            pm2 start "$DEPLOY_DIR/dist/index.js" --name edgebalancer-api
+            pm2 start dist/index.js --name edgebalancer-api --cwd "$DEPLOY_DIR" --update-env
             pm2 save
-            pm2 startup | tail -n 1 | bash || true
 
             # --- downtime window ends here ---
 
