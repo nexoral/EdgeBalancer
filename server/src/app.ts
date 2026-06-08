@@ -10,7 +10,7 @@ import loadBalancerRoutes from './modules/loadbalancer/loadbalancer.routes';
 
 export const buildServer = async () => {
   const app = Fastify({
-    logger: {
+    logger: process.env.NODE_ENV === 'test' ? false : {
       level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
       transport: process.env.NODE_ENV === 'development' ? {
         target: 'pino-pretty',
@@ -22,7 +22,7 @@ export const buildServer = async () => {
     },
     requestIdHeader: 'x-request-id',
     requestIdLogLabel: 'reqId',
-    ignoreTrailingSlash: true,
+    routerOptions: { ignoreTrailingSlash: true },
     disableRequestLogging: false,
     bodyLimit: 1048576, // 1MB
   });
