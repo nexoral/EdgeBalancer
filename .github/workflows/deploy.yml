@@ -19,6 +19,7 @@ jobs:
       server: ${{ steps.filter.outputs.server }}
       client: ${{ steps.filter.outputs.client }}
       config: ${{ steps.filter.outputs.config }}
+      client: ${{ steps.filter.outputs.client }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -34,6 +35,8 @@ jobs:
               - 'client/**'
             config:
               - 'config/**'
+            client:
+              - 'client/**'
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Stage 2 — Tests (client-test and server-test run in PARALLEL)
