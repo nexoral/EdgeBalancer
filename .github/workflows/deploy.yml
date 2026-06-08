@@ -9,14 +9,16 @@ on:
       - 'config/**'
 
 jobs:
-  # Detect which files changed
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Stage 1 — Detect which paths changed
+  # ─────────────────────────────────────────────────────────────────────────────
   changes:
     name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
       server: ${{ steps.filter.outputs.server }}
-      config: ${{ steps.filter.outputs.config }}
       client: ${{ steps.filter.outputs.client }}
+      config: ${{ steps.filter.outputs.config }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -28,14 +30,41 @@ jobs:
           filters: |
             server:
               - 'server/**'
-            config:
-              - 'config/**'
             client:
               - 'client/**'
+            config:
+              - 'config/**'
 
-  # Job 1: Run Test Suite (always runs on server/** changes)
-  test:
-    name: Run Test Suite
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Stage 2 — Tests (client-test and server-test run in PARALLEL)
+  # ─────────────────────────────────────────────────────────────────────────────
+  client-test:
+    name: Client — Build + Test
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.client == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install dependencies
+        run: cd client && npm ci
+
+      - name: Build client
+        run: cd client && npm run build
+
+      - name: Run tests
+        run: cd client && npm test
+
+  server-test:
+    name: Server — Build + Test
     runs-on: ubuntu-latest
     needs: changes
     if: needs.changes.outputs.server == 'true'
@@ -61,38 +90,23 @@ jobs:
       - name: Install dependencies
         run: cd server && npm ci
 
+      - name: Build server
+        run: cd server && npm run build
+
       - name: Run tests
         run: cd server && npm test
 
-  # Job 2: Run Client Test Suite
-  client-test:
-    name: Run Client Test Suite
-    runs-on: ubuntu-latest
-    needs: changes
-    if: needs.changes.outputs.client == 'true'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: client/package-lock.json
-
-      - name: Install dependencies
-        run: cd client && npm ci
-
-      - name: Run tests
-        run: cd client && npm test
-
-  # Job 3: Deploy Server
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Stage 3 — Deploys (deploy-server and deploy-nginx run in PARALLEL)
+  #           Both wait for all tests to finish, but neither waits for the other.
+  # ─────────────────────────────────────────────────────────────────────────────
   deploy-server:
     name: Deploy Server to VPS
     runs-on: ubuntu-latest
-    needs: [changes, test]
-    if: needs.changes.outputs.server == 'true' && needs.test.result == 'success'
+    needs: [changes, server-test]
+    if: |
+      needs.changes.outputs.server == 'true' &&
+      needs.server-test.result == 'success'
 
     steps:
       - name: Checkout code
@@ -105,33 +119,27 @@ jobs:
           cache: 'npm'
           cache-dependency-path: server/package-lock.json
 
-      - name: Build server and install dependencies
+      - name: Build server and install production dependencies
         run: |
           cd server
           npm ci
           npm run build
 
-          # Remove dev dependencies to reduce deployment size
+          # Swap to production-only node_modules to reduce archive size
           rm -rf node_modules
-
-          # Install production dependencies
-          echo "Installing production dependencies..."
           npm ci --only=production
 
-      - name: Create deployment archive with node_modules
+      - name: Create deployment archive
         run: |
           cd server
-          echo "Creating deployment archive..."
           tar -czf ../server-deploy.tar.gz dist/ node_modules/ package.json package-lock.json
-
-          # Show archive size
           ls -lh ../server-deploy.tar.gz
 
       - name: Get server version
         id: version
         run: echo "version=$(node -p "require('./server/package.json').version")" >> $GITHUB_OUTPUT
 
-      - name: Transfer files to VPS
+      - name: Transfer archive to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ vars.SERVER_HOST }}
@@ -140,7 +148,7 @@ jobs:
           source: "server-deploy.tar.gz"
           target: "~/"
 
-      - name: Extract, configure, and deploy
+      - name: Extract, configure, and restart on VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ vars.SERVER_HOST }}
@@ -193,15 +201,14 @@ jobs:
             pm2 list
             echo "Deployed v$VERSION successfully!"
 
-  # Job 2: Deploy Nginx Configuration
   deploy-nginx:
     name: Deploy Nginx Config to VPS
     runs-on: ubuntu-latest
-    needs: [changes, deploy-server]
+    needs: [changes, server-test]
     if: |
       always() &&
       needs.changes.outputs.config == 'true' &&
-      (needs.deploy-server.result == 'success' || needs.deploy-server.result == 'skipped')
+      (needs.server-test.result == 'success' || needs.server-test.result == 'skipped')
 
     steps:
       - name: Checkout code
@@ -265,40 +272,29 @@ jobs:
                 echo "certbot installed"
             fi
 
-            # Extract domain from nginx config
             DOMAIN=$(grep -oP 'server_name\s+\K[^;]+' /etc/nginx/conf.d/edgebalancer.conf | tr -d ' ')
             echo "Domain from config: $DOMAIN"
 
-            # Check if certificate already exists
             if sudo certbot certificates 2>/dev/null | grep -q "Certificate Name: $DOMAIN"; then
                 echo "✓ SSL certificate already exists for $DOMAIN — auto-renews at 30 days before expiry"
             else
                 echo "No SSL certificate found for $DOMAIN"
                 echo "Obtaining SSL certificate from Let's Encrypt..."
 
-                # Obtain certificate using nginx plugin (automatic config)
                 sudo certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos --email ${{ vars.LETSENCRYPT_EMAIL }} --redirect
 
                 if [ $? -eq 0 ]; then
                     echo "✓ SSL certificate obtained successfully!"
                     echo "Certificate will auto-renew via systemd timer"
-                    echo ""
-                    echo "Your site is now accessible at:"
-                    echo "  https://$DOMAIN"
+                    echo "Your site is now accessible at: https://$DOMAIN"
                 else
                     echo "✗ Failed to obtain SSL certificate"
-                    echo "Common issues:"
-                    echo "  - DNS not pointing to this server"
-                    echo "  - Port 80/443 blocked by firewall"
-                    echo "  - Domain not resolving correctly"
-                    echo ""
-                    echo "You can manually obtain certificate later:"
-                    echo "  sudo certbot --nginx -d $DOMAIN"
+                    echo "Common issues: DNS not pointing to this server, port 80/443 blocked, domain not resolving"
+                    echo "Run manually: sudo certbot --nginx -d $DOMAIN"
                     exit 1
                 fi
             fi
 
-            # Show certificate status
             echo ""
             echo "Certificate Status:"
             sudo certbot certificates
