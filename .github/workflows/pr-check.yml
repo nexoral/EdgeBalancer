@@ -1,14 +1,11 @@
 name: PR Check and Auto-Merge
 
-# Runs on PRs targeting any branch EXCEPT main.
-# (PRs to main are handled by deploy.yml which tests + deploys.)
+# Runs on ALL pull requests to any branch.
 # Flow: client tests → server tests → auto-merge + delete branch
 
 on:
   pull_request:
     types: [opened, synchronize, reopened]
-    branches-ignore:
-      - main
 
 permissions:
   contents: write        # needed to merge and delete the branch
