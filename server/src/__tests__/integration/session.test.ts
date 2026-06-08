@@ -96,12 +96,13 @@ describe('createSession', () => {
 // ─── deactivateSessionsForLoadBalancer ───────────────────────────────────────
 
 describe('deactivateSessionsForLoadBalancer', () => {
-  it('sets isActive=false and loadBalancerId=null on matching active sessions', async () => {
+  it('sets isActive=false, loadBalancerId=null, and clears content on matching active sessions', async () => {
     await createSession(BASE_SESSION);
     await deactivateSessionsForLoadBalancer(FAKE_LB_ID);
     const s = await Session.findOne({});
     expect(s!.isActive).toBe(false);
     expect(s!.loadBalancerId).toBeNull();
+    expect(s!.content).toBe('');
   });
 
   it('deactivates all active sessions for the given LB', async () => {

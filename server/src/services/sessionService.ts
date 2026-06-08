@@ -33,6 +33,6 @@ export async function createSession(params: CreateSessionParams): Promise<void> 
 export async function deactivateSessionsForLoadBalancer(loadBalancerId: string): Promise<void> {
   await Session.updateMany(
     { loadBalancerId: new mongoose.Types.ObjectId(loadBalancerId), isActive: true },
-    { $set: { isActive: false, loadBalancerId: null } }
+    { $set: { isActive: false, loadBalancerId: null, content: '' } }
   );
 }
