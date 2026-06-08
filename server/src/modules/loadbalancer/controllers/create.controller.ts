@@ -22,6 +22,7 @@ export async function createLoadBalancer(req: Request, res: Response, next: Next
 
     const result = await createLoadBalancerOrchestrator({
       userId,
+      userEmail: req.user?.email ?? null,
       operationId,
       input: req.body,
       cancellation,

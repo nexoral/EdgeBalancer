@@ -20,6 +20,7 @@ import { toHostname, assertHostnameAvailable } from '../services/hostname.servic
 import { snapshotLoadBalancer, configSignature } from '../services/snapshot.service';
 import { isNameUpdateAttempt } from '../services/validation.service';
 import { formatLoadBalancer } from '../services/formatter.service';
+import { createSession, deactivateSessionsForLoadBalancer } from '../../../services/sessionService';
 import type { RequestCancellation } from '../../../utils/requestCancellation';
 
 export interface UpdateLoadBalancerInput {
@@ -54,11 +55,12 @@ export interface UpdateLoadBalancerResult {
 
 export async function updateLoadBalancerOrchestrator(params: {
   userId: string;
+  userEmail: string | null;
   loadBalancerId: string;
   input: UpdateLoadBalancerInput;
   cancellation: RequestCancellation;
 }): Promise<UpdateLoadBalancerResult> {
-  const { userId, loadBalancerId, input, cancellation } = params;
+  const { userId, userEmail, loadBalancerId, input, cancellation } = params;
 
   // Load existing load balancer
   const loadBalancer = await LoadBalancer.findById(loadBalancerId);
@@ -127,6 +129,9 @@ export async function updateLoadBalancerOrchestrator(params: {
     placement: previousSnapshot.placement,
   });
 
+  // Always generate worker code — needed for session log regardless of what changed
+  const workerCode = generateWorkerCode({ origins, strategy: nextStrategy });
+
   // No changes detected
   if (!hostnameChanged && !configChanged) {
     return {
@@ -165,11 +170,6 @@ export async function updateLoadBalancerOrchestrator(params: {
   try {
     // Step 1: Deploy new Worker version (if config changed)
     if (configChanged) {
-      const workerCode = generateWorkerCode({
-        origins,
-        strategy: nextStrategy,
-      });
-
       const versionId = await uploadWorkerVersion({
         accountId,
         apiToken,
@@ -266,6 +266,25 @@ export async function updateLoadBalancerOrchestrator(params: {
         scriptName: persistedLoadBalancer.scriptName,
         keepInactiveCount: 2,
       });
+    }
+
+    // Step 6: Deactivate old session(s) and save new session log
+    try {
+      await deactivateSessionsForLoadBalancer(loadBalancerId);
+      await createSession({
+        userId,
+        email: userEmail,
+        content: workerCode,
+        loadBalancerName: persistedLoadBalancer.name,
+        domain,
+        subdomain: subdomain ?? null,
+        strategy: nextStrategy,
+        placement: placement ?? null,
+        actionType: 'edit',
+        loadBalancerId,
+      });
+    } catch (sessionError: any) {
+      console.error(`Session log failed (update): ${sessionError.message}`);
     }
 
     return {
