@@ -1,22 +1,49 @@
 name: PR Check and Auto-Merge
 
-# Runs on ALL pull requests to any branch.
-# Flow: client (build → test) → server (build → test) → auto-merge + delete branch
+# Flow: detect changes → [client-test ‖ server-test] parallel → auto-merge
+# If no changes in a area → that test is skipped, merge still proceeds.
+# If zero changes total → all tests skipped, PR merges immediately.
 
 on:
   pull_request:
     types: [opened, synchronize, reopened]
 
 permissions:
-  contents: write        # needed to merge and delete the branch
-  pull-requests: write   # needed to approve / merge the PR via gh cli
+  contents: write
+  pull-requests: write
 
 jobs:
-  # ─── Step 1: Client Build + Tests ───────────────────────────────────────────
-  client-test:
-    name: Client Build + Tests
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Stage 1 — Detect which paths changed
+  # ─────────────────────────────────────────────────────────────────────────────
+  changes:
+    name: Detect Changes
     runs-on: ubuntu-latest
+    outputs:
+      client: ${{ steps.filter.outputs.client }}
+      server: ${{ steps.filter.outputs.server }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
+      - name: Check for file changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            client:
+              - 'client/**'
+            server:
+              - 'server/**'
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Stage 2 — Tests run in PARALLEL, each skipped if no relevant files changed
+  # ─────────────────────────────────────────────────────────────────────────────
+  client-test:
+    name: Client — Build + Test
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.client == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -37,11 +64,11 @@ jobs:
       - name: Run client tests
         run: cd client && npm test
 
-  # ─── Step 2: Server Build + Tests (runs only after client job passes) ─────────
   server-test:
-    name: Server Build + Tests
+    name: Server — Build + Test
     runs-on: ubuntu-latest
-    needs: client-test
+    needs: changes
+    if: needs.changes.outputs.server == 'true'
     env:
       JWT_SECRET: test-jwt-secret-for-ci-do-not-use-in-production
       ENCRYPTION_KEY: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
@@ -49,8 +76,7 @@ jobs:
       PORT: "0"
       CLIENT_URL: http://localhost:3000
       CORS_ORIGIN: http://localhost:3000
-      # MONGODB_URI is set at runtime by mongodb-memory-server in globalSetup
-
+      # MONGODB_URI is provided at runtime by mongodb-memory-server in globalSetup
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -71,13 +97,17 @@ jobs:
       - name: Run server tests
         run: cd server && npm test
 
-  # ─── Step 3: Auto-Merge and Delete Branch (only when both test jobs succeed) ─
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Stage 3 — Merge only when all applicable tests pass (or were skipped)
+  # ─────────────────────────────────────────────────────────────────────────────
   auto-merge:
     name: Auto-Merge PR and Delete Branch
     runs-on: ubuntu-latest
-    needs: [client-test, server-test]
-    if: success()
-
+    needs: [changes, client-test, server-test]
+    if: |
+      always() &&
+      (needs.client-test.result == 'success' || needs.client-test.result == 'skipped') &&
+      (needs.server-test.result == 'success' || needs.server-test.result == 'skipped')
     steps:
       - name: Merge PR and delete source branch
         run: |
