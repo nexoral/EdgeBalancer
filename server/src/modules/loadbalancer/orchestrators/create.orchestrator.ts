@@ -15,6 +15,7 @@ import { ensureWorkerNameAvailability } from '../services/validation.service';
 import { normalizeStrategy, isWeightedStrategy } from '../services/strategy.service';
 import { toHostname, assertHostnameAvailable } from '../services/hostname.service';
 import { formatLoadBalancer } from '../services/formatter.service';
+import { createSession } from '../../../services/sessionService';
 import type { RequestCancellation } from '../../../utils/requestCancellation';
 
 export interface CreateLoadBalancerInput {
@@ -49,17 +50,19 @@ export interface CreateLoadBalancerResult {
 
 export async function createLoadBalancerOrchestrator(params: {
   userId: string;
+  userEmail: string | null;
   operationId: string | undefined;
   input: CreateLoadBalancerInput;
   cancellation: RequestCancellation;
 }): Promise<CreateLoadBalancerResult> {
-  const { userId, input, cancellation } = params;
+  const { userId, userEmail, input, cancellation } = params;
 
   let createdLoadBalancer: any = null;
   let scriptName = '';
   let hostname = '';
   let accountId = '';
   let apiToken = '';
+  let workerCode = '';
 
   const {
     name,
@@ -90,7 +93,7 @@ export async function createLoadBalancerOrchestrator(params: {
     cancellation.throwIfCancelled();
 
     // Step 3: Generate Worker code
-    const workerCode = generateWorkerCode({
+    workerCode = generateWorkerCode({
       origins,
       strategy: nextStrategy,
     });
@@ -141,6 +144,24 @@ export async function createLoadBalancerOrchestrator(params: {
       workerUrl,
     });
     cancellation.throwIfCancelled();
+
+    // Step 8: Save session log (non-blocking — failure must not roll back the LB)
+    try {
+      await createSession({
+        userId,
+        email: userEmail,
+        content: workerCode,
+        loadBalancerName: name,
+        domain,
+        subdomain: subdomain ?? null,
+        strategy: nextStrategy,
+        placement: placement ?? null,
+        actionType: 'create',
+        loadBalancerId: createdLoadBalancer._id.toString(),
+      });
+    } catch (sessionError: any) {
+      console.error(`Session log failed (create): ${sessionError.message}`);
+    }
 
     return {
       success: true,

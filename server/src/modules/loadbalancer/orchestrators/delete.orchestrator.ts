@@ -8,6 +8,7 @@
 import { LoadBalancer } from '../../../models/LoadBalancer';
 import { deleteWorker } from '../../../services/workerDeletion';
 import { getCloudflareCredentialsForUser } from '../services/credentials.service';
+import { deactivateSessionsForLoadBalancer } from '../../../services/sessionService';
 
 export interface DeleteLoadBalancerResult {
   success: boolean;
@@ -58,6 +59,13 @@ export async function deleteLoadBalancerOrchestrator(params: {
 
   // Delete from database
   await LoadBalancer.findByIdAndDelete(loadBalancerId);
+
+  // Deactivate related sessions
+  try {
+    await deactivateSessionsForLoadBalancer(loadBalancerId);
+  } catch (sessionError: any) {
+    console.error(`Session deactivation failed (delete): ${sessionError.message}`);
+  }
 
   return {
     success: true,
