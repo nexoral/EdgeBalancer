@@ -46,3 +46,4 @@ export async function listSessions(req: Request, res: Response, next: NextFuncti
     next(error as Error);
   }
 }
+
