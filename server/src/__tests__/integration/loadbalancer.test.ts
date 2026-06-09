@@ -352,3 +352,96 @@ describe('POST /api/loadbalancers/validate-hostname', () => {
     expect(res.statusCode).toBe(401);
   });
 });
+
+// ─── exposeRealOrigin ─────────────────────────────────────────────────────────
+
+describe('exposeRealOrigin — create and retrieve', () => {
+  it('stores exposeRealOrigin: true and returns it in the response', async () => {
+    const { cookie } = await createTestUser();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/loadbalancers',
+      headers: cookie,
+      payload: { ...VALID_PAYLOAD, exposeRealOrigin: true },
+    });
+    expect(res.statusCode).toBe(201);
+    expect(res.json().data.loadBalancer.exposeRealOrigin).toBe(true);
+  });
+
+  it('defaults exposeRealOrigin to false when omitted from payload', async () => {
+    const { cookie } = await createTestUser();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/loadbalancers',
+      headers: cookie,
+      payload: VALID_PAYLOAD,
+    });
+    expect(res.statusCode).toBe(201);
+    expect(res.json().data.loadBalancer.exposeRealOrigin).toBe(false);
+  });
+
+  it('persists exposeRealOrigin: true in the database document', async () => {
+    const { cookie } = await createTestUser();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/loadbalancers',
+      headers: cookie,
+      payload: { ...VALID_PAYLOAD, exposeRealOrigin: true },
+    });
+    expect(res.statusCode).toBe(201);
+    const lbId = res.json().data.loadBalancer.id;
+    const doc = await LoadBalancer.findById(lbId);
+    expect(doc?.exposeRealOrigin).toBe(true);
+  });
+
+  it('GET returns exposeRealOrigin: true after create', async () => {
+    const { user, cookie } = await createTestUser();
+    const lb = await LoadBalancer.create({
+      userId: user._id,
+      name: 'expose-test',
+      scriptName: 'expose-test',
+      domain: 'example.com',
+      origins: [{ url: 'https://origin.example.com', weight: 100 }],
+      strategy: 'round-robin',
+      weightedEnabled: false,
+      exposeRealOrigin: true,
+      placement: { smartPlacement: false },
+      zoneId: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4',
+      status: 'active',
+      workerUrl: 'https://expose-test.example.com',
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/loadbalancers/${lb._id}`,
+      headers: cookie,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.loadBalancer.exposeRealOrigin).toBe(true);
+  });
+
+  it('GET returns exposeRealOrigin: false for legacy LB without the field', async () => {
+    const { user, cookie } = await createTestUser();
+    const lb = await LoadBalancer.create({
+      userId: user._id,
+      name: 'legacy-test',
+      scriptName: 'legacy-test',
+      domain: 'example.com',
+      origins: [{ url: 'https://origin.example.com', weight: 100 }],
+      strategy: 'round-robin',
+      weightedEnabled: false,
+      placement: { smartPlacement: false },
+      zoneId: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4',
+      status: 'active',
+      workerUrl: 'https://legacy-test.example.com',
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/loadbalancers/${lb._id}`,
+      headers: cookie,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.loadBalancer.exposeRealOrigin).toBe(false);
+  });
+});
