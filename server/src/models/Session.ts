@@ -74,7 +74,7 @@ const SessionSchema = new Schema<ISession>(
   }
 );
 
-SessionSchema.index({ userId: 1 });
+SessionSchema.index({ userId: 1, _id: -1 });
 SessionSchema.index({ loadBalancerId: 1 });
 
 export const Session = mongoose.model<ISession>('Session', SessionSchema);

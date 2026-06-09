@@ -62,11 +62,9 @@ export default function DashboardPage() {
   };
 
   const handleNav = (id: string) => {
-    if (id === 'settings') {
-      router.push('/settings');
-    } else {
-      setCurrentNav(id);
-    }
+    if (id === 'settings') router.push('/settings');
+    else if (id === 'sessions') router.push('/sessions');
+    else setCurrentNav(id);
   };
 
   const handleLogout = async () => {

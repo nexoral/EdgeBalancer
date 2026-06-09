@@ -132,6 +132,22 @@ class ApiClient {
     return response.data;
   }
 
+  // Session endpoints
+  async getSessions(params?: { cursor?: string; limit?: number; filter?: 'all' | 'active' | 'inactive' }): Promise<ApiResponse> {
+    const query = new URLSearchParams();
+    if (params?.cursor) query.set('cursor', params.cursor);
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.filter && params.filter !== 'all') query.set('filter', params.filter);
+    const qs = query.toString();
+    const response = await this.client.get(`/sessions${qs ? `?${qs}` : ''}`);
+    return response.data;
+  }
+
+  async getSessionScript(id: string): Promise<ApiResponse> {
+    const response = await this.client.get(`/sessions/${id}/script`);
+    return response.data;
+  }
+
   // User/Profile endpoints
   async changePassword(data: any): Promise<ApiResponse> {
     const response = await this.client.put('/user/password', data);
