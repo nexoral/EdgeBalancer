@@ -86,6 +86,25 @@ export interface LoadBalancer {
   updatedAt: string;
 }
 
+export interface Session {
+  _id: string;
+  loadBalancerName: string;
+  domain: string;
+  subdomain: string | null;
+  strategy: string;
+  actionType: 'create' | 'edit';
+  isActive: boolean;
+  loadBalancerId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SessionsResponse {
+  sessions: Session[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
 export interface CreateLoadBalancerRequest {
   name: string;
   zoneId: string;

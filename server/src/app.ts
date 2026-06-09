@@ -7,6 +7,7 @@ import authRoutes from './routes/authRoutes';
 import cloudflareRoutes from './routes/cloudflareRoutes';
 import userRoutes from './routes/userRoutes';
 import loadBalancerRoutes from './modules/loadbalancer/loadbalancer.routes';
+import sessionRoutes from './modules/session/session.routes';
 
 export const buildServer = async () => {
   const app = Fastify({
@@ -57,6 +58,7 @@ export const buildServer = async () => {
   await app.register(cloudflareRoutes, { prefix: '/api/cloudflare' });
   await app.register(userRoutes, { prefix: '/api/user' });
   await app.register(loadBalancerRoutes, { prefix: '/api/loadbalancers' });
+  await app.register(sessionRoutes, { prefix: '/api/sessions' });
 
   return app;
 };
