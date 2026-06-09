@@ -22,6 +22,7 @@ export function formatLoadBalancer(lb: any) {
     strategy: getStrategyLabel(lb.strategy),
     strategyValue: normalizeStoredStrategy(lb.strategy, lb.weightedEnabled),
     weightedEnabled: isWeightedStrategy(lb.strategy),
+    exposeRealOrigin: lb.exposeRealOrigin ?? false,
     placement: lb.placement,
     status: lb.status,
     workerUrl: lb.workerUrl,

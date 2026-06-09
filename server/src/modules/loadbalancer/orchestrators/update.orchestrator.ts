@@ -39,6 +39,7 @@ export interface UpdateLoadBalancerInput {
   }>;
   strategy?: string;
   weightedEnabled?: boolean;
+  exposeRealOrigin?: boolean;
   placement?: {
     smartPlacement?: boolean;
     region?: string;
@@ -94,6 +95,7 @@ export async function updateLoadBalancerOrchestrator(params: {
     origins,
     strategy,
     weightedEnabled,
+    exposeRealOrigin,
     placement,
   } = input;
 
@@ -121,16 +123,18 @@ export async function updateLoadBalancerOrchestrator(params: {
     origins,
     strategy: nextStrategy,
     weightedEnabled: nextWeightedEnabled,
+    exposeRealOrigin: exposeRealOrigin ?? false,
     placement,
   }) !== configSignature({
     origins: previousSnapshot.origins,
     strategy: previousSnapshot.strategy,
     weightedEnabled: previousSnapshot.weightedEnabled,
+    exposeRealOrigin: previousSnapshot.exposeRealOrigin,
     placement: previousSnapshot.placement,
   });
 
   // Always generate worker code — needed for session log regardless of what changed
-  const workerCode = generateWorkerCode({ origins, strategy: nextStrategy });
+  const workerCode = generateWorkerCode({ origins, strategy: nextStrategy, exposeRealOrigin: exposeRealOrigin ?? false });
 
   // No changes detected
   if (!hostnameChanged && !configChanged) {
@@ -226,6 +230,7 @@ export async function updateLoadBalancerOrchestrator(params: {
           origins,
           strategy: nextStrategy,
           weightedEnabled: nextWeightedEnabled,
+          exposeRealOrigin: exposeRealOrigin ?? false,
           placement,
           workerUrl: `https://${nextHostname}`,
           status: 'active',
@@ -280,6 +285,7 @@ export async function updateLoadBalancerOrchestrator(params: {
         subdomain: subdomain ?? null,
         strategy: nextStrategy,
         placement: placement ?? null,
+        exposeRealOrigin: exposeRealOrigin ?? null,
         actionType: 'edit',
         loadBalancerId,
       });
@@ -349,6 +355,7 @@ export async function updateLoadBalancerOrchestrator(params: {
               origins: previousSnapshot.origins,
               strategy: previousSnapshot.strategy,
               weightedEnabled: previousSnapshot.weightedEnabled,
+              exposeRealOrigin: previousSnapshot.exposeRealOrigin,
               placement: previousSnapshot.placement,
               workerUrl: previousSnapshot.workerUrl,
               status: previousSnapshot.status,

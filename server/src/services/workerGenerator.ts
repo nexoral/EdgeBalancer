@@ -26,6 +26,7 @@ export type WorkerStrategy =
 export interface WorkerConfig {
   origins: OriginServer[];
   strategy: WorkerStrategy;
+  exposeRealOrigin?: boolean;
 }
 
 const TEMPLATE_MAP: Record<WorkerStrategy, string> = {
@@ -66,6 +67,7 @@ export const generateWorkerCode = (config: WorkerConfig): string => {
     origins: config.origins.map(toWorkerOrigin),
     stickyCookieName: 'edgebalancer_origin',
     stickyMaxAge: 86400,
+    exposeRealOrigin: config.exposeRealOrigin ?? false,
   };
 
   return template.replace('__CONFIG__', JSON.stringify(workerConfig, null, 2));

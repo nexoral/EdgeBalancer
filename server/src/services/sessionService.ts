@@ -10,6 +10,7 @@ interface CreateSessionParams {
   subdomain?: string | null;
   strategy: string;
   placement?: { smartPlacement?: boolean; region?: string } | null;
+  exposeRealOrigin?: boolean | null;
   actionType: 'create' | 'edit';
   loadBalancerId: string;
 }
@@ -24,6 +25,7 @@ export async function createSession(params: CreateSessionParams): Promise<void> 
     subdomain: params.subdomain ?? null,
     strategy: params.strategy,
     placement: params.placement ?? null,
+    exposeRealOrigin: params.exposeRealOrigin ?? null,
     actionType: params.actionType,
     isActive: true,
     loadBalancerId: new mongoose.Types.ObjectId(params.loadBalancerId),

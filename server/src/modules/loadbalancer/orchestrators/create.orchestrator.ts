@@ -34,6 +34,7 @@ export interface CreateLoadBalancerInput {
   }>;
   strategy?: string;
   weightedEnabled?: boolean;
+  exposeRealOrigin?: boolean;
   placement?: {
     smartPlacement?: boolean;
     region?: string;
@@ -72,6 +73,7 @@ export async function createLoadBalancerOrchestrator(params: {
     origins,
     strategy,
     weightedEnabled,
+    exposeRealOrigin,
     placement,
   } = input;
 
@@ -96,6 +98,7 @@ export async function createLoadBalancerOrchestrator(params: {
     workerCode = generateWorkerCode({
       origins,
       strategy: nextStrategy,
+      exposeRealOrigin: exposeRealOrigin ?? false,
     });
 
     // Step 4: Deploy Worker to Cloudflare
@@ -138,6 +141,7 @@ export async function createLoadBalancerOrchestrator(params: {
       origins,
       strategy: nextStrategy,
       weightedEnabled: nextWeightedEnabled,
+      exposeRealOrigin: exposeRealOrigin ?? false,
       placement,
       zoneId,
       status: 'active',
@@ -156,6 +160,7 @@ export async function createLoadBalancerOrchestrator(params: {
         subdomain: subdomain ?? null,
         strategy: nextStrategy,
         placement: placement ?? null,
+        exposeRealOrigin: exposeRealOrigin ?? null,
         actionType: 'create',
         loadBalancerId: createdLoadBalancer._id.toString(),
       });

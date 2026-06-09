@@ -27,6 +27,7 @@ export function snapshotLoadBalancer(loadBalancer: any) {
     })),
     strategy: normalizeStoredStrategy(loadBalancer.strategy, loadBalancer.weightedEnabled),
     weightedEnabled: isWeightedStrategy(loadBalancer.strategy),
+    exposeRealOrigin: loadBalancer.exposeRealOrigin ?? false,
     placement: {
       smartPlacement: loadBalancer.placement?.smartPlacement !== false,
       region: loadBalancer.placement?.region || undefined,
@@ -53,9 +54,10 @@ export function configSignature(params: {
   origins: Array<{ url: string; weight: number }>;
   strategy: string;
   weightedEnabled: boolean;
+  exposeRealOrigin?: boolean;
   placement: any;
 }): string {
-  const { origins, strategy, weightedEnabled, placement } = params;
+  const { origins, strategy, weightedEnabled, exposeRealOrigin, placement } = params;
 
   return JSON.stringify({
     origins: origins.map((origin) => ({
@@ -77,6 +79,7 @@ export function configSignature(params: {
     })),
     strategy,
     weightedEnabled,
+    exposeRealOrigin: exposeRealOrigin ?? false,
     placement: normalizePlacement(placement),
   });
 }

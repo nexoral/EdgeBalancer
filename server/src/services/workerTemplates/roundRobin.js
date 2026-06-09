@@ -40,9 +40,9 @@ async function proxyToOrigin(origin, request) {
     } catch {}
   }
 
-  // Rewrite Origin header to the actual origin domain
+  // Rewrite Origin header to the actual origin domain (skipped when exposeRealOrigin is enabled)
   const originHeader = headers.get("Origin");
-  if (originHeader) {
+  if (originHeader && !config.exposeRealOrigin) {
     headers.set("Origin", originBase.origin);
   }
 
