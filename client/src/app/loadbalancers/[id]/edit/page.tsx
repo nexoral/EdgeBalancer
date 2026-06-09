@@ -66,6 +66,7 @@ export default function EditLoadBalancerPage() {
     subdomain: '',
     origins: [{ id: 1, url: '', weight: 100, geoCities: [], geoSubdivisions: [], geoCountries: [], geoContinents: [], isFallback: false }],
     strategy: 'round-robin',
+    exposeRealOrigin: false,
     smartPlacement: true,
     placementHint: '',
   });
@@ -104,6 +105,7 @@ export default function EditLoadBalancerPage() {
             isFallback: o.isFallback || false,
           })),
           strategy: lb.strategyValue,
+          exposeRealOrigin: lb.exposeRealOrigin ?? false,
           smartPlacement: lb.placement?.smartPlacement !== false,
           placementHint: lb.placement?.region || '',
         });
@@ -166,6 +168,7 @@ export default function EditLoadBalancerPage() {
         }),
         strategy: form.strategy,
         weightedEnabled,
+        exposeRealOrigin: form.exposeRealOrigin,
         placement: {
           smartPlacement: form.smartPlacement,
           ...(placementHint ? { region: placementHint } : {}),
@@ -645,6 +648,37 @@ export default function EditLoadBalancerPage() {
           <FieldBlock n={4} title="Worker Placement"
             subtitle="Tune where the Worker executes relative to your origin infrastructure">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <label style={{
+                display: 'flex', gap: 14, padding: 16,
+                border: `1px solid ${form.exposeRealOrigin ? 'var(--accent)' : 'var(--line)'}`,
+                background: form.exposeRealOrigin ? 'var(--accent-dim)' : 'var(--bg-2)',
+                borderRadius: 'var(--radius)', cursor: 'pointer',
+              }}>
+                <div style={{
+                  width: 36, height: 20, flexShrink: 0,
+                  borderRadius: 999,
+                  background: form.exposeRealOrigin ? 'var(--accent)' : 'var(--bg-3)',
+                  position: 'relative', transition: 'background 160ms',
+                }}>
+                  <div style={{
+                    position: 'absolute', top: 2, left: form.exposeRealOrigin ? 18 : 2,
+                    width: 16, height: 16, borderRadius: '50%',
+                    background: 'var(--bg)', transition: 'left 160ms',
+                  }} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 500 }}>Expose Real Origin</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 4 }}>
+                    Pass the browser&apos;s real Origin header to your backend. Enable when your backend handles CORS directly.
+                  </div>
+                </div>
+                <input
+                  type="checkbox" checked={form.exposeRealOrigin}
+                  onChange={e => update('exposeRealOrigin', e.target.checked)}
+                  style={{ display: 'none' }}
+                />
+              </label>
+
               <label style={{
                 display: 'flex', gap: 14, padding: 16,
                 border: `1px solid ${form.smartPlacement ? 'var(--accent)' : 'var(--line)'}`,

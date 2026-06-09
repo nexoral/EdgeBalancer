@@ -31,6 +31,7 @@ export interface LoadBalancerSnapshot {
   origins: LoadBalancerOrigin[];
   strategy: LoadBalancerStrategy;
   weightedEnabled: boolean;
+  exposeRealOrigin: boolean;
   placement: LoadBalancerPlacement;
   workerUrl: string;
   status: string;
@@ -48,6 +49,7 @@ export interface FormattedLoadBalancer {
   strategy: string;
   strategyValue: LoadBalancerStrategy;
   weightedEnabled: boolean;
+  exposeRealOrigin: boolean;
   placement: LoadBalancerPlacement;
   status: string;
   workerUrl: string;

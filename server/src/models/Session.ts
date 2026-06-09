@@ -9,6 +9,7 @@ export interface ISession extends Document {
   subdomain: string | null;
   strategy: string;
   placement: { smartPlacement?: boolean; region?: string | null } | null;
+  exposeRealOrigin: boolean | null;
   actionType: 'create' | 'edit';
   isActive: boolean;
   loadBalancerId: mongoose.Types.ObjectId | null;
@@ -52,6 +53,10 @@ const SessionSchema = new Schema<ISession>(
         smartPlacement: { type: Boolean, default: null },
         region: { type: String, default: null },
       },
+      default: null,
+    },
+    exposeRealOrigin: {
+      type: Boolean,
       default: null,
     },
     actionType: {

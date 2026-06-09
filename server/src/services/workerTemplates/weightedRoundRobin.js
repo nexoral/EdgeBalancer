@@ -45,7 +45,7 @@ async function proxyToOrigin(origin, request) {
   }
 
   const originHeader = headers.get("Origin");
-  if (originHeader) {
+  if (originHeader && !config.exposeRealOrigin) {
     headers.set("Origin", originBase.origin);
   }
 

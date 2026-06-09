@@ -18,6 +18,7 @@ export const formatLoadBalancer = (lb: any): FormattedLoadBalancer => ({
   strategy: getStrategyLabel(lb.strategy),
   strategyValue: normalizeStoredStrategy(lb.strategy, lb.weightedEnabled),
   weightedEnabled: isWeightedStrategy(lb.strategy),
+  exposeRealOrigin: lb.exposeRealOrigin ?? false,
   placement: lb.placement,
   status: lb.status,
   workerUrl: lb.workerUrl,
@@ -42,6 +43,7 @@ export const snapshotLoadBalancer = (loadBalancer: any): LoadBalancerSnapshot =>
   })),
   strategy: normalizeStoredStrategy(loadBalancer.strategy, loadBalancer.weightedEnabled),
   weightedEnabled: isWeightedStrategy(loadBalancer.strategy),
+  exposeRealOrigin: loadBalancer.exposeRealOrigin ?? false,
   placement: {
     smartPlacement: loadBalancer.placement?.smartPlacement !== false,
     region: loadBalancer.placement?.region || undefined,

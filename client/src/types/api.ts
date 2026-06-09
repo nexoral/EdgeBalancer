@@ -79,6 +79,7 @@ export interface LoadBalancer {
   strategy: string;
   strategyValue: LoadBalancerStrategy;
   weightedEnabled: boolean;
+  exposeRealOrigin: boolean;
   placement: PlacementConfig;
   status: string;
   workerUrl: string;
@@ -113,5 +114,6 @@ export interface CreateLoadBalancerRequest {
   origins: OriginServer[];
   strategy: LoadBalancerStrategy;
   weightedEnabled: boolean;
+  exposeRealOrigin: boolean;
   placement: PlacementConfig;
 }

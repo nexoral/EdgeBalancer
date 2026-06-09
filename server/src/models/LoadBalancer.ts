@@ -25,6 +25,7 @@ export interface ILoadBalancer extends Document {
   origins: IOriginServer[];
   strategy: string;
   weightedEnabled: boolean;
+  exposeRealOrigin: boolean;
   placement: IPlacementConfig;
   zoneId: string;
   status: 'active' | 'paused' | 'inactive';
@@ -87,6 +88,10 @@ const LoadBalancerSchema = new Schema<ILoadBalancer>(
       default: 'round-robin',
     },
     weightedEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    exposeRealOrigin: {
       type: Boolean,
       default: false,
     },
