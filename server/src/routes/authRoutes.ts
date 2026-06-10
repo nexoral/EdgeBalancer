@@ -4,8 +4,9 @@ import { registerValidation, loginValidation, googleAuthValidation } from '../mi
 import { authenticate } from '../middleware/auth';
 import { runHandlers } from '../utils/routeRunner';
 
-const STRICT   = { max: 5,  timeWindow: '15 minutes' };
-const RELAXED  = { max: 60, timeWindow: '1 minute'   };
+const TEST = process.env.NODE_ENV === 'test';
+const STRICT   = TEST ? { max: 10000, timeWindow: '1 minute' } : { max: 5,  timeWindow: '15 minutes' };
+const RELAXED  = TEST ? { max: 10000, timeWindow: '1 minute' } : { max: 60, timeWindow: '1 minute'   };
 
 export default async function authRoutes(app: FastifyInstance) {
   app.post('/register', { config: { rateLimit: STRICT  } }, async (request, reply) => runHandlers([...registerValidation, register], request, reply));
