@@ -1,6 +1,6 @@
 {
   "name": "server",
-  "version": "2.1.8",
+  "version": "2.1.9",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -12,7 +12,7 @@
     "test:coverage": "jest --coverage --forceExit"
   },
   "keywords": [],
-  "author": "",
+  "author": "Ankan Saha",
   "license": "ISC",
   "dependencies": {
     "@fastify/rate-limit": "^11.0.0",

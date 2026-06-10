@@ -36,10 +36,11 @@ jobs:
               - 'config/**'
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # Stage 2 — Tests (client-test and server-test run in PARALLEL)
+  # Stage 2 — Builds (client-build and server-build run in PARALLEL)
+  #           Each uploads a dist artifact for downstream jobs to reuse.
   # ─────────────────────────────────────────────────────────────────────────────
-  client-test:
-    name: Client — Build + Test
+  client-build:
+    name: Client — Build
     runs-on: ubuntu-latest
     needs: changes
     if: needs.changes.outputs.client == 'true'
@@ -60,14 +61,79 @@ jobs:
       - name: Build client
         run: cd client && npm run build
 
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-dist
+          path: client/dist/
+          retention-days: 1
+
+  server-build:
+    name: Server — Build
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.server == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install dependencies
+        run: cd server && npm ci
+
+      - name: Build server
+        run: cd server && npm run build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-dist
+          path: server/dist/
+          retention-days: 1
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Stage 3 — Tests (client-test and server-test run in PARALLEL)
+  #           Each downloads its own build artifact — no rebuild.
+  # ─────────────────────────────────────────────────────────────────────────────
+  client-test:
+    name: Client — Test
+    runs-on: ubuntu-latest
+    needs: [changes, client-build]
+    if: needs.client-build.result == 'success'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install dependencies
+        run: cd client && npm ci
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: client-dist
+          path: client/dist/
+
       - name: Run tests
         run: cd client && npm test
 
   server-test:
-    name: Server — Build + Test
+    name: Server — Test
     runs-on: ubuntu-latest
-    needs: changes
-    if: needs.changes.outputs.server == 'true'
+    needs: [changes, server-build]
+    if: needs.server-build.result == 'success'
     env:
       JWT_SECRET: test-jwt-secret-for-ci-do-not-use-in-production
       ENCRYPTION_KEY: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
@@ -90,14 +156,17 @@ jobs:
       - name: Install dependencies
         run: cd server && npm ci
 
-      - name: Build server
-        run: cd server && npm run build
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: server-dist
+          path: server/dist/
 
       - name: Run tests
         run: cd server && npm test
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # Stage 3 — Deploys (deploy-server and deploy-nginx run in PARALLEL)
+  # Stage 4 — Deploys (deploy-server and deploy-nginx run in PARALLEL)
   #           Both wait for all tests to finish, but neither waits for the other.
   # ─────────────────────────────────────────────────────────────────────────────
   deploy-server:
@@ -119,15 +188,14 @@ jobs:
           cache: 'npm'
           cache-dependency-path: server/package-lock.json
 
-      - name: Build server and install production dependencies
-        run: |
-          cd server
-          npm ci
-          npm run build
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: server-dist
+          path: server/dist/
 
-          # Swap to production-only node_modules to reduce archive size
-          rm -rf node_modules
-          npm ci --only=production
+      - name: Install production dependencies
+        run: cd server && npm ci --only=production
 
       - name: Create deployment archive
         run: |
