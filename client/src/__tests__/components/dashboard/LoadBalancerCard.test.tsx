@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import { LoadBalancerCard, EmptyState } from '@/components/dashboard/LoadBalancerCard';
 import { api } from '@/lib/api';
 import type { LoadBalancer } from '@/types/api';
@@ -22,7 +22,7 @@ const BASE_LB: LoadBalancer = {
   domain: 'example.com',
   subdomain: null,
   fullDomain: 'example.com',
-  zoneId: 'zone-abc',
+  zoneId: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4',
   origins: [{ url: 'https://origin.example.com', weight: 100 }],
   originCount: 1,
   strategy: 'Round Robin',
@@ -44,6 +44,11 @@ const DEFAULT_PROPS = {
   onResume: jest.fn(),
 };
 
+// Flush pending async state updates (analytics useEffect) after each test.
+afterEach(async () => {
+  await act(async () => {});
+});
+
 describe('LoadBalancerCard — core content', () => {
   beforeEach(() => {
     mockApi.getLoadBalancerAnalytics.mockResolvedValue({
@@ -53,43 +58,45 @@ describe('LoadBalancerCard — core content', () => {
     });
   });
 
-  it('renders the LB name', async () => {
+  it('renders the LB name', () => {
     render(<LoadBalancerCard {...DEFAULT_PROPS} />);
     expect(screen.getByText('my-lb')).toBeInTheDocument();
   });
 
-  it('renders the full domain', async () => {
+  it('renders the full domain', () => {
     render(<LoadBalancerCard {...DEFAULT_PROPS} />);
     expect(screen.getByText('example.com')).toBeInTheDocument();
   });
 
-  it('renders the status chip', async () => {
+  it('renders the status chip', () => {
     render(<LoadBalancerCard {...DEFAULT_PROPS} />);
+    // status appears in both the chip and the grid cell — use getAllByText
     expect(screen.getAllByText('active').length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders strategy chip', async () => {
+  it('renders the strategy chip', () => {
     render(<LoadBalancerCard {...DEFAULT_PROPS} />);
-    expect(screen.getByText('Round Robin')).toBeInTheDocument();
+    // strategy text appears in both the chip and the Type grid cell — use getAllByText
+    expect(screen.getAllByText('Round Robin').length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders the Pause button for an active LB', async () => {
+  it('renders the Pause button for an active LB', () => {
     render(<LoadBalancerCard {...DEFAULT_PROPS} />);
     expect(screen.getByRole('button', { name: /Pause/i })).toBeInTheDocument();
   });
 
-  it('renders the Resume button for a paused LB', async () => {
+  it('renders the Resume button for a paused LB', () => {
     const lb = { ...BASE_LB, status: 'paused' as const };
     render(<LoadBalancerCard {...DEFAULT_PROPS} lb={lb} />);
     expect(screen.getByRole('button', { name: /Resume/i })).toBeInTheDocument();
   });
 
-  it('renders the Delete button', async () => {
+  it('renders the Delete button', () => {
     render(<LoadBalancerCard {...DEFAULT_PROPS} />);
-    expect(screen.getByRole('button', { name: /Delete/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Delete$/i })).toBeInTheDocument();
   });
 
-  it('disables action buttons when isDeleting=true', async () => {
+  it('disables action buttons and shows Deleting... when isDeleting=true', () => {
     render(<LoadBalancerCard {...DEFAULT_PROPS} isDeleting />);
     const deleteBtn = screen.getByRole('button', { name: /Deleting/i });
     expect(deleteBtn).toBeDisabled();
@@ -167,7 +174,7 @@ describe('LoadBalancerCard — analytics display', () => {
     });
   });
 
-  it('fetches analytics for each unique LB id independently', async () => {
+  it('fetches analytics for each mounted card independently', async () => {
     mockApi.getLoadBalancerAnalytics.mockResolvedValue({
       success: true,
       message: 'ok',
