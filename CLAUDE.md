@@ -1,5 +1,3 @@
 # CLAUDE.md
 
-This repository uses [AGENTS.md](./AGENTS.md) as the canonical project context and working instructions file.
-
-If you need project architecture, feature state, setup, deployment, security, or routing strategy context, read [AGENTS.md](./AGENTS.md) first.
+Read [AGENTS.md](./AGENTS.md) for all project context: architecture, naming conventions, API routes, models, strategies, security invariants, and development commands.
