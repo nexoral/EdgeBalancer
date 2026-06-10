@@ -445,3 +445,339 @@ describe('exposeRealOrigin — create and retrieve', () => {
     expect(res.json().data.loadBalancer.exposeRealOrigin).toBe(false);
   });
 });
+
+// ─── Search & Filter ──────────────────────────────────────────────────────────
+
+const LB_SEED = (userId: mongoose.Types.ObjectId, overrides: Partial<{
+  name: string; domain: string; status: 'active' | 'paused';
+}> = {}) =>
+  LoadBalancer.create({
+    userId,
+    name: overrides.name ?? 'test-lb',
+    scriptName: overrides.name ?? 'test-lb',
+    domain: overrides.domain ?? 'example.com',
+    origins: [{ url: 'https://origin.example.com', weight: 100 }],
+    strategy: 'round-robin',
+    weightedEnabled: false,
+    placement: { smartPlacement: false },
+    zoneId: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4',
+    status: overrides.status ?? 'active',
+    workerUrl: 'https://test-lb.example.com',
+  });
+
+describe('GET /api/loadbalancers — search & filter', () => {
+  it('returns all LBs when no filter is applied', async () => {
+    const { user, cookie } = await createTestUser();
+    await LB_SEED(user._id, { name: 'alpha-lb' });
+    await LB_SEED(user._id, { name: 'beta-lb' });
+
+    const res = await app.inject({ method: 'GET', url: '/api/loadbalancers', headers: cookie });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.loadBalancers).toHaveLength(2);
+  });
+
+  it('filters by name substring (case-insensitive)', async () => {
+    const { user, cookie } = await createTestUser();
+    await LB_SEED(user._id, { name: 'alpha-lb' });
+    await LB_SEED(user._id, { name: 'beta-lb' });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/loadbalancers?search=ALPHA',
+      headers: cookie,
+    });
+    expect(res.statusCode).toBe(200);
+    const lbs = res.json().data.loadBalancers;
+    expect(lbs).toHaveLength(1);
+    expect(lbs[0].name).toBe('alpha-lb');
+  });
+
+  it('filters by domain substring', async () => {
+    const { user, cookie } = await createTestUser();
+    await LB_SEED(user._id, { name: 'lb-one', domain: 'api.company.com' });
+    await LB_SEED(user._id, { name: 'lb-two', domain: 'web.other.io' });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/loadbalancers?search=company',
+      headers: cookie,
+    });
+    expect(res.statusCode).toBe(200);
+    const lbs = res.json().data.loadBalancers;
+    expect(lbs).toHaveLength(1);
+    expect(lbs[0].name).toBe('lb-one');
+  });
+
+  it('returns empty array when search matches nothing', async () => {
+    const { user, cookie } = await createTestUser();
+    await LB_SEED(user._id, { name: 'alpha-lb' });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/loadbalancers?search=zzz-no-match',
+      headers: cookie,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.loadBalancers).toHaveLength(0);
+  });
+
+  it('filters by status=active', async () => {
+    const { user, cookie } = await createTestUser();
+    await LB_SEED(user._id, { name: 'live-lb', status: 'active' });
+    await LB_SEED(user._id, { name: 'paused-lb', status: 'paused' });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/loadbalancers?status=active',
+      headers: cookie,
+    });
+    expect(res.statusCode).toBe(200);
+    const lbs = res.json().data.loadBalancers;
+    expect(lbs).toHaveLength(1);
+    expect(lbs[0].name).toBe('live-lb');
+  });
+
+  it('filters by status=paused', async () => {
+    const { user, cookie } = await createTestUser();
+    await LB_SEED(user._id, { name: 'live-lb', status: 'active' });
+    await LB_SEED(user._id, { name: 'paused-lb', status: 'paused' });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/loadbalancers?status=paused',
+      headers: cookie,
+    });
+    expect(res.statusCode).toBe(200);
+    const lbs = res.json().data.loadBalancers;
+    expect(lbs).toHaveLength(1);
+    expect(lbs[0].name).toBe('paused-lb');
+  });
+
+  it('combines search and status filter', async () => {
+    const { user, cookie } = await createTestUser();
+    await LB_SEED(user._id, { name: 'api-lb',  domain: 'api.example.com', status: 'active' });
+    await LB_SEED(user._id, { name: 'api-paused', domain: 'api.example.com', status: 'paused' });
+    await LB_SEED(user._id, { name: 'web-lb',  domain: 'web.example.com', status: 'active' });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/loadbalancers?search=api&status=active',
+      headers: cookie,
+    });
+    expect(res.statusCode).toBe(200);
+    const lbs = res.json().data.loadBalancers;
+    expect(lbs).toHaveLength(1);
+    expect(lbs[0].name).toBe('api-lb');
+  });
+
+  it('ignores invalid status values (returns all)', async () => {
+    const { user, cookie } = await createTestUser();
+    await LB_SEED(user._id, { name: 'lb-one' });
+    await LB_SEED(user._id, { name: 'lb-two', status: 'paused' });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/loadbalancers?status=unknown-value',
+      headers: cookie,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.loadBalancers).toHaveLength(2);
+  });
+
+  it('does not return another user LBs even when search matches', async () => {
+    const { user: u1, cookie: c1 } = await createTestUser({ email: 'u1@example.com' });
+    // Use a raw ObjectId for u2 to avoid the firebaseUid sparse unique index conflict.
+    // Use distinct scriptNames (globally unique index) while both match the search term.
+    const u2Id = new mongoose.Types.ObjectId();
+    await LB_SEED(u1._id, { name: 'shared-u1' });
+    await LB_SEED(u2Id, { name: 'shared-u2' });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/loadbalancers?search=shared',
+      headers: c1,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.loadBalancers).toHaveLength(1);
+  });
+
+  it('handles regex special characters in search safely', async () => {
+    const { user, cookie } = await createTestUser();
+    await LB_SEED(user._id, { name: 'safe-lb' });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/loadbalancers?search=.*%5B%5D%28%29',
+      headers: cookie,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.loadBalancers).toHaveLength(0);
+  });
+});
+
+// ─── Analytics ────────────────────────────────────────────────────────────────
+
+jest.mock('../../modules/loadbalancer/services/analytics.service', () => ({
+  fetchWorkerAnalytics: jest.fn().mockResolvedValue({
+    requests: 5000,
+    errors: 25,
+    errorRate: 0.5,
+  }),
+}));
+
+import { fetchWorkerAnalytics } from '../../modules/loadbalancer/services/analytics.service';
+
+const mockedFetchAnalytics = fetchWorkerAnalytics as jest.MockedFunction<typeof fetchWorkerAnalytics>;
+
+describe('GET /api/loadbalancers/:id/analytics', () => {
+  it('200 returns analytics data for the owning user', async () => {
+    const { user, cookie } = await createTestUser();
+    const lb = await LB_SEED(user._id, { name: 'analytics-lb' });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/loadbalancers/${lb._id}/analytics`,
+      headers: cookie,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json();
+    expect(body.success).toBe(true);
+    expect(body.data.analytics.requests).toBe(5000);
+    expect(body.data.analytics.errors).toBe(25);
+    expect(body.data.analytics.errorRate).toBe(0.5);
+  });
+
+  it('200 with analytics: null when CF call fails (graceful)', async () => {
+    mockedFetchAnalytics.mockResolvedValueOnce(null);
+    const { user, cookie } = await createTestUser();
+    const lb = await LB_SEED(user._id, { name: 'cf-fail-lb' });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/loadbalancers/${lb._id}/analytics`,
+      headers: cookie,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.analytics).toBeNull();
+  });
+
+  it('defaults period to 24h when not specified', async () => {
+    const { user, cookie } = await createTestUser();
+    const lb = await LB_SEED(user._id, { name: 'period-lb' });
+
+    await app.inject({
+      method: 'GET',
+      url: `/api/loadbalancers/${lb._id}/analytics`,
+      headers: cookie,
+    });
+
+    expect(mockedFetchAnalytics).toHaveBeenCalledWith(
+      expect.objectContaining({ period: '24h' })
+    );
+  });
+
+  it('passes period=7d when specified in query string', async () => {
+    const { user, cookie } = await createTestUser();
+    const lb = await LB_SEED(user._id, { name: 'period7d-lb' });
+
+    await app.inject({
+      method: 'GET',
+      url: `/api/loadbalancers/${lb._id}/analytics?period=7d`,
+      headers: cookie,
+    });
+
+    expect(mockedFetchAnalytics).toHaveBeenCalledWith(
+      expect.objectContaining({ period: '7d' })
+    );
+  });
+
+  it('passes the correct scriptName to the analytics service', async () => {
+    const { user, cookie } = await createTestUser();
+    const lb = await LB_SEED(user._id, { name: 'script-check' });
+
+    await app.inject({
+      method: 'GET',
+      url: `/api/loadbalancers/${lb._id}/analytics`,
+      headers: cookie,
+    });
+
+    expect(mockedFetchAnalytics).toHaveBeenCalledWith(
+      expect.objectContaining({ scriptName: 'script-check' })
+    );
+  });
+
+  it('404 when load balancer does not exist', async () => {
+    const { cookie } = await createTestUser();
+    const fakeId = new mongoose.Types.ObjectId().toString();
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/loadbalancers/${fakeId}/analytics`,
+      headers: cookie,
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('403 when load balancer belongs to a different user', async () => {
+    const { user: owner } = await createTestUser({ email: 'owner2@example.com' });
+    const otherUserId = new mongoose.Types.ObjectId().toString();
+    const otherCookie = { cookie: `token=${makeTestJwt({ userId: otherUserId, email: 'other2@example.com' })}` };
+    const lb = await LB_SEED(owner._id, { name: 'protected-lb' });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/loadbalancers/${lb._id}/analytics`,
+      headers: otherCookie,
+    });
+
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('401 when not authenticated', async () => {
+    const fakeId = new mongoose.Types.ObjectId().toString();
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/loadbalancers/${fakeId}/analytics`,
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('400 when id is not a valid ObjectId', async () => {
+    const { cookie } = await createTestUser();
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/loadbalancers/not-an-id/analytics',
+      headers: cookie,
+    });
+    expect(res.statusCode).toBe(400);
+  });
+});
+
+// ─── Rate Limiting ────────────────────────────────────────────────────────────
+
+describe('Rate limiting', () => {
+  it('includes x-ratelimit-limit and x-ratelimit-remaining headers on protected routes', async () => {
+    const { cookie } = await createTestUser();
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/loadbalancers',
+      headers: cookie,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['x-ratelimit-limit']).toBeDefined();
+    expect(res.headers['x-ratelimit-remaining']).toBeDefined();
+  });
+
+  it('x-ratelimit-remaining decrements with each request', async () => {
+    const { cookie } = await createTestUser();
+    const first  = await app.inject({ method: 'GET', url: '/api/loadbalancers', headers: cookie });
+    const second = await app.inject({ method: 'GET', url: '/api/loadbalancers', headers: cookie });
+
+    const remaining1 = Number(first.headers['x-ratelimit-remaining']);
+    const remaining2 = Number(second.headers['x-ratelimit-remaining']);
+    expect(remaining2).toBeLessThan(remaining1);
+  });
+});

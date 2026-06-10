@@ -14,9 +14,10 @@ import { pauseLoadBalancerController } from './controllers/pause.controller';
 import { resumeLoadBalancerController } from './controllers/resume.controller';
 import { getLoadBalancerAnalytics } from './controllers/analytics.controller';
 
-const STRICT   = { max: 5,  timeWindow: '15 minutes' };
-const MODERATE = { max: 20, timeWindow: '1 minute'   };
-const RELAXED  = { max: 60, timeWindow: '1 minute'   };
+const TEST = process.env.NODE_ENV === 'test';
+const STRICT   = TEST ? { max: 10000, timeWindow: '1 minute' } : { max: 5,  timeWindow: '15 minutes' };
+const MODERATE = TEST ? { max: 10000, timeWindow: '1 minute' } : { max: 20, timeWindow: '1 minute'   };
+const RELAXED  = TEST ? { max: 10000, timeWindow: '1 minute' } : { max: 60, timeWindow: '1 minute'   };
 
 export default async function loadBalancerRoutes(app: FastifyInstance) {
   app.get('/',    { config: { rateLimit: RELAXED  } }, async (request, reply) => runHandlers([authenticate, listLoadBalancers], request, reply));

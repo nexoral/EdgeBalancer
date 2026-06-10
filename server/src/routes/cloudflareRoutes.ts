@@ -4,9 +4,10 @@ import { credentialsValidation } from '../middleware/validators/cloudflareValida
 import { authenticate } from '../middleware/auth';
 import { runHandlers } from '../utils/routeRunner';
 
-const STRICT   = { max: 5,  timeWindow: '15 minutes' };
-const MODERATE = { max: 20, timeWindow: '1 minute'   };
-const RELAXED  = { max: 60, timeWindow: '1 minute'   };
+const TEST = process.env.NODE_ENV === 'test';
+const STRICT   = TEST ? { max: 10000, timeWindow: '1 minute' } : { max: 5,  timeWindow: '15 minutes' };
+const MODERATE = TEST ? { max: 10000, timeWindow: '1 minute' } : { max: 20, timeWindow: '1 minute'   };
+const RELAXED  = TEST ? { max: 10000, timeWindow: '1 minute' } : { max: 60, timeWindow: '1 minute'   };
 
 export default async function cloudflareRoutes(app: FastifyInstance) {
   app.post('/credentials', { config: { rateLimit: STRICT   } }, async (request, reply) => runHandlers([authenticate, ...credentialsValidation, saveCredentials], request, reply));

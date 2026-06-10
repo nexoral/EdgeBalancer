@@ -39,8 +39,11 @@ export async function fetchWorkerAnalytics(params: {
       timeout: 10_000,
     });
 
+    const viewer = res.data?.data?.viewer;
+    if (!viewer) return null;
+
     const rows: Array<{ sum: { requests: number; errors: number } }> =
-      res.data?.data?.viewer?.accounts?.[0]?.workersInvocationsAdaptive ?? [];
+      viewer.accounts?.[0]?.workersInvocationsAdaptive ?? [];
 
     const totalRequests = rows.reduce((s, r) => s + (r.sum.requests ?? 0), 0);
     const totalErrors   = rows.reduce((s, r) => s + (r.sum.errors   ?? 0), 0);
