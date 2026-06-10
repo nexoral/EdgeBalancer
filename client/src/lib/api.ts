@@ -141,6 +141,11 @@ class ApiClient {
     return response.data;
   }
 
+  async getBatchLoadBalancerAnalytics(period: '24h' | '7d' = '24h'): Promise<ApiResponse> {
+    const response = await this.client.get('/loadbalancers/analytics', { params: { period } });
+    return response.data;
+  }
+
   // Session endpoints
   async getSessions(params?: { cursor?: string; limit?: number; filter?: 'all' | 'active' | 'inactive' }): Promise<ApiResponse> {
     const query = new URLSearchParams();
