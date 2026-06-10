@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
@@ -18,39 +18,34 @@ export default function DashboardPage() {
   const { user, loading: authLoading, logout } = useAuth();
   const [loadBalancers, setLoadBalancers] = useState<LoadBalancer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
   const [currentNav, setCurrentNav] = useState('balancers');
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [actioningId, setActioningId] = useState<string | null>(null);
-  const [pauseModal, setPauseModal] = useState<{ isOpen: boolean; lb: LoadBalancer | null }>({
-    isOpen: false,
-    lb: null,
-  });
-  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; lb: LoadBalancer | null }>({
-    isOpen: false,
-    lb: null,
-  });
+  const [pauseModal, setPauseModal] = useState<{ isOpen: boolean; lb: LoadBalancer | null }>({ isOpen: false, lb: null });
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; lb: LoadBalancer | null }>({ isOpen: false, lb: null });
   const [deleteSuccess, setDeleteSuccess] = useState<{ name: string; fullDomain: string } | null>(null);
 
+  // Search & filter state
+  const [searchValue, setSearchValue] = useState('');
+  const [searchDebounce, setSearchDebounce] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'active' | 'paused' | undefined>(undefined);
+
+  // Debounce search input
   useEffect(() => {
-    if (!authLoading && user && !user.hasCloudflareCredentials) {
-      router.push('/onboarding');
-      return;
-    }
+    const t = setTimeout(() => setSearchDebounce(searchValue), 300);
+    return () => clearTimeout(t);
+  }, [searchValue]);
 
-    if (!authLoading && !user) {
-      router.push('/login');
-      return;
-    }
-
-    if (user) {
-      fetchLoadBalancers();
-    }
-  }, [user, authLoading, router]);
-
-  const fetchLoadBalancers = async () => {
+  const fetchLoadBalancers = useCallback(async (opts?: { initial?: boolean }) => {
     try {
-      setLoading(true);
-      const response = await api.getLoadBalancers();
+      if (opts?.initial) setLoading(true);
+      else setIsFetching(true);
+
+      const response = await api.getLoadBalancers({
+        search: searchDebounce || undefined,
+        status: statusFilter,
+      });
       if (response.success && response.data?.loadBalancers) {
         setLoadBalancers(response.data.loadBalancers);
       }
@@ -58,8 +53,30 @@ export default function DashboardPage() {
       toast.error(error.message || 'Failed to fetch load balancers');
     } finally {
       setLoading(false);
+      setIsFetching(false);
     }
-  };
+  }, [searchDebounce, statusFilter]);
+
+  useEffect(() => {
+    if (!authLoading && user && !user.hasCloudflareCredentials) {
+      router.push('/onboarding');
+      return;
+    }
+    if (!authLoading && !user) {
+      router.push('/login');
+      return;
+    }
+  }, [user, authLoading, router]);
+
+  // Initial load
+  useEffect(() => {
+    if (user) fetchLoadBalancers({ initial: true });
+  }, [user]);
+
+  // Refetch on filter/search change (skip initial mount)
+  useEffect(() => {
+    if (user && !loading) fetchLoadBalancers();
+  }, [searchDebounce, statusFilter]);
 
   const handleNav = (id: string) => {
     if (id === 'settings') router.push('/settings');
@@ -72,16 +89,13 @@ export default function DashboardPage() {
     router.push('/login');
   };
 
-  const openPauseModal = (lb: LoadBalancer) => {
-    setPauseModal({ isOpen: true, lb });
-  };
+  const openPauseModal = (lb: LoadBalancer) => setPauseModal({ isOpen: true, lb });
 
   const handlePause = async (mode: 'release-domain' | 'keep-domain') => {
     if (!pauseModal.lb) return;
     const lb = pauseModal.lb;
     setPauseModal({ isOpen: false, lb: null });
     setActioningId(lb.id);
-
     try {
       const response = await api.pauseLoadBalancer(lb.id, mode);
       if (response.success) {
@@ -110,34 +124,23 @@ export default function DashboardPage() {
     }
   };
 
-  const openDeleteModal = (lb: LoadBalancer) => {
-    setDeleteModal({ isOpen: true, lb });
-  };
+  const openDeleteModal = (lb: LoadBalancer) => setDeleteModal({ isOpen: true, lb });
 
   const closeDeleteModal = () => {
-    if (!deletingId) {
-      setDeleteModal({ isOpen: false, lb: null });
-    }
+    if (!deletingId) setDeleteModal({ isOpen: false, lb: null });
   };
 
   const handleDelete = async () => {
     if (!deleteModal.lb) return;
-
     const id = deleteModal.lb.id;
     const deletedLoadBalancer = deleteModal.lb;
-
-    // Close modal immediately before starting deletion
     closeDeleteModal();
     setDeletingId(id);
-
     try {
       const response = await api.deleteLoadBalancer(id);
       if (response.success) {
         setLoadBalancers(loadBalancers.filter(lb => lb.id !== id));
-        setDeleteSuccess({
-          name: deletedLoadBalancer.name,
-          fullDomain: deletedLoadBalancer.fullDomain,
-        });
+        setDeleteSuccess({ name: deletedLoadBalancer.name, fullDomain: deletedLoadBalancer.fullDomain });
       }
     } catch (error: any) {
       toast.error(error.message || 'Failed to delete load balancer');
@@ -161,11 +164,15 @@ export default function DashboardPage() {
     );
   }
 
-  const hasBalancers = loadBalancers.length > 0;
+  const hasBalancers = loadBalancers.length > 0 || searchValue || statusFilter;
+  const filterLabels: Array<{ label: string; value: 'active' | 'paused' | undefined }> = [
+    { label: 'All', value: undefined },
+    { label: 'Live', value: 'active' },
+    { label: 'Paused', value: 'paused' },
+  ];
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)', flexDirection: 'column' }}>
-      {/* Main Content */}
       <div style={{ display: 'flex', flex: 1, minHeight: 0, flexDirection: 'row' }}>
         <Sidebar
           current={currentNav}
@@ -180,7 +187,9 @@ export default function DashboardPage() {
             subtitle="Manage your Cloudflare Worker-based load balancers"
             actions={
               <>
-                <button className="btn btn-ghost btn-sm"><Icons.Refresh size={14} /> <span className="hide-sm">Refresh</span></button>
+                <button className="btn btn-ghost btn-sm" onClick={() => fetchLoadBalancers()}>
+                  <Icons.Refresh size={14} /> <span className="hide-sm">Refresh</span>
+                </button>
                 <button className="btn btn-primary btn-sm" onClick={() => router.push('/loadbalancers/create')}>
                   <Icons.Plus size={14} /> <span className="hide-sm">Create Load Balancer</span><span className="hide-md">New</span>
                 </button>
@@ -188,7 +197,7 @@ export default function DashboardPage() {
             }
           />
           <div style={{ padding: 'clamp(16px, 4vw, 32px)', overflow: 'auto', flex: 1 }}>
-            {!hasBalancers ? (
+            {!hasBalancers && !loading ? (
               <EmptyState onCreate={() => router.push('/loadbalancers/create')} />
             ) : (
               <>
@@ -218,26 +227,42 @@ export default function DashboardPage() {
                       position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
                       color: 'var(--text-3)',
                     }} />
-                    <input className="input" placeholder="Search balancers…"
-                      style={{ paddingLeft: 36, height: 38, padding: '8px 12px 8px 36px' }} />
+                    <input
+                      className="input"
+                      placeholder="Search balancers…"
+                      value={searchValue}
+                      onChange={(e) => setSearchValue(e.target.value)}
+                      style={{ paddingLeft: 36, height: 38, padding: '8px 12px 8px 36px' }}
+                    />
                   </div>
                   <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                    {['All', 'Live', 'Paused'].map((f, i) => (
-                      <button key={f} className="btn btn-sm" style={{
-                        background: i === 0 ? 'var(--bg-2)' : 'transparent',
-                        color: i === 0 ? 'var(--text)' : 'var(--text-3)',
-                        border: '1px solid var(--line)',
-                        fontSize: 'clamp(12px, 2vw, 13px)',
-                        padding: 'clamp(6px, 1vw, 8px) clamp(10px, 2vw, 12px)',
-                      }}>{f}</button>
-                    ))}
+                    {filterLabels.map(({ label, value }) => {
+                      const isActive = statusFilter === value;
+                      return (
+                        <button
+                          key={label}
+                          onClick={() => setStatusFilter(value)}
+                          className="btn btn-sm"
+                          style={{
+                            background: isActive ? 'var(--bg-2)' : 'transparent',
+                            color: isActive ? 'var(--text)' : 'var(--text-3)',
+                            border: '1px solid var(--line)',
+                            fontSize: 'clamp(12px, 2vw, 13px)',
+                            padding: 'clamp(6px, 1vw, 8px) clamp(10px, 2vw, 12px)',
+                          }}
+                        >{label}</button>
+                      );
+                    })}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }} />
-                  <div className="kicker hide-sm" style={{ fontSize: 'clamp(9px, 2vw, 11px)' }}>{loadBalancers.length} results</div>
+                  <div className="kicker hide-sm" style={{ fontSize: 'clamp(9px, 2vw, 11px)', opacity: isFetching ? 0.5 : 1 }}>
+                    {loadBalancers.length} results
+                  </div>
                 </div>
 
                 <div style={{
                   display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))', gap: 'clamp(12px, 2vw, 16px)',
+                  opacity: isFetching ? 0.6 : 1, transition: 'opacity 200ms',
                 }}>
                   {loadBalancers.map(lb => (
                     <LoadBalancerCard
@@ -251,6 +276,11 @@ export default function DashboardPage() {
                       isActioning={actioningId === lb.id}
                     />
                   ))}
+                  {loadBalancers.length === 0 && !isFetching && (searchValue || statusFilter) && (
+                    <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '48px 0', color: 'var(--text-3)', fontFamily: 'var(--mono)', fontSize: 13 }}>
+                      No load balancers match your filter.
+                    </div>
+                  )}
                 </div>
               </>
             )}
@@ -258,7 +288,6 @@ export default function DashboardPage() {
         </main>
       </div>
 
-      {/* Modals */}
       <PauseModal
         isOpen={pauseModal.isOpen}
         onClose={() => setPauseModal({ isOpen: false, lb: null })}

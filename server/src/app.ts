@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import mongoose from 'mongoose';
+import rateLimit from '@fastify/rate-limit';
 import { registerCors } from './middleware/cors';
 import { registerErrorHandler } from './middleware/errorHandler';
 import idempotencyPlugin from './middleware/fastifyIdempotency';
@@ -30,6 +31,20 @@ export const buildServer = async () => {
 
   // Register plugins
   registerCors(app);
+  await app.register(rateLimit, {
+    global: true,
+    max: process.env.NODE_ENV === 'test' ? 1000 : 100,
+    timeWindow: '1 minute',
+    keyGenerator: (request) => {
+      const fwd = request.headers['x-forwarded-for'];
+      return (typeof fwd === 'string' ? fwd.split(',')[0].trim() : null) ?? request.ip ?? 'unknown';
+    },
+    errorResponseBuilder: (_req, ctx) => ({
+      success: false,
+      message: `Too many requests. Retry in ${Math.ceil(ctx.ttl / 1000)}s.`,
+      data: null,
+    }),
+  });
   await app.register(idempotencyPlugin);
   registerErrorHandler(app);
 

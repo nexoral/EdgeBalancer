@@ -1,0 +1,51 @@
+import { LoadBalancer } from '../../../models/LoadBalancer';
+import { getValidatedLoadBalancerId } from '../services/validation.service';
+import { getCloudflareCredentialsForUser } from '../services/credentials.service';
+import { fetchWorkerAnalytics } from '../services/analytics.service';
+import type { AppRequest as Request, AppResponse as Response, NextFunction } from '../../../types/http';
+
+export async function getLoadBalancerAnalytics(req: Request, res: Response, next: NextFunction) {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      res.status(401);
+      throw new Error('Not authenticated');
+    }
+
+    let id: string;
+    try {
+      id = getValidatedLoadBalancerId(req.params.id);
+    } catch (error: any) {
+      res.status(400);
+      throw error;
+    }
+
+    const lb = await LoadBalancer.findById(id);
+    if (!lb) {
+      res.status(404);
+      throw new Error('Load balancer not found');
+    }
+    if (lb.userId.toString() !== userId) {
+      res.status(403);
+      throw new Error('You do not have permission to access this load balancer');
+    }
+
+    const rawPeriod = req.query?.period;
+    const period: '24h' | '7d' = rawPeriod === '7d' ? '7d' : '24h';
+
+    const { accountId, apiToken } = await getCloudflareCredentialsForUser(userId);
+
+    const analytics = await fetchWorkerAnalytics({ accountId, apiToken, scriptName: lb.scriptName, period });
+
+    res.json({
+      success: true,
+      message: 'Analytics retrieved successfully',
+      data: { analytics },
+    });
+  } catch (error) {
+    if ((error as any).statusCode) {
+      res.status((error as any).statusCode);
+    }
+    next(error as Error);
+  }
+}

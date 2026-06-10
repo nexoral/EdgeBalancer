@@ -97,8 +97,12 @@ class ApiClient {
     return response.data;
   }
 
-  async getLoadBalancers(): Promise<ApiResponse> {
-    const response = await this.client.get('/loadbalancers');
+  async getLoadBalancers(params?: { search?: string; status?: 'active' | 'paused' }): Promise<ApiResponse> {
+    const query = new URLSearchParams();
+    if (params?.search?.trim()) query.set('search', params.search.trim());
+    if (params?.status) query.set('status', params.status);
+    const qs = query.toString();
+    const response = await this.client.get(`/loadbalancers${qs ? `?${qs}` : ''}`);
     return response.data;
   }
 
@@ -129,6 +133,11 @@ class ApiClient {
 
   async resumeLoadBalancer(id: string): Promise<ApiResponse> {
     const response = await this.client.post(`/loadbalancers/${id}/resume`);
+    return response.data;
+  }
+
+  async getLoadBalancerAnalytics(id: string, period: '24h' | '7d' = '24h'): Promise<ApiResponse> {
+    const response = await this.client.get(`/loadbalancers/${id}/analytics`, { params: { period } });
     return response.data;
   }
 

@@ -1,7 +1,9 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Icons } from '@/components/shared/Icons';
-import type { LoadBalancer } from '@/types/api';
+import { api } from '@/lib/api';
+import type { LoadBalancer, LoadBalancerAnalytics } from '@/types/api';
 
 interface LoadBalancerCardProps {
   lb: LoadBalancer;
@@ -13,6 +15,12 @@ interface LoadBalancerCardProps {
   isActioning?: boolean;
 }
 
+function formatRequests(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return String(n);
+}
+
 export const LoadBalancerCard = ({
   lb,
   onSelect,
@@ -22,6 +30,16 @@ export const LoadBalancerCard = ({
   isDeleting,
   isActioning
 }: LoadBalancerCardProps) => {
+  const [analytics, setAnalytics] = useState<LoadBalancerAnalytics | null | 'loading'>('loading');
+
+  useEffect(() => {
+    let mounted = true;
+    api.getLoadBalancerAnalytics(lb.id, '24h')
+      .then(res => { if (mounted) setAnalytics(res.data?.analytics ?? null); })
+      .catch(() => { if (mounted) setAnalytics(null); });
+    return () => { mounted = false; };
+  }, [lb.id]);
+
   const getStatusColor = () => {
     if (lb.status === 'active') return 'live';
     if (lb.status === 'paused') return 'warn';
@@ -80,6 +98,29 @@ export const LoadBalancerCard = ({
           </div>
         ))}
       </div>
+
+      {/* Analytics row */}
+      {analytics === 'loading' ? (
+        <div style={{ display: 'flex', gap: 8, paddingTop: 12, borderTop: '1px solid var(--line)' }}>
+          {[80, 56].map((w, i) => (
+            <div key={i} style={{
+              height: 11, width: w, background: 'var(--bg-3)',
+              borderRadius: 4, animation: 'pulse 1.5s ease-in-out infinite',
+            }} />
+          ))}
+        </div>
+      ) : analytics ? (
+        <div style={{
+          paddingTop: 10, borderTop: '1px solid var(--line)',
+          fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-3)',
+          display: 'flex', alignItems: 'center', gap: 12,
+        }}>
+          <span>24h: <span style={{ color: 'var(--text-2)' }}>{formatRequests(analytics.requests)}</span> req</span>
+          <span style={{ color: analytics.errorRate > 5 ? 'var(--red)' : 'var(--text-3)' }}>
+            {analytics.errorRate.toFixed(1)}% err
+          </span>
+        </div>
+      ) : null}
 
       {/* Action buttons */}
       <div style={{ display: 'flex', gap: 8, paddingTop: 8, borderTop: '1px solid var(--line)' }}>
@@ -153,4 +194,3 @@ export const EmptyState = ({ onCreate }: { onCreate: () => void }) => (
     </div>
   </div>
 );
-
