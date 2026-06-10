@@ -25,8 +25,8 @@ export async function fetchWorkerAnalytics(params: {
           limit: 10000,
           filter: {
             scriptName: "${scriptName}",
-            datetimeStart: "${start.toISOString()}",
-            datetimeEnd: "${now.toISOString()}"
+            datetime_geq: "${start.toISOString()}",
+            datetime_leq: "${now.toISOString()}"
           }
         ) { sum { requests errors } }
       }

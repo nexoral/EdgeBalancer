@@ -90,8 +90,8 @@ describe('fetchWorkerAnalytics', () => {
     await fetchWorkerAnalytics({ ...BASE_PARAMS, period: '7d' });
 
     const body = mockedPost.mock.calls[0][1] as { query: string };
-    const start = new Date(body.query.match(/datetimeStart: "([^"]+)"/)![1]);
-    const end   = new Date(body.query.match(/datetimeEnd: "([^"]+)"/)![1]);
+    const start = new Date(body.query.match(/datetime_geq: "([^"]+)"/)![1]);
+    const end   = new Date(body.query.match(/datetime_leq: "([^"]+)"/)![1]);
     const diffMs = end.getTime() - start.getTime();
 
     expect(diffMs).toBeGreaterThanOrEqual(7 * 24 * 60 * 60 * 1000 - 1000);
@@ -104,8 +104,8 @@ describe('fetchWorkerAnalytics', () => {
     await fetchWorkerAnalytics(BASE_PARAMS);
 
     const body = mockedPost.mock.calls[0][1] as { query: string };
-    const start = new Date(body.query.match(/datetimeStart: "([^"]+)"/)![1]);
-    const end   = new Date(body.query.match(/datetimeEnd: "([^"]+)"/)![1]);
+    const start = new Date(body.query.match(/datetime_geq: "([^"]+)"/)![1]);
+    const end   = new Date(body.query.match(/datetime_leq: "([^"]+)"/)![1]);
     const diffMs = end.getTime() - start.getTime();
 
     expect(diffMs).toBeGreaterThanOrEqual(24 * 60 * 60 * 1000 - 1000);

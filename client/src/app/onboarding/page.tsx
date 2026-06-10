@@ -134,6 +134,7 @@ export default function OnboardingPage() {
               <div className="space-y-2 mt-3">
                 <PermissionBadge>Account &gt; Worker Scripts &gt; Edit</PermissionBadge>
                 <PermissionBadge>Account &gt; Workers KV Storage &gt; Edit</PermissionBadge>
+                <PermissionBadge>Account &gt; Account Analytics &gt; Read</PermissionBadge>
                 <PermissionBadge>Zone &gt; Zone &gt; Read</PermissionBadge>
               </div>
             </StepCard>
