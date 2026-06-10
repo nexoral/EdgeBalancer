@@ -43,7 +43,8 @@ export async function fetchWorkerAnalytics(params: {
 
     const viewer = res.data?.data?.viewer;
     if (!viewer) {
-      console.warn(`[analytics] Cloudflare returned no viewer data for script="${scriptName}" — likely an auth or account issue`);
+      const cfErrors = res.data?.errors;
+      console.warn(`[analytics] Cloudflare returned no viewer data for script="${scriptName}". CF errors:`, JSON.stringify(cfErrors ?? 'none'));
       return null;
     }
 
