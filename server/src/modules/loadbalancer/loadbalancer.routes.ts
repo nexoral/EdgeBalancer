@@ -1,17 +1,8 @@
-/**
- * Load Balancer Routes
- *
- * Defines all routes for load balancer CRUD operations.
- */
-
 import { FastifyInstance } from 'fastify';
 import { authenticate } from '../../middleware/auth';
 import { runHandlers } from '../../utils/routeRunner';
-import {
-  createLoadBalancerValidator,
-} from '../../middleware/validators/loadBalancerValidators';
+import { createLoadBalancerValidator } from '../../middleware/validators/loadBalancerValidators';
 
-// Import controllers
 import { listLoadBalancers } from './controllers/list.controller';
 import { getLoadBalancer } from './controllers/get.controller';
 import { createLoadBalancer } from './controllers/create.controller';
@@ -21,50 +12,25 @@ import { validateLoadBalancerHostname } from './controllers/validate.controller'
 import { cancelLoadBalancerDeployment } from './controllers/cancel.controller';
 import { pauseLoadBalancerController } from './controllers/pause.controller';
 import { resumeLoadBalancerController } from './controllers/resume.controller';
+import { getLoadBalancerAnalytics } from './controllers/analytics.controller';
+
+const STRICT   = { max: 5,  timeWindow: '15 minutes' };
+const MODERATE = { max: 20, timeWindow: '1 minute'   };
+const RELAXED  = { max: 60, timeWindow: '1 minute'   };
 
 export default async function loadBalancerRoutes(app: FastifyInstance) {
-  // List all load balancers
-  app.get('/', async (request, reply) =>
-    runHandlers([authenticate, listLoadBalancers], request, reply)
-  );
+  app.get('/',    { config: { rateLimit: RELAXED  } }, async (request, reply) => runHandlers([authenticate, listLoadBalancers], request, reply));
+  app.get('/:id', { config: { rateLimit: RELAXED  } }, async (request, reply) => runHandlers([authenticate, getLoadBalancer], request, reply));
 
-  // Get single load balancer
-  app.get('/:id', async (request, reply) =>
-    runHandlers([authenticate, getLoadBalancer], request, reply)
-  );
+  app.post('/',                          { config: { rateLimit: STRICT   } }, async (request, reply) => runHandlers([authenticate, ...createLoadBalancerValidator, createLoadBalancer], request, reply));
+  app.put('/:id',                        { config: { rateLimit: STRICT   } }, async (request, reply) => runHandlers([authenticate, updateLoadBalancer], request, reply));
+  app.delete('/:id',                     { config: { rateLimit: STRICT   } }, async (request, reply) => runHandlers([authenticate, deleteLoadBalancer], request, reply));
 
-  // Create load balancer
-  app.post('/', async (request, reply) =>
-    runHandlers([authenticate, ...createLoadBalancerValidator, createLoadBalancer], request, reply)
-  );
+  app.post('/validate-hostname',         { config: { rateLimit: MODERATE } }, async (request, reply) => runHandlers([authenticate, validateLoadBalancerHostname], request, reply));
+  app.post('/operations/:operationId/cancel', { config: { rateLimit: RELAXED } }, async (request, reply) => runHandlers([authenticate, cancelLoadBalancerDeployment], request, reply));
 
-  // Update load balancer
-  app.put('/:id', async (request, reply) =>
-    runHandlers([authenticate, updateLoadBalancer], request, reply)
-  );
+  app.post('/:id/pause',                 { config: { rateLimit: STRICT   } }, async (request, reply) => runHandlers([authenticate, pauseLoadBalancerController], request, reply));
+  app.post('/:id/resume',                { config: { rateLimit: MODERATE } }, async (request, reply) => runHandlers([authenticate, resumeLoadBalancerController], request, reply));
 
-  // Delete load balancer
-  app.delete('/:id', async (request, reply) =>
-    runHandlers([authenticate, deleteLoadBalancer], request, reply)
-  );
-
-  // Validate hostname availability
-  app.post('/validate-hostname', async (request, reply) =>
-    runHandlers([authenticate, validateLoadBalancerHostname], request, reply)
-  );
-
-  // Cancel load balancer operation
-  app.post('/operations/:operationId/cancel', async (request, reply) =>
-    runHandlers([authenticate, cancelLoadBalancerDeployment], request, reply)
-  );
-
-  // Pause load balancer
-  app.post('/:id/pause', async (request, reply) =>
-    runHandlers([authenticate, pauseLoadBalancerController], request, reply)
-  );
-
-  // Resume load balancer
-  app.post('/:id/resume', async (request, reply) =>
-    runHandlers([authenticate, resumeLoadBalancerController], request, reply)
-  );
+  app.get('/:id/analytics',             { config: { rateLimit: MODERATE } }, async (request, reply) => runHandlers([authenticate, getLoadBalancerAnalytics], request, reply));
 }

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Logo } from '@/components/shared/Logo';
 import { Icons } from '@/components/shared/Icons';
+import { useTheme } from '@/hooks/useTheme';
 
 interface SidebarProps {
   current: string;
@@ -13,6 +14,7 @@ interface SidebarProps {
 
 export const Sidebar = ({ current, onNav, onLogout, userEmail }: SidebarProps) => {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { theme, toggleTheme } = useTheme();
 
   const items = [
     { id: 'balancers', icon: 'Layers', label: 'Load Balancers' },
@@ -114,6 +116,16 @@ export const Sidebar = ({ current, onNav, onLogout, userEmail }: SidebarProps) =
           </button>
         );
       })}
+      <button onClick={toggleTheme} style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '8px 12px', borderRadius: 'var(--radius)',
+        color: 'var(--text-3)', fontSize: 13,
+        width: '100%', textAlign: 'left',
+        background: 'none', border: 'none', cursor: 'pointer',
+      }}>
+        {theme === 'dark' ? <Icons.Sun size={15} /> : <Icons.Moon size={15} />}
+        {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+      </button>
       <button onClick={() => { onLogout(); setMobileOpen(false); }} style={{
         display: 'flex', alignItems: 'center', gap: 10,
         padding: '8px 12px', borderRadius: 'var(--radius)',

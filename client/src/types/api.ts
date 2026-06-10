@@ -106,6 +106,12 @@ export interface SessionsResponse {
   hasMore: boolean;
 }
 
+export interface LoadBalancerAnalytics {
+  requests: number;
+  errors: number;
+  errorRate: number;
+}
+
 export interface CreateLoadBalancerRequest {
   name: string;
   zoneId: string;
