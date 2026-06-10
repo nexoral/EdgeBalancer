@@ -33,6 +33,8 @@ export async function fetchWorkerAnalytics(params: {
     }
   }`;
 
+  console.log(`[analytics] fetching worker analytics — script="${scriptName}" period=${period} account=${accountId}`);
+
   try {
     const res = await axios.post(CF_GRAPHQL, { query }, {
       headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
@@ -40,7 +42,10 @@ export async function fetchWorkerAnalytics(params: {
     });
 
     const viewer = res.data?.data?.viewer;
-    if (!viewer) return null;
+    if (!viewer) {
+      console.warn(`[analytics] Cloudflare returned no viewer data for script="${scriptName}" — likely an auth or account issue`);
+      return null;
+    }
 
     const rows: Array<{ sum: { requests: number; errors: number } }> =
       viewer.accounts?.[0]?.workersInvocationsAdaptive ?? [];
@@ -51,8 +56,10 @@ export async function fetchWorkerAnalytics(params: {
       ? Math.round((totalErrors / totalRequests) * 10_000) / 100
       : 0;
 
+    console.log(`[analytics] script="${scriptName}" period=${period} — requests=${totalRequests} errors=${totalErrors} errorRate=${errorRate}%`);
     return { requests: totalRequests, errors: totalErrors, errorRate };
-  } catch {
+  } catch (err: any) {
+    console.error(`[analytics] failed to fetch analytics for script="${scriptName}":`, err?.message ?? err);
     return null;
   }
 }
