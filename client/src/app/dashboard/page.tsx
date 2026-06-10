@@ -10,7 +10,7 @@ import { Icons } from '@/components/shared/Icons';
 import { ConfirmModal } from '@/components/ui/Modal';
 import { PauseModal } from '@/components/loadbalancers/PauseModal';
 import { DeploymentOverlay, DeploymentSuccessModal } from '@/components/loadbalancers/DeploymentExperience';
-import type { LoadBalancer } from '@/types/api';
+import type { LoadBalancer, LoadBalancerAnalytics } from '@/types/api';
 import toast from 'react-hot-toast';
 
 export default function DashboardPage() {
@@ -19,6 +19,8 @@ export default function DashboardPage() {
   const [loadBalancers, setLoadBalancers] = useState<LoadBalancer[]>([]);
   const [loading, setLoading] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
+  const [analyticsMap, setAnalyticsMap] = useState<Record<string, LoadBalancerAnalytics | null>>({});
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
   const [currentNav, setCurrentNav] = useState('balancers');
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [actioningId, setActioningId] = useState<string | null>(null);
@@ -36,6 +38,20 @@ export default function DashboardPage() {
     const t = setTimeout(() => setSearchDebounce(searchValue), 300);
     return () => clearTimeout(t);
   }, [searchValue]);
+
+  const fetchAnalytics = useCallback(async () => {
+    try {
+      setAnalyticsLoading(true);
+      const response = await api.getBatchLoadBalancerAnalytics('24h');
+      if (response.success && response.data?.analytics) {
+        setAnalyticsMap(response.data.analytics);
+      }
+    } catch {
+      // silent — analytics failure must not break the dashboard
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  }, []);
 
   const fetchLoadBalancers = useCallback(async (opts?: { initial?: boolean }) => {
     try {
@@ -68,15 +84,24 @@ export default function DashboardPage() {
     }
   }, [user, authLoading, router]);
 
-  // Initial load
+  // Initial load — fetch LBs and analytics in parallel
   useEffect(() => {
-    if (user) fetchLoadBalancers({ initial: true });
+    if (user) {
+      fetchLoadBalancers({ initial: true });
+      fetchAnalytics();
+    }
   }, [user]);
 
-  // Refetch on filter/search change (skip initial mount)
+  // Re-fetch LBs on filter/search change (analytics unchanged — search doesn't affect stats)
   useEffect(() => {
     if (user && !loading) fetchLoadBalancers();
   }, [searchDebounce, statusFilter]);
+
+  // Re-fetch analytics after pause/resume/delete so stats stay current
+  const refreshAll = useCallback(() => {
+    fetchLoadBalancers();
+    fetchAnalytics();
+  }, [fetchLoadBalancers, fetchAnalytics]);
 
   const handleNav = (id: string) => {
     if (id === 'settings') router.push('/settings');
@@ -100,7 +125,7 @@ export default function DashboardPage() {
       const response = await api.pauseLoadBalancer(lb.id, mode);
       if (response.success) {
         toast.success(response.message || 'Load balancer paused');
-        fetchLoadBalancers();
+        refreshAll();
       }
     } catch (error: any) {
       toast.error(error.message || 'Failed to pause load balancer');
@@ -115,7 +140,7 @@ export default function DashboardPage() {
       const response = await api.resumeLoadBalancer(lb.id);
       if (response.success) {
         toast.success(response.message || 'Load balancer resumed');
-        fetchLoadBalancers();
+        refreshAll();
       }
     } catch (error: any) {
       toast.error(error.message || 'Failed to resume load balancer');
@@ -187,7 +212,7 @@ export default function DashboardPage() {
             subtitle="Manage your Cloudflare Worker-based load balancers"
             actions={
               <>
-                <button className="btn btn-ghost btn-sm" onClick={() => fetchLoadBalancers()}>
+                <button className="btn btn-ghost btn-sm" onClick={() => { fetchLoadBalancers(); fetchAnalytics(); }}>
                   <Icons.Refresh size={14} /> <span className="hide-sm">Refresh</span>
                 </button>
                 <button className="btn btn-primary btn-sm" onClick={() => router.push('/loadbalancers/create')}>
@@ -268,6 +293,7 @@ export default function DashboardPage() {
                     <LoadBalancerCard
                       key={lb.id}
                       lb={lb}
+                      analytics={analyticsLoading ? 'loading' : (analyticsMap[lb.id] ?? null)}
                       onSelect={() => router.push(`/loadbalancers/${lb.id}/edit`)}
                       onDelete={() => openDeleteModal(lb)}
                       onPause={() => openPauseModal(lb)}

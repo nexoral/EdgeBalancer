@@ -1,12 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { Icons } from '@/components/shared/Icons';
-import { api } from '@/lib/api';
 import type { LoadBalancer, LoadBalancerAnalytics } from '@/types/api';
 
 interface LoadBalancerCardProps {
   lb: LoadBalancer;
+  analytics: LoadBalancerAnalytics | null | 'loading';
   onSelect: () => void;
   onDelete: () => void;
   onPause: () => void;
@@ -23,6 +22,7 @@ function formatRequests(n: number): string {
 
 export const LoadBalancerCard = ({
   lb,
+  analytics,
   onSelect,
   onDelete,
   onPause,
@@ -30,16 +30,6 @@ export const LoadBalancerCard = ({
   isDeleting,
   isActioning
 }: LoadBalancerCardProps) => {
-  const [analytics, setAnalytics] = useState<LoadBalancerAnalytics | null | 'loading'>('loading');
-
-  useEffect(() => {
-    let mounted = true;
-    api.getLoadBalancerAnalytics(lb.id, '24h')
-      .then(res => { if (mounted) setAnalytics(res.data?.analytics ?? null); })
-      .catch(() => { if (mounted) setAnalytics(null); });
-    return () => { mounted = false; };
-  }, [lb.id]);
-
   const getStatusColor = () => {
     if (lb.status === 'active') return 'live';
     if (lb.status === 'paused') return 'warn';
