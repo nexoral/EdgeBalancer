@@ -420,7 +420,7 @@ function CloudflareTab({ user, refreshUser }: any) {
                 disabled={loading}
               />
               <div className="hint">
-                Token must have <span className="mono" style={{ color: 'var(--accent)' }}>Workers Scripts: Edit</span> and <span className="mono" style={{ color: 'var(--accent)' }}>Zone: Read</span> permissions
+                Token must have <span className="mono" style={{ color: 'var(--accent)' }}>Workers Scripts: Edit</span>, <span className="mono" style={{ color: 'var(--accent)' }}>Account Analytics: Read</span>, and <span className="mono" style={{ color: 'var(--accent)' }}>Zone: Read</span> permissions
               </div>
             </div>
 
