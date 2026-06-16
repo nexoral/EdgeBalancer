@@ -89,6 +89,21 @@ export class CloudflareClient {
     return !!script;
   }
 
+  async testDnsEditPermission(accountId: string): Promise<boolean> {
+    try {
+      const zones = await this.getZones(accountId);
+      const firstZone = zones?.result?.[0];
+      if (!firstZone?.id) return true; // no zones available to test against — skip
+      await retryWithBackoff(
+        () => this.client.get(`/zones/${firstZone.id}/dns_records?per_page=1`),
+        { maxRetries: 2 }
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async getWorkerDomains(accountId: string): Promise<any[]> {
     const response = await retryWithBackoff(
       () => this.client.get(`/accounts/${accountId}/workers/domains`),

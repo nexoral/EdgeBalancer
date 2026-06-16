@@ -146,6 +146,11 @@ class ApiClient {
     return response.data;
   }
 
+  async getOriginIp(lbId: string, hostname: string): Promise<ApiResponse> {
+    const response = await this.client.get(`/loadbalancers/${lbId}/origin-ip`, { params: { hostname } });
+    return response.data;
+  }
+
   // Session endpoints
   async getSessions(params?: { cursor?: string; limit?: number; filter?: 'all' | 'active' | 'inactive' }): Promise<ApiResponse> {
     const query = new URLSearchParams();

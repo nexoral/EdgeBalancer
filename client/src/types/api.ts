@@ -52,6 +52,12 @@ export interface OriginServer {
   isFallback?: boolean;
 }
 
+export interface IpOriginRecord {
+  originalUrl: string;
+  hostname: string;
+  dnsRecordId: string;
+}
+
 export interface PlacementConfig {
   smartPlacement?: boolean;
   region?: string;
@@ -80,6 +86,9 @@ export interface LoadBalancer {
   strategyValue: LoadBalancerStrategy;
   weightedEnabled: boolean;
   exposeRealOrigin: boolean;
+  corsEnabled: boolean;
+  corsOrigins: string[];
+  ipOriginRecords: IpOriginRecord[];
   placement: PlacementConfig;
   status: string;
   workerUrl: string;
@@ -121,5 +130,7 @@ export interface CreateLoadBalancerRequest {
   strategy: LoadBalancerStrategy;
   weightedEnabled: boolean;
   exposeRealOrigin: boolean;
+  corsEnabled: boolean;
+  corsOrigins: string[];
   placement: PlacementConfig;
 }

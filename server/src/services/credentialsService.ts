@@ -33,6 +33,12 @@ export const validateCloudflareCredentials = async (
       errors.push('Missing permission: Zone > Zone > Read');
     }
 
+    // Test Zone DNS Edit permission (required for raw IP origin auto-DNS)
+    const hasDnsEdit = await client.testDnsEditPermission(accountId);
+    if (!hasDnsEdit) {
+      errors.push('Missing permission: Zone > DNS > Edit');
+    }
+
     return {
       valid: errors.length === 0,
       errors,

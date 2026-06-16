@@ -18,6 +18,8 @@ import { getCloudflareCredentialsForUser } from '../services/credentials.service
 import { normalizeStrategy, isWeightedStrategy } from '../services/strategy.service';
 import { toHostname, assertHostnameAvailable } from '../services/hostname.service';
 import { snapshotLoadBalancer, configSignature } from '../services/snapshot.service';
+import { provisionIpDnsChanges, deleteIpDnsRecord } from '../../../services/workerDns';
+import type { IpOriginRecord } from '../../../services/workerDns';
 import { isNameUpdateAttempt } from '../services/validation.service';
 import { formatLoadBalancer } from '../services/formatter.service';
 import { createSession, deactivateSessionsForLoadBalancer } from '../../../services/sessionService';
@@ -31,6 +33,7 @@ export interface UpdateLoadBalancerInput {
   origins: Array<{
     url: string;
     weight: number;
+    rawIp?: string;
     geoCities?: string[];
     geoSubdivisions?: string[];
     geoCountries?: string[];
@@ -40,6 +43,8 @@ export interface UpdateLoadBalancerInput {
   strategy?: string;
   weightedEnabled?: boolean;
   exposeRealOrigin?: boolean;
+  corsEnabled?: boolean;
+  corsOrigins?: string[];
   placement?: {
     smartPlacement?: boolean;
     region?: string;
@@ -96,6 +101,8 @@ export async function updateLoadBalancerOrchestrator(params: {
     strategy,
     weightedEnabled,
     exposeRealOrigin,
+    corsEnabled,
+    corsOrigins,
     placement,
   } = input;
 
@@ -119,6 +126,8 @@ export async function updateLoadBalancerOrchestrator(params: {
   // Detect changes
   const hostnameValueChanged = nextHostname !== previousHostname;
   const hostnameChanged = hostnameValueChanged || zoneId !== loadBalancer.zoneId;
+
+  // Core config change (origins, strategy, routing, placement)
   const configChanged = configSignature({
     origins,
     strategy: nextStrategy,
@@ -133,11 +142,38 @@ export async function updateLoadBalancerOrchestrator(params: {
     placement: previousSnapshot.placement,
   });
 
-  // Always generate worker code — needed for session log regardless of what changed
-  const workerCode = generateWorkerCode({ origins, strategy: nextStrategy, exposeRealOrigin: exposeRealOrigin ?? false });
+  // CORS state change tracked separately — never swallowed by configChanged
+  const nextCorsEnabled = corsEnabled ?? false;
+  const nextCorsOrigins = [...(corsOrigins ?? [])].sort();
+  const corsStateChanged =
+    nextCorsEnabled !== (previousSnapshot.corsEnabled ?? false) ||
+    JSON.stringify(nextCorsOrigins) !== JSON.stringify([...(previousSnapshot.corsOrigins ?? [])].sort());
+
+  // Worker needs redeployment when ANY config changes (core or CORS)
+  const workerNeedsRedeploy = configChanged || corsStateChanged;
+
+  // Provision DNS records for raw IP origins (create new, update changed — safe before deploy)
+  // Deletion of obsolete records happens after DB update to keep old worker valid during rollback window
+  const {
+    resolvedOrigins,
+    ipOriginRecords: nextIpOriginRecords,
+    createdRecordIds: newDnsRecordIds,
+    obsoleteRecords: obsoleteDnsRecords,
+  } = await provisionIpDnsChanges({
+    newOrigins: origins,
+    existingRecords: previousSnapshot.ipOriginRecords ?? [],
+    scriptName: loadBalancer.scriptName,
+    domain,
+    zoneId,
+    apiToken,
+  });
+  cancellation.throwIfCancelled();
+
+  // Always generate worker code using resolved origins (hostnames, not raw IPs)
+  const workerCode = generateWorkerCode({ origins: resolvedOrigins, strategy: nextStrategy, exposeRealOrigin: exposeRealOrigin ?? false, corsEnabled: nextCorsEnabled, corsOrigins: corsOrigins ?? [] });
 
   // No changes detected
-  if (!hostnameChanged && !configChanged) {
+  if (!hostnameChanged && !workerNeedsRedeploy) {
     return {
       success: true,
       message: 'Load balancer updated successfully',
@@ -150,8 +186,8 @@ export async function updateLoadBalancerOrchestrator(params: {
     };
   }
 
-  // Get active deployment for rollback (only if config changed)
-  const activeDeployment = configChanged
+  // Get active deployment for rollback (only if worker needs redeployment)
+  const activeDeployment = workerNeedsRedeploy
     ? await getActiveWorkerDeployment({
         accountId,
         apiToken,
@@ -159,7 +195,7 @@ export async function updateLoadBalancerOrchestrator(params: {
       })
     : null;
 
-  if (configChanged && !activeDeployment?.versions?.length) {
+  if (workerNeedsRedeploy && !activeDeployment?.versions?.length) {
     const error = new Error('Unable to determine the currently active Worker version for rollback');
     (error as any).statusCode = 500;
     throw error;
@@ -172,8 +208,8 @@ export async function updateLoadBalancerOrchestrator(params: {
   let databaseSaved = false;
 
   try {
-    // Step 1: Deploy new Worker version (if config changed)
-    if (configChanged) {
+    // Step 1: Deploy new Worker version (if worker config changed)
+    if (workerNeedsRedeploy) {
       const versionId = await uploadWorkerVersion({
         accountId,
         apiToken,
@@ -215,6 +251,8 @@ export async function updateLoadBalancerOrchestrator(params: {
     }
 
     // Step 3: Update database
+    // Strip transient rawIp from origins before persisting
+    const originsForDb = origins.map(({ rawIp: _, ...rest }: any) => rest);
     const updatedLoadBalancer = await LoadBalancer.findOneAndUpdate(
       {
         _id: loadBalancerId,
@@ -227,10 +265,13 @@ export async function updateLoadBalancerOrchestrator(params: {
           domain,
           subdomain: subdomain || undefined,
           zoneId,
-          origins,
+          origins: originsForDb,
           strategy: nextStrategy,
           weightedEnabled: nextWeightedEnabled,
           exposeRealOrigin: exposeRealOrigin ?? false,
+          corsEnabled: corsEnabled ?? false,
+          corsOrigins: corsOrigins ?? [],
+          ipOriginRecords: nextIpOriginRecords,
           placement,
           workerUrl: `https://${nextHostname}`,
           status: 'active',
@@ -263,8 +304,15 @@ export async function updateLoadBalancerOrchestrator(params: {
       cancellation.throwIfCancelled();
     }
 
-    // Step 5: Prune Worker history (if config changed)
-    if (configChanged) {
+    // Step 5: Delete DNS records for IP origins removed from this update
+    if (obsoleteDnsRecords.length > 0) {
+      await Promise.allSettled(
+        obsoleteDnsRecords.map(r => deleteIpDnsRecord({ apiToken, zoneId, recordId: r.dnsRecordId }))
+      );
+    }
+
+    // Step 6: Prune Worker history (if worker was redeployed)
+    if (workerNeedsRedeploy) {
       await pruneWorkerHistory({
         accountId,
         apiToken,
@@ -273,7 +321,7 @@ export async function updateLoadBalancerOrchestrator(params: {
       });
     }
 
-    // Step 6: Deactivate old session(s) and save new session log
+    // Step 7: Deactivate old session(s) and save new session log
     try {
       await deactivateSessionsForLoadBalancer(loadBalancerId);
       await createSession({
@@ -306,6 +354,11 @@ export async function updateLoadBalancerOrchestrator(params: {
   } catch (error) {
     // Comprehensive rollback logic
     try {
+      // Rollback Step 0: Delete newly created DNS records (IP origins added in this update)
+      await Promise.allSettled(
+        newDnsRecordIds.map(id => deleteIpDnsRecord({ apiToken, zoneId, recordId: id }))
+      );
+
       // Rollback Step 1: Reattach old hostname if detached
       if (oldHostnameDetached) {
         await attachDomainToWorker({
@@ -327,7 +380,7 @@ export async function updateLoadBalancerOrchestrator(params: {
       }
 
       // Rollback Step 3: Restore previous deployment
-      if (configChanged && newVersionDeployed && activeDeployment?.versions?.length) {
+      if (workerNeedsRedeploy && newVersionDeployed && activeDeployment?.versions?.length) {
         await createWorkerDeployment({
           accountId,
           apiToken,
@@ -356,6 +409,9 @@ export async function updateLoadBalancerOrchestrator(params: {
               strategy: previousSnapshot.strategy,
               weightedEnabled: previousSnapshot.weightedEnabled,
               exposeRealOrigin: previousSnapshot.exposeRealOrigin,
+              corsEnabled: previousSnapshot.corsEnabled,
+              corsOrigins: previousSnapshot.corsOrigins,
+              ipOriginRecords: previousSnapshot.ipOriginRecords,
               placement: previousSnapshot.placement,
               workerUrl: previousSnapshot.workerUrl,
               status: previousSnapshot.status,

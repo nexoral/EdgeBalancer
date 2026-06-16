@@ -6,6 +6,10 @@ export default {
       return new Response("No origin servers available", { status: 502 });
     }
 
+    if (config.corsEnabled && request.method === "OPTIONS") {
+      return buildCorsPreflightResponse(request);
+    }
+
     let lastFailureResponse = null;
 
     for (const origin of config.origins) {
@@ -50,11 +54,12 @@ async function proxyToOrigin(origin, request) {
   headers.delete("X-Forwarded-Host");
 
   try {
-    return await fetch(targetUrl, {
+    const response = await fetch(targetUrl, {
       method: request.method,
       headers,
       body: allowsBody(request.method) ? requestClone.body : undefined,
     });
+    return config.corsEnabled ? injectCorsHeaders(response, request) : response;
   } catch (error) {
     return new Response("Origin server unavailable", { status: 502 });
   }
@@ -62,4 +67,42 @@ async function proxyToOrigin(origin, request) {
 
 function allowsBody(method) {
   return method !== "GET" && method !== "HEAD";
+}
+
+function getAllowedOrigin(requestOrigin) {
+  if (!requestOrigin) return null;
+  if (!config.corsOrigins || config.corsOrigins.length === 0) return requestOrigin;
+  return config.corsOrigins.includes(requestOrigin) ? requestOrigin : null;
+}
+
+function buildCorsPreflightResponse(request) {
+  const allowedOrigin = getAllowedOrigin(request.headers.get("Origin"));
+  const headers = new Headers();
+  if (allowedOrigin) {
+    headers.set("Access-Control-Allow-Origin", allowedOrigin);
+    headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
+    headers.set("Access-Control-Allow-Headers",
+      request.headers.get("Access-Control-Request-Headers") || "Content-Type, Authorization");
+    headers.set("Access-Control-Allow-Credentials", "true");
+    headers.set("Access-Control-Max-Age", "86400");
+    headers.set("Vary", "Origin");
+  }
+  return new Response(null, { status: 204, headers });
+}
+
+function injectCorsHeaders(response, request) {
+  const allowedOrigin = getAllowedOrigin(request.headers.get("Origin"));
+  if (!allowedOrigin) return response;
+  const headers = new Headers(response.headers);
+  headers.delete("Access-Control-Allow-Origin");
+  headers.delete("Access-Control-Allow-Credentials");
+  headers.delete("Access-Control-Expose-Headers");
+  headers.set("Access-Control-Allow-Origin", allowedOrigin);
+  headers.set("Access-Control-Allow-Credentials", "true");
+  headers.set("Vary", "Origin");
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
 }

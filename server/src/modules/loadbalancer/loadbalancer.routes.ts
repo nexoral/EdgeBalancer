@@ -14,6 +14,7 @@ import { pauseLoadBalancerController } from './controllers/pause.controller';
 import { resumeLoadBalancerController } from './controllers/resume.controller';
 import { getLoadBalancerAnalytics } from './controllers/analytics.controller';
 import { getBatchLoadBalancerAnalytics } from './controllers/batch-analytics.controller';
+import { getOriginIp } from './controllers/origin-ip.controller';
 
 const TEST = process.env.NODE_ENV === 'test';
 const STRICT   = TEST ? { max: 10000, timeWindow: '1 minute' } : { max: 5,  timeWindow: '15 minutes' };
@@ -36,4 +37,5 @@ export default async function loadBalancerRoutes(app: FastifyInstance) {
   app.post('/:id/resume',                { config: { rateLimit: MODERATE } }, async (request, reply) => runHandlers([authenticate, resumeLoadBalancerController], request, reply));
 
   app.get('/:id/analytics',             { config: { rateLimit: MODERATE } }, async (request, reply) => runHandlers([authenticate, getLoadBalancerAnalytics], request, reply));
+  app.get('/:id/origin-ip',             { config: { rateLimit: RELAXED  } }, async (request, reply) => runHandlers([authenticate, getOriginIp], request, reply));
 }

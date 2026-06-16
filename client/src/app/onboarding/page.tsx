@@ -136,6 +136,7 @@ export default function OnboardingPage() {
                 <PermissionBadge>Account &gt; Workers KV Storage &gt; Edit</PermissionBadge>
                 <PermissionBadge>Account &gt; Account Analytics &gt; Read</PermissionBadge>
                 <PermissionBadge>Zone &gt; Zone &gt; Read</PermissionBadge>
+                <PermissionBadge>Zone &gt; DNS &gt; Edit</PermissionBadge>
               </div>
             </StepCard>
 
