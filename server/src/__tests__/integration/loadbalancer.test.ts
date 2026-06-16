@@ -26,6 +26,19 @@ jest.mock('../../services/workerDeletion', () => ({
   deleteWorker: jest.fn().mockResolvedValue(undefined),
   deleteWorkerScript: jest.fn().mockResolvedValue(undefined),
 }));
+jest.mock('../../services/workerDns', () => ({
+  resolveIpOrigins: jest.fn().mockImplementation(({ origins }: { origins: any[] }) =>
+    Promise.resolve({ resolvedOrigins: origins, ipOriginRecords: [] })
+  ),
+  provisionIpDnsChanges: jest.fn().mockImplementation(({ newOrigins }: { newOrigins: any[] }) =>
+    Promise.resolve({ resolvedOrigins: newOrigins, ipOriginRecords: [], createdRecordIds: [], obsoleteRecords: [] })
+  ),
+  deleteIpDnsRecord: jest.fn().mockResolvedValue(undefined),
+  createIpDnsRecord: jest.fn().mockResolvedValue('dns-rec-123'),
+  updateIpDnsRecord: jest.fn().mockResolvedValue(undefined),
+  isRawIpOrigin: jest.fn().mockReturnValue(false),
+  buildIpOriginHostname: jest.fn().mockReturnValue('lb-o1.example.com'),
+}));
 jest.mock('../../services/workerDomain', () => ({
   attachDomainToWorker: jest.fn().mockResolvedValue('https://lb.example.com'),
   detachDomainFromWorker: jest.fn().mockResolvedValue(undefined),
@@ -779,5 +792,263 @@ describe('Rate limiting', () => {
     const remaining1 = Number(first.headers['x-ratelimit-remaining']);
     const remaining2 = Number(second.headers['x-ratelimit-remaining']);
     expect(remaining2).toBeLessThan(remaining1);
+  });
+});
+
+// ─── CORS ─────────────────────────────────────────────────────────────────────
+
+describe('CORS — create and retrieve', () => {
+  it('stores corsEnabled: true and returns it in the response', async () => {
+    const { cookie } = await createTestUser();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/loadbalancers',
+      headers: cookie,
+      payload: { ...VALID_PAYLOAD, corsEnabled: true, corsOrigins: ['https://a.com'] },
+    });
+    expect(res.statusCode).toBe(201);
+    const lb = res.json().data.loadBalancer;
+    expect(lb.corsEnabled).toBe(true);
+    expect(lb.corsOrigins).toEqual(['https://a.com']);
+  });
+
+  it('defaults corsEnabled to false and corsOrigins to [] when omitted', async () => {
+    const { cookie } = await createTestUser();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/loadbalancers',
+      headers: cookie,
+      payload: VALID_PAYLOAD,
+    });
+    expect(res.statusCode).toBe(201);
+    const lb = res.json().data.loadBalancer;
+    expect(lb.corsEnabled).toBe(false);
+    expect(lb.corsOrigins).toEqual([]);
+  });
+
+  it('GET returns corsEnabled and corsOrigins from DB', async () => {
+    const { user, cookie } = await createTestUser();
+    const lb = await LoadBalancer.create({
+      userId: user._id,
+      name: 'cors-test',
+      scriptName: 'cors-test',
+      domain: 'example.com',
+      origins: [{ url: 'https://origin.example.com', weight: 100 }],
+      strategy: 'round-robin',
+      weightedEnabled: false,
+      corsEnabled: true,
+      corsOrigins: ['https://app.example.com'],
+      placement: { smartPlacement: false },
+      zoneId: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4',
+      status: 'active',
+      workerUrl: 'https://cors-test.example.com',
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/loadbalancers/${lb._id}`,
+      headers: cookie,
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json().data.loadBalancer;
+    expect(body.corsEnabled).toBe(true);
+    expect(body.corsOrigins).toEqual(['https://app.example.com']);
+  });
+});
+
+// ─── ipOriginRecords ──────────────────────────────────────────────────────────
+
+describe('ipOriginRecords — persistence', () => {
+  it('GET returns ipOriginRecords stored in the DB', async () => {
+    const { user, cookie } = await createTestUser();
+    const lb = await LoadBalancer.create({
+      userId: user._id,
+      name: 'ip-records-test',
+      scriptName: 'ip-records-test',
+      domain: 'example.com',
+      origins: [{ url: 'https://lb-o1.example.com', weight: 100 }],
+      strategy: 'round-robin',
+      weightedEnabled: false,
+      ipOriginRecords: [
+        { originalUrl: 'http://1.2.3.4', hostname: 'lb-o1.example.com', dnsRecordId: 'rec-1' },
+      ],
+      placement: { smartPlacement: false },
+      zoneId: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4',
+      status: 'active',
+      workerUrl: 'https://ip-records-test.example.com',
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/loadbalancers/${lb._id}`,
+      headers: cookie,
+    });
+    expect(res.statusCode).toBe(200);
+    const ipRecords = res.json().data.loadBalancer.ipOriginRecords;
+    expect(ipRecords).toHaveLength(1);
+    expect(ipRecords[0]).toMatchObject({
+      originalUrl: 'http://1.2.3.4',
+      hostname: 'lb-o1.example.com',
+      dnsRecordId: 'rec-1',
+    });
+  });
+
+  it('GET returns empty ipOriginRecords for LB without the field (backward compat)', async () => {
+    const { user, cookie } = await createTestUser();
+    const lb = await LoadBalancer.create({
+      userId: user._id,
+      name: 'legacy-ip-test',
+      scriptName: 'legacy-ip-test',
+      domain: 'example.com',
+      origins: [{ url: 'https://origin.example.com', weight: 100 }],
+      strategy: 'round-robin',
+      weightedEnabled: false,
+      placement: { smartPlacement: false },
+      zoneId: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4',
+      status: 'active',
+      workerUrl: 'https://legacy-ip-test.example.com',
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/loadbalancers/${lb._id}`,
+      headers: cookie,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.loadBalancer.ipOriginRecords).toEqual([]);
+  });
+});
+
+// ─── GET /api/loadbalancers/:id/origin-ip ─────────────────────────────────────
+
+describe('GET /api/loadbalancers/:id/origin-ip', () => {
+  it('200 returns originalUrl when hostname matches an ipOriginRecords entry', async () => {
+    const { user, cookie } = await createTestUser();
+    const lb = await LoadBalancer.create({
+      userId: user._id,
+      name: 'origin-ip-test',
+      scriptName: 'origin-ip-test',
+      domain: 'example.com',
+      origins: [{ url: 'https://lb-o1.example.com', weight: 100 }],
+      strategy: 'round-robin',
+      weightedEnabled: false,
+      ipOriginRecords: [
+        { originalUrl: 'http://1.2.3.4', hostname: 'lb-o1.example.com', dnsRecordId: 'rec-1' },
+      ],
+      placement: { smartPlacement: false },
+      zoneId: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4',
+      status: 'active',
+      workerUrl: 'https://origin-ip-test.example.com',
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/loadbalancers/${lb._id}/origin-ip?hostname=lb-o1.example.com`,
+      headers: cookie,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().success).toBe(true);
+    expect(res.json().data.originalUrl).toBe('http://1.2.3.4');
+  });
+
+  it('404 when no matching hostname in ipOriginRecords', async () => {
+    const { user, cookie } = await createTestUser();
+    const lb = await LoadBalancer.create({
+      userId: user._id,
+      name: 'origin-ip-no-match',
+      scriptName: 'origin-ip-no-match',
+      domain: 'example.com',
+      origins: [{ url: 'https://lb-o1.example.com', weight: 100 }],
+      strategy: 'round-robin',
+      weightedEnabled: false,
+      ipOriginRecords: [
+        { originalUrl: 'http://1.2.3.4', hostname: 'lb-o1.example.com', dnsRecordId: 'rec-1' },
+      ],
+      placement: { smartPlacement: false },
+      zoneId: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4',
+      status: 'active',
+      workerUrl: 'https://origin-ip-no-match.example.com',
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/loadbalancers/${lb._id}/origin-ip?hostname=lb-o99.example.com`,
+      headers: cookie,
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('404 when load balancer not found', async () => {
+    const { cookie } = await createTestUser();
+    const fakeId = new mongoose.Types.ObjectId().toString();
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/loadbalancers/${fakeId}/origin-ip?hostname=lb-o1.example.com`,
+      headers: cookie,
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('403 when load balancer belongs to a different user', async () => {
+    const { user: owner } = await createTestUser({ email: 'owner3@example.com' });
+    const otherUserId = new mongoose.Types.ObjectId().toString();
+    const otherCookie = { cookie: `token=${makeTestJwt({ userId: otherUserId, email: 'other3@example.com' })}` };
+
+    const lb = await LoadBalancer.create({
+      userId: owner._id,
+      name: 'origin-ip-owner',
+      scriptName: 'origin-ip-owner',
+      domain: 'example.com',
+      origins: [{ url: 'https://lb-o1.example.com', weight: 100 }],
+      strategy: 'round-robin',
+      weightedEnabled: false,
+      ipOriginRecords: [
+        { originalUrl: 'http://1.2.3.4', hostname: 'lb-o1.example.com', dnsRecordId: 'rec-1' },
+      ],
+      placement: { smartPlacement: false },
+      zoneId: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4',
+      status: 'active',
+      workerUrl: 'https://origin-ip-owner.example.com',
+    });
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/loadbalancers/${lb._id}/origin-ip?hostname=lb-o1.example.com`,
+      headers: otherCookie,
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('401 when not authenticated', async () => {
+    const fakeId = new mongoose.Types.ObjectId().toString();
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/loadbalancers/${fakeId}/origin-ip?hostname=lb-o1.example.com`,
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('400 when hostname query param is missing', async () => {
+    const { cookie } = await createTestUser();
+    const fakeId = new mongoose.Types.ObjectId().toString();
+
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/loadbalancers/${fakeId}/origin-ip`,
+      headers: cookie,
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('400 when id is not a valid ObjectId', async () => {
+    const { cookie } = await createTestUser();
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/loadbalancers/not-an-id/origin-ip?hostname=lb-o1.example.com',
+      headers: cookie,
+    });
+    expect(res.statusCode).toBe(400);
   });
 });

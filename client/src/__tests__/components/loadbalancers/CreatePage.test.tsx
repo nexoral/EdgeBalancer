@@ -134,3 +134,52 @@ describe('CreateLoadBalancerPage — exposeRealOrigin toggle', () => {
     }
   });
 });
+
+// ─── CORS toggle ──────────────────────────────────────────────────────────────
+
+describe('CreateLoadBalancerPage — CORS toggle', () => {
+  it('renders the "Worker CORS" label text', async () => {
+    render(<CreateLoadBalancerPage />);
+    await waitFor(() => expect(screen.getByText('Worker CORS')).toBeInTheDocument());
+  });
+
+  it('CORS toggle checkbox defaults to unchecked (corsEnabled: false)', async () => {
+    const { container } = render(<CreateLoadBalancerPage />);
+    await waitFor(() => screen.getByText('Worker CORS'));
+
+    const checkboxes = container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
+    const corsCheckbox = Array.from(checkboxes).find(cb =>
+      cb.closest('label')?.textContent?.includes('Worker CORS')
+    );
+    expect(corsCheckbox).toBeDefined();
+    expect(corsCheckbox?.checked).toBe(false);
+  });
+});
+
+// ─── Convert to Domain ────────────────────────────────────────────────────────
+
+describe('CreateLoadBalancerPage — Convert to Domain', () => {
+  it('shows "Convert to Domain" button when a raw IP URL is typed in the origin input', async () => {
+    render(<CreateLoadBalancerPage />);
+    await waitFor(() => screen.getByText('Expose Real Origin'));
+
+    const originInput = screen.getByPlaceholderText(/192\.168/);
+    fireEvent.change(originInput, { target: { value: 'http://18.60.112.44' } });
+
+    await waitFor(() =>
+      expect(screen.getByText('Convert to Domain')).toBeInTheDocument()
+    );
+  });
+
+  it('does NOT show "Convert to Domain" button when a regular hostname is typed', async () => {
+    render(<CreateLoadBalancerPage />);
+    await waitFor(() => screen.getByText('Expose Real Origin'));
+
+    const originInput = screen.getByPlaceholderText(/192\.168/);
+    fireEvent.change(originInput, { target: { value: 'https://backend.example.com' } });
+
+    await waitFor(() => {
+      expect(screen.queryByText('Convert to Domain')).not.toBeInTheDocument();
+    });
+  });
+});

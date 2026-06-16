@@ -340,7 +340,12 @@ jobs:
                 echo "certbot installed"
             fi
 
-            DOMAIN=$(grep -oP 'server_name\s+\K[^;]+' /etc/nginx/conf.d/edgebalancer.conf | tr -d ' ')
+            DOMAINS=$(grep -oP 'server_name\s+\K[^;]+' /etc/nginx/conf.d/edgebalancer.conf | xargs)
+            DOMAIN=${DOMAINS%% *}
+            CERTBOT_DOMAINS=""
+            for DOMAIN_NAME in $DOMAINS; do
+                CERTBOT_DOMAINS="$CERTBOT_DOMAINS -d $DOMAIN_NAME"
+            done
             echo "Domain from config: $DOMAIN"
 
             if sudo certbot certificates 2>/dev/null | grep -q "Certificate Name: $DOMAIN"; then
@@ -349,7 +354,7 @@ jobs:
                 echo "No SSL certificate found for $DOMAIN"
                 echo "Obtaining SSL certificate from Let's Encrypt..."
 
-                sudo certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos --email ${{ vars.LETSENCRYPT_EMAIL }} --redirect
+                sudo certbot --nginx $CERTBOT_DOMAINS --non-interactive --agree-tos --email ${{ vars.LETSENCRYPT_EMAIL }} --redirect
 
                 if [ $? -eq 0 ]; then
                     echo "✓ SSL certificate obtained successfully!"
