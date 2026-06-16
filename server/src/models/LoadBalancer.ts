@@ -11,6 +11,12 @@ export interface IOriginServer {
   isFallback?: boolean;
 }
 
+export interface IIpOriginRecord {
+  originalUrl: string;  // raw IP URL the user entered
+  hostname: string;     // internal DNS hostname used in worker script
+  dnsRecordId: string;  // Cloudflare DNS record ID
+}
+
 export interface IPlacementConfig {
   smartPlacement?: boolean;
   region?: string;
@@ -26,6 +32,9 @@ export interface ILoadBalancer extends Document {
   strategy: string;
   weightedEnabled: boolean;
   exposeRealOrigin: boolean;
+  corsEnabled: boolean;
+  corsOrigins: string[];
+  ipOriginRecords: IIpOriginRecord[];
   placement: IPlacementConfig;
   zoneId: string;
   status: 'active' | 'paused' | 'inactive';
@@ -94,6 +103,24 @@ const LoadBalancerSchema = new Schema<ILoadBalancer>(
     exposeRealOrigin: {
       type: Boolean,
       default: false,
+    },
+    corsEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    corsOrigins: {
+      type: [String],
+      default: [],
+    },
+    ipOriginRecords: {
+      type: [
+        {
+          originalUrl: { type: String, required: true },
+          hostname: { type: String, required: true },
+          dnsRecordId: { type: String, required: true },
+        },
+      ],
+      default: [],
     },
     placement: {
       type: {

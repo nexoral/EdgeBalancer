@@ -16,6 +16,8 @@ import { normalizeStrategy, isWeightedStrategy } from '../services/strategy.serv
 import { toHostname, assertHostnameAvailable } from '../services/hostname.service';
 import { formatLoadBalancer } from '../services/formatter.service';
 import { createSession } from '../../../services/sessionService';
+import { resolveIpOrigins, deleteIpDnsRecord } from '../../../services/workerDns';
+import type { IpOriginRecord } from '../../../services/workerDns';
 import type { RequestCancellation } from '../../../utils/requestCancellation';
 
 export interface CreateLoadBalancerInput {
@@ -26,6 +28,7 @@ export interface CreateLoadBalancerInput {
   origins: Array<{
     url: string;
     weight: number;
+    rawIp?: string;
     geoCities?: string[];
     geoSubdivisions?: string[];
     geoCountries?: string[];
@@ -35,6 +38,8 @@ export interface CreateLoadBalancerInput {
   strategy?: string;
   weightedEnabled?: boolean;
   exposeRealOrigin?: boolean;
+  corsEnabled?: boolean;
+  corsOrigins?: string[];
   placement?: {
     smartPlacement?: boolean;
     region?: string;
@@ -64,6 +69,7 @@ export async function createLoadBalancerOrchestrator(params: {
   let accountId = '';
   let apiToken = '';
   let workerCode = '';
+  let ipOriginRecords: IpOriginRecord[] = [];
 
   const {
     name,
@@ -74,6 +80,8 @@ export async function createLoadBalancerOrchestrator(params: {
     strategy,
     weightedEnabled,
     exposeRealOrigin,
+    corsEnabled,
+    corsOrigins,
     placement,
   } = input;
 
@@ -94,14 +102,21 @@ export async function createLoadBalancerOrchestrator(params: {
     });
     cancellation.throwIfCancelled();
 
-    // Step 3: Generate Worker code
+    // Step 3: Resolve raw IP origins to internal grey-cloud DNS hostnames
+    const resolved = await resolveIpOrigins({ origins, scriptName, domain, zoneId, apiToken });
+    ipOriginRecords = resolved.ipOriginRecords;
+    cancellation.throwIfCancelled();
+
+    // Step 4: Generate Worker code using resolved origins (hostnames, not raw IPs)
     workerCode = generateWorkerCode({
-      origins,
+      origins: resolved.resolvedOrigins,
       strategy: nextStrategy,
       exposeRealOrigin: exposeRealOrigin ?? false,
+      corsEnabled: corsEnabled ?? false,
+      corsOrigins: corsOrigins ?? [],
     });
 
-    // Step 4: Deploy Worker to Cloudflare
+    // Step 5: Deploy Worker to Cloudflare
     await deployWorker({
       accountId,
       apiToken,
@@ -111,7 +126,7 @@ export async function createLoadBalancerOrchestrator(params: {
     });
     cancellation.throwIfCancelled();
 
-    // Step 5: Construct and validate hostname
+    // Step 6: Construct and validate hostname
     hostname = toHostname(domain, subdomain);
     await assertHostnameAvailable({
       userId,
@@ -121,7 +136,7 @@ export async function createLoadBalancerOrchestrator(params: {
     });
     cancellation.throwIfCancelled();
 
-    // Step 6: Attach domain to Worker
+    // Step 7: Attach domain to Worker
     const workerUrl = await attachDomainToWorker({
       accountId,
       apiToken,
@@ -131,17 +146,22 @@ export async function createLoadBalancerOrchestrator(params: {
     });
     cancellation.throwIfCancelled();
 
-    // Step 7: Save load balancer to database
+    // Step 8: Save load balancer to database
+    // Strip transient rawIp field from origins before persisting (it's only used for DNS record creation)
+    const originsForDb = origins.map(({ rawIp: _, ...rest }: any) => rest);
     createdLoadBalancer = await LoadBalancer.create({
       userId,
       name,
       scriptName,
       domain,
       subdomain: subdomain || undefined,
-      origins,
+      origins: originsForDb,
       strategy: nextStrategy,
       weightedEnabled: nextWeightedEnabled,
       exposeRealOrigin: exposeRealOrigin ?? false,
+      corsEnabled: corsEnabled ?? false,
+      corsOrigins: corsOrigins ?? [],
+      ipOriginRecords,
       placement,
       zoneId,
       status: 'active',
@@ -149,7 +169,7 @@ export async function createLoadBalancerOrchestrator(params: {
     });
     cancellation.throwIfCancelled();
 
-    // Step 8: Save session log (non-blocking — failure must not roll back the LB)
+    // Step 9: Save session log (non-blocking — failure must not roll back the LB)
     try {
       await createSession({
         userId,
@@ -179,9 +199,14 @@ export async function createLoadBalancerOrchestrator(params: {
       },
     };
   } catch (error) {
-    // Rollback: Clean up any created resources
+    // Rollback: clean up all resources created so far
     if (accountId && apiToken && scriptName) {
       try {
+        // Delete auto-created DNS records for raw IP origins
+        await Promise.allSettled(
+          ipOriginRecords.map(r => deleteIpDnsRecord({ apiToken, zoneId, recordId: r.dnsRecordId }))
+        );
+
         if (createdLoadBalancer?._id) {
           await LoadBalancer.findByIdAndDelete(createdLoadBalancer._id);
         }

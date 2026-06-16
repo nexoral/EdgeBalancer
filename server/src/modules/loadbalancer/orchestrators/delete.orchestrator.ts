@@ -9,6 +9,7 @@ import { LoadBalancer } from '../../../models/LoadBalancer';
 import { deleteWorker } from '../../../services/workerDeletion';
 import { getCloudflareCredentialsForUser } from '../services/credentials.service';
 import { deactivateSessionsForLoadBalancer } from '../../../services/sessionService';
+import { deleteIpDnsRecord } from '../../../services/workerDns';
 
 export interface DeleteLoadBalancerResult {
   success: boolean;
@@ -43,6 +44,15 @@ export async function deleteLoadBalancerOrchestrator(params: {
   const hostname = loadBalancer.subdomain
     ? `${loadBalancer.subdomain}.${loadBalancer.domain}`
     : loadBalancer.domain;
+
+  // Delete auto-created DNS records for raw IP origins
+  if (Array.isArray(loadBalancer.ipOriginRecords) && loadBalancer.ipOriginRecords.length > 0) {
+    await Promise.allSettled(
+      loadBalancer.ipOriginRecords.map((r: any) =>
+        deleteIpDnsRecord({ apiToken, zoneId: loadBalancer.zoneId, recordId: r.dnsRecordId })
+      )
+    );
+  }
 
   // Delete Worker from Cloudflare
   try {

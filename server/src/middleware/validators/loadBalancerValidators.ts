@@ -147,6 +147,24 @@ export const createLoadBalancerValidator = [
       errors.push('weightedEnabled must be a boolean');
     }
 
+    const corsEnabled = body?.corsEnabled;
+    if (corsEnabled !== undefined && typeof corsEnabled !== 'boolean') {
+      errors.push('corsEnabled must be a boolean');
+    }
+
+    const corsOrigins = body?.corsOrigins;
+    if (corsOrigins !== undefined) {
+      if (!Array.isArray(corsOrigins)) {
+        errors.push('corsOrigins must be an array');
+      } else {
+        corsOrigins.forEach((o: any, i: number) => {
+          if (typeof o !== 'string' || !/^https?:\/\/[^/]+$/.test(o.trim())) {
+            errors.push(`corsOrigins[${i}] must be a valid origin (e.g. https://example.com)`);
+          }
+        });
+      }
+    }
+
     if (!placement || typeof placement !== 'object' || Array.isArray(placement)) {
       errors.push('Placement configuration is required');
     } else {

@@ -28,6 +28,9 @@ export function snapshotLoadBalancer(loadBalancer: any) {
     strategy: normalizeStoredStrategy(loadBalancer.strategy, loadBalancer.weightedEnabled),
     weightedEnabled: isWeightedStrategy(loadBalancer.strategy),
     exposeRealOrigin: loadBalancer.exposeRealOrigin ?? false,
+    corsEnabled: loadBalancer.corsEnabled ?? false,
+    corsOrigins: Array.isArray(loadBalancer.corsOrigins) ? loadBalancer.corsOrigins : [],
+    ipOriginRecords: Array.isArray(loadBalancer.ipOriginRecords) ? loadBalancer.ipOriginRecords : [],
     placement: {
       smartPlacement: loadBalancer.placement?.smartPlacement !== false,
       region: loadBalancer.placement?.region || undefined,

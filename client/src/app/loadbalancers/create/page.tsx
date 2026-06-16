@@ -107,12 +107,15 @@ export default function CreateLoadBalancerPage() {
     name: '',
     zoneId: '',
     subdomain: '',
-    origins: [{ id: 1, url: '', weight: 100, geoCities: [], geoSubdivisions: [], geoCountries: [], geoContinents: [], isFallback: false }],
+    origins: [{ id: 1, url: '', weight: 100, rawIp: undefined as string | undefined, geoCities: [], geoSubdivisions: [], geoCountries: [], geoContinents: [], isFallback: false }],
     strategy: 'round-robin',
     exposeRealOrigin: false,
+    corsEnabled: false,
+    corsOrigins: [] as string[],
     smartPlacement: true,
     placementHint: '',
   });
+  const [corsInput, setCorsInput] = useState('');
 
   useEffect(() => {
     if (!user) {
@@ -139,8 +142,49 @@ export default function CreateLoadBalancerPage() {
 
   const update = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
 
+  const handleCorsToggle = (enabled: boolean) => {
+    update('corsEnabled', enabled);
+  };
+
+  const addCorsOrigin = (value: string) => {
+    const trimmed = value.trim().replace(/\/$/, '');
+    if (!trimmed) return;
+    const normalized = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    if (!form.corsOrigins.includes(normalized)) {
+      update('corsOrigins', [...form.corsOrigins, normalized]);
+    }
+    setCorsInput('');
+  };
+
+  const removeCorsOrigin = (origin: string) => {
+    update('corsOrigins', form.corsOrigins.filter(o => o !== origin));
+  };
+
   const addOrigin = () => {
-    setForm(f => ({ ...f, origins: [...f.origins, { id: Date.now(), url: '', weight: 100, geoCities: [], geoSubdivisions: [], geoCountries: [], geoContinents: [], isFallback: false }] }));
+    setForm(f => ({ ...f, origins: [...f.origins, { id: Date.now(), url: '', weight: 100, rawIp: undefined as string | undefined, geoCities: [], geoSubdivisions: [], geoCountries: [], geoContinents: [], isFallback: false }] }));
+  };
+
+  const isRawIpUrl = (url: string): boolean => {
+    if (!url.trim()) return false;
+    const withProto = /^https?:\/\//i.test(url) ? url : `http://${url}`;
+    try {
+      const { hostname } = new URL(withProto);
+      return /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname);
+    } catch { return false; }
+  };
+
+  const convertOriginToHostname = (originId: number, index: number) => {
+    const origin = form.origins.find(o => o.id === originId);
+    const domain = zones.find(z => z.id === form.zoneId)?.name;
+    if (!origin || !form.name.trim() || !domain) return;
+    const raw = origin.url.trim();
+    const withProto = /^https?:\/\//i.test(raw) ? raw : `http://${raw}`;
+    const parsed = (() => { try { return new URL(withProto); } catch { return null; } })();
+    if (!parsed) return;
+    const scriptName = form.name.trim();
+    const generatedHostname = `${scriptName}-o${index + 1}.${domain}`;
+    const newUrl = `${parsed.protocol}//${generatedHostname}`;
+    updateOrigin(originId, { url: newUrl, rawIp: parsed.hostname });
   };
 
   const removeOrigin = (id: number) => {
@@ -180,12 +224,12 @@ export default function CreateLoadBalancerPage() {
         domain: selectedZone.name,
         subdomain: trimmedSubdomain || undefined,
         origins: form.origins.map((o) => {
-          // Auto-prefix with http:// if no protocol is specified
           const url = o.url.trim();
           const finalUrl = /^https?:\/\//i.test(url) ? url : `http://${url}`;
           return {
             url: finalUrl,
             weight: o.weight,
+            ...(o.rawIp ? { rawIp: o.rawIp } : {}),
             geoCities: o.geoCities || [],
             geoSubdivisions: o.geoSubdivisions || [],
             geoCountries: o.geoCountries || [],
@@ -196,6 +240,8 @@ export default function CreateLoadBalancerPage() {
         strategy: form.strategy,
         weightedEnabled,
         exposeRealOrigin: form.exposeRealOrigin,
+        corsEnabled: form.corsEnabled,
+        corsOrigins: form.corsOrigins,
         placement: {
           smartPlacement: form.smartPlacement,
           ...(placementHint ? { region: placementHint } : {}),
@@ -426,13 +472,34 @@ export default function CreateLoadBalancerPage() {
                       fontFamily: 'var(--mono)', fontSize: 11,
                       color: 'var(--text-3)', textTransform: 'uppercase',
                     }}>#{i + 1}</div>
-                    <input
-                      className="input input-mono"
-                      placeholder="https://domain.com, http://127.0.0.1, or 192.168.1.100"
-                      value={s.url}
-                      onChange={e => updateOrigin(s.id, { url: e.target.value })}
-                      onFocus={() => setActiveStep(4)}
-                    />
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <input
+                        className="input input-mono"
+                        placeholder="https://domain.com, http://127.0.0.1, or 192.168.1.100"
+                        value={s.url}
+                        onChange={e => {
+                          const newVal = e.target.value;
+                          updateOrigin(s.id, { url: newVal, rawIp: undefined });
+                        }}
+                        onFocus={() => setActiveStep(4)}
+                        style={{ width: '100%', paddingRight: isRawIpUrl(s.url) ? 130 : undefined }}
+                      />
+                      {isRawIpUrl(s.url) && (
+                        <button
+                          type="button"
+                          onClick={() => convertOriginToHostname(s.id, i)}
+                          style={{
+                            position: 'absolute', right: 8,
+                            fontSize: 11, padding: '3px 8px',
+                            background: 'var(--accent-dim)', color: 'var(--accent)',
+                            border: '1px solid var(--accent)', borderRadius: 4,
+                            cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'var(--mono)',
+                          }}
+                        >
+                          Convert to Domain
+                        </button>
+                      )}
+                    </div>
                     {showWeights && (
                       <div className="weight-input-wrap" style={{ position: 'relative' }}>
                         <input
@@ -465,6 +532,53 @@ export default function CreateLoadBalancerPage() {
                       <Icons.Trash size={14} />
                     </button>
                   </div>
+
+                  {s.rawIp && (() => {
+                    const hostname = (() => { try { return new URL(s.url).hostname; } catch { return s.url; } })();
+                    const proto = s.url.match(/^https?:\/\//i)?.[0] ?? 'http://';
+                    return (
+                      <div style={{
+                        padding: '10px 14px',
+                        background: 'var(--bg-2)',
+                        border: '1px solid var(--line)',
+                        borderLeft: '3px solid var(--accent)',
+                        borderRadius: 'var(--radius)',
+                        fontSize: 12,
+                        display: 'flex', flexDirection: 'column', gap: 6,
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <span style={{ color: 'var(--text-3)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 500 }}>IP converted</span>
+                            <span style={{
+                              fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-2)',
+                              background: 'var(--bg-3)', padding: '2px 7px', borderRadius: 4, border: '1px solid var(--line)',
+                            }}>{s.rawIp}</span>
+                            <span style={{ color: 'var(--text-3)' }}>→</span>
+                            <span style={{
+                              fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--accent)',
+                              background: 'var(--accent-dim)', padding: '2px 7px', borderRadius: 4, border: '1px solid var(--accent)',
+                            }}>{hostname}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => updateOrigin(s.id, { url: `${proto}${s.rawIp}`, rawIp: undefined })}
+                            style={{
+                              fontSize: 11, padding: '3px 10px', borderRadius: 4, flexShrink: 0,
+                              background: 'transparent', border: '1px solid var(--line)',
+                              color: 'var(--text-3)', cursor: 'pointer',
+                            }}>
+                            Undo
+                          </button>
+                        </div>
+                        <div style={{ color: 'var(--text-3)', lineHeight: 1.6 }}>
+                          A grey-cloud DNS A record will be created on save. If you use a reverse proxy, add{' '}
+                          <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-2)' }}>{hostname}</span>
+                          {' '}to your <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-2)' }}>server_name</span>.
+                          {' '}If your origin is another load balancer or doesn't use a reverse proxy, no action is needed.
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {form.strategy === 'geo-steering' && (() => {
                     const selCountries = (s.geoCountries || []) as string[];
@@ -755,6 +869,85 @@ export default function CreateLoadBalancerPage() {
                   onChange={e => update('exposeRealOrigin', e.target.checked)}
                   style={{ display: 'none' }}
                 />
+              </label>
+
+              <label style={{
+                display: 'flex', gap: 14, padding: 16,
+                border: `1px solid ${form.corsEnabled ? 'var(--accent)' : 'var(--line)'}`,
+                background: form.corsEnabled ? 'var(--accent-dim)' : 'var(--bg-2)',
+                borderRadius: 'var(--radius)', cursor: 'pointer',
+                flexDirection: 'column',
+              }} onClick={() => setActiveStep(6)}>
+                <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                  <div style={{
+                    width: 36, height: 20, flexShrink: 0, marginTop: 2,
+                    borderRadius: 999,
+                    background: form.corsEnabled ? 'var(--accent)' : 'var(--bg-3)',
+                    position: 'relative', transition: 'background 160ms',
+                  }}>
+                    <div style={{
+                      position: 'absolute', top: 2, left: form.corsEnabled ? 18 : 2,
+                      width: 16, height: 16, borderRadius: '50%',
+                      background: 'var(--bg)', transition: 'left 160ms',
+                    }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 500 }}>Worker CORS</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 4 }}>
+                      After enabling, all Server Based CORS is not needed. The Worker Load Balancer will Allow CORS on behalf of Servers.
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox" checked={form.corsEnabled}
+                    onChange={e => handleCorsToggle(e.target.checked)}
+                    style={{ display: 'none' }}
+                  />
+                </div>
+                {form.corsEnabled && (
+                  <div style={{ marginTop: 8 }} onClick={e => e.stopPropagation()}>
+                    <div style={{
+                      display: 'flex', flexWrap: 'wrap', gap: 6,
+                      border: '1px solid var(--line)', borderRadius: 'var(--radius)',
+                      padding: '6px 10px', background: 'var(--bg)',
+                      minHeight: 40, alignItems: 'center',
+                    }}>
+                      {form.corsOrigins.map(origin => (
+                        <div key={origin} style={{
+                          display: 'flex', alignItems: 'center', gap: 4,
+                          background: 'var(--bg-3)', borderRadius: 4,
+                          padding: '2px 8px', fontSize: 12,
+                        }}>
+                          <span>{origin}</span>
+                          <button
+                            type="button"
+                            onClick={() => removeCorsOrigin(origin)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--text-3)', lineHeight: 1 }}
+                          >×</button>
+                        </div>
+                      ))}
+                      <input
+                        type="text"
+                        value={corsInput}
+                        onChange={e => setCorsInput(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Tab' || e.key === 'Enter') {
+                            e.preventDefault();
+                            addCorsOrigin(corsInput);
+                          }
+                        }}
+                        onBlur={() => { if (corsInput.trim()) addCorsOrigin(corsInput); }}
+                        placeholder="https://yourdomain.com"
+                        style={{
+                          border: 'none', outline: 'none', background: 'transparent',
+                          fontSize: 12, flex: 1, minWidth: 180,
+                        }}
+                      />
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>
+                      Add the domains of your frontend apps that make requests here. Press Tab or Enter to add each one.
+                    </div>
+                  </div>
+                )}
               </label>
 
               <label style={{

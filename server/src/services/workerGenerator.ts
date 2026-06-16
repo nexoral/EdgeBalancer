@@ -27,6 +27,8 @@ export interface WorkerConfig {
   origins: OriginServer[];
   strategy: WorkerStrategy;
   exposeRealOrigin?: boolean;
+  corsEnabled?: boolean;
+  corsOrigins?: string[];
 }
 
 const TEMPLATE_MAP: Record<WorkerStrategy, string> = {
@@ -68,6 +70,8 @@ export const generateWorkerCode = (config: WorkerConfig): string => {
     stickyCookieName: 'edgebalancer_origin',
     stickyMaxAge: 86400,
     exposeRealOrigin: config.exposeRealOrigin ?? false,
+    corsEnabled: config.corsEnabled ?? false,
+    corsOrigins: config.corsOrigins ?? [],
   };
 
   return template.replace('__CONFIG__', JSON.stringify(workerConfig, null, 2));
