@@ -191,6 +191,7 @@ export default function CreateLoadBalancerPage() {
     setForm(f => ({ ...f, origins: f.origins.length > 1 ? f.origins.filter(s => s.id !== id) : f.origins }));
   };
 
+  
   const updateOrigin = (id: number, patch: any) => {
     setForm(f => ({ ...f, origins: f.origins.map(s => s.id === id ? { ...s, ...patch } : s) }));
   };
