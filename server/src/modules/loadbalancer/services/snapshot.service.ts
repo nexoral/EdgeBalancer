@@ -58,9 +58,11 @@ export function configSignature(params: {
   strategy: string;
   weightedEnabled: boolean;
   exposeRealOrigin?: boolean;
+  corsEnabled?: boolean;
+  corsOrigins?: string[];
   placement: any;
 }): string {
-  const { origins, strategy, weightedEnabled, exposeRealOrigin, placement } = params;
+  const { origins, strategy, weightedEnabled, exposeRealOrigin, corsEnabled, corsOrigins, placement } = params;
 
   return JSON.stringify({
     origins: origins.map((origin) => ({
@@ -83,6 +85,8 @@ export function configSignature(params: {
     strategy,
     weightedEnabled,
     exposeRealOrigin: exposeRealOrigin ?? false,
+    corsEnabled: corsEnabled ?? false,
+    corsOrigins: [...(corsOrigins ?? [])].sort(),
     placement: normalizePlacement(placement),
   });
 }

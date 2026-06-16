@@ -8,7 +8,7 @@ import { api } from '@/lib/api';
 
 jest.mock('next/navigation', () => ({ useRouter: jest.fn(), useParams: jest.fn() }));
 jest.mock('@/contexts/AuthContext', () => ({ useAuth: jest.fn() }));
-jest.mock('@/lib/api', () => ({ api: { getLoadBalancer: jest.fn(), updateLoadBalancer: jest.fn() } }));
+jest.mock('@/lib/api', () => ({ api: { getLoadBalancer: jest.fn(), updateLoadBalancer: jest.fn(), getOriginIp: jest.fn() } }));
 jest.mock('react-hot-toast', () => ({ default: { error: jest.fn(), success: jest.fn() } }));
 
 jest.mock('@/components/dashboard/Sidebar', () => ({
@@ -73,6 +73,9 @@ const BASE_LB = {
   strategyValue: 'round-robin' as const,
   weightedEnabled: false,
   exposeRealOrigin: false,
+  corsEnabled: false,
+  corsOrigins: [] as string[],
+  ipOriginRecords: [] as Array<{ originalUrl: string; hostname: string; dnsRecordId: string }>,
   placement: { smartPlacement: false },
   status: 'active',
   workerUrl: 'https://my-lb.example.com',
@@ -164,6 +167,190 @@ describe('EditLoadBalancerPage — exposeRealOrigin toggle', () => {
     render(<EditLoadBalancerPage />);
     await waitFor(() =>
       expect(screen.getByText(/Pass the browser.*real Origin header/i)).toBeInTheDocument()
+    );
+  });
+});
+
+// ─── CORS toggle ──────────────────────────────────────────────────────────────
+
+describe('EditLoadBalancerPage — CORS toggle', () => {
+  it('renders "Worker CORS" label after loading', async () => {
+    mockApi.getLoadBalancer.mockResolvedValue({
+      success: true,
+      data: { loadBalancer: BASE_LB },
+      message: 'ok',
+    });
+
+    render(<EditLoadBalancerPage />);
+    await waitFor(() => expect(screen.getByText('Worker CORS')).toBeInTheDocument());
+  });
+
+  it('CORS toggle initializes from lb.corsEnabled (false → unchecked)', async () => {
+    mockApi.getLoadBalancer.mockResolvedValue({
+      success: true,
+      data: { loadBalancer: { ...BASE_LB, corsEnabled: false } },
+      message: 'ok',
+    });
+
+    const { container } = render(<EditLoadBalancerPage />);
+    await waitFor(() => screen.getByText('Worker CORS'));
+
+    const checkboxes = container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
+    const corsCheckbox = Array.from(checkboxes).find(cb =>
+      cb.closest('label')?.textContent?.includes('Worker CORS')
+    );
+    expect(corsCheckbox).toBeDefined();
+    expect(corsCheckbox?.checked).toBe(false);
+  });
+
+  it('CORS toggle initializes from lb.corsEnabled (true → checked)', async () => {
+    mockApi.getLoadBalancer.mockResolvedValue({
+      success: true,
+      data: { loadBalancer: { ...BASE_LB, corsEnabled: true } },
+      message: 'ok',
+    });
+
+    const { container } = render(<EditLoadBalancerPage />);
+    await waitFor(() => screen.getByText('Worker CORS'));
+
+    const checkboxes = container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
+    const corsCheckbox = Array.from(checkboxes).find(cb =>
+      cb.closest('label')?.textContent?.includes('Worker CORS')
+    );
+    expect(corsCheckbox).toBeDefined();
+    expect(corsCheckbox?.checked).toBe(true);
+  });
+});
+
+// ─── ipOriginRecords banner ───────────────────────────────────────────────────
+
+describe('EditLoadBalancerPage — ipOriginRecords banner', () => {
+  it('shows no banner when ipOriginRecords is empty', async () => {
+    mockApi.getLoadBalancer.mockResolvedValue({
+      success: true,
+      data: { loadBalancer: { ...BASE_LB, ipOriginRecords: [] } },
+      message: 'ok',
+    });
+
+    render(<EditLoadBalancerPage />);
+    await waitFor(() => screen.getByText('Expose Real Origin'));
+
+    expect(screen.queryByText(/auto-converted/i)).not.toBeInTheDocument();
+  });
+
+  it('shows banner with originalUrl and hostname when ipOriginRecords has entries', async () => {
+    mockApi.getLoadBalancer.mockResolvedValue({
+      success: true,
+      data: {
+        loadBalancer: {
+          ...BASE_LB,
+          origins: [{ url: 'https://my-lb-o1.example.com', weight: 100 }],
+          ipOriginRecords: [
+            { originalUrl: 'http://1.2.3.4', hostname: 'my-lb-o1.example.com', dnsRecordId: 'rec-1' },
+          ],
+        },
+      },
+      message: 'ok',
+    });
+
+    render(<EditLoadBalancerPage />);
+    await waitFor(() => expect(screen.getByText(/auto-converted/i)).toBeInTheDocument());
+
+    expect(screen.getByText(/http:\/\/1\.2\.3\.4/)).toBeInTheDocument();
+    expect(screen.getByText(/my-lb-o1\.example\.com/)).toBeInTheDocument();
+  });
+});
+
+// ─── Show IP / Show Domain toggle ─────────────────────────────────────────────
+
+describe('EditLoadBalancerPage — Show IP / Show Domain toggle', () => {
+  const LB_WITH_IP_RECORD = {
+    ...BASE_LB,
+    origins: [{ url: 'http://my-lb-o1.example.com', weight: 100 }],
+    ipOriginRecords: [
+      { originalUrl: 'http://1.2.3.4', hostname: 'my-lb-o1.example.com', dnsRecordId: 'rec-1' },
+    ],
+  };
+
+  it('shows "Show IP" button for an origin whose hostname matches an ipOriginRecords entry', async () => {
+    mockApi.getLoadBalancer.mockResolvedValue({
+      success: true,
+      data: { loadBalancer: LB_WITH_IP_RECORD },
+      message: 'ok',
+    });
+
+    render(<EditLoadBalancerPage />);
+    await waitFor(() => expect(screen.getByRole('button', { name: /show ip/i })).toBeInTheDocument());
+  });
+
+  it('calls api.getOriginIp with correct lbId and hostname when "Show IP" is clicked', async () => {
+    mockApi.getLoadBalancer.mockResolvedValue({
+      success: true,
+      data: { loadBalancer: LB_WITH_IP_RECORD },
+      message: 'ok',
+    });
+    mockApi.getOriginIp.mockResolvedValue({
+      success: true,
+      data: { originalUrl: 'http://1.2.3.4' },
+      message: 'ok',
+    });
+
+    render(<EditLoadBalancerPage />);
+    const showIpBtn = await screen.findByRole('button', { name: /show ip/i });
+    fireEvent.click(showIpBtn);
+
+    await waitFor(() => {
+      expect(mockApi.getOriginIp).toHaveBeenCalledWith('lb-1', 'my-lb-o1.example.com');
+    });
+  });
+
+  it('shows the original IP after getOriginIp resolves', async () => {
+    mockApi.getLoadBalancer.mockResolvedValue({
+      success: true,
+      data: { loadBalancer: LB_WITH_IP_RECORD },
+      message: 'ok',
+    });
+    mockApi.getOriginIp.mockResolvedValue({
+      success: true,
+      data: { originalUrl: 'http://1.2.3.4' },
+      message: 'ok',
+    });
+
+    render(<EditLoadBalancerPage />);
+    const showIpBtn = await screen.findByRole('button', { name: /show ip/i });
+    fireEvent.click(showIpBtn);
+
+    await waitFor(() => expect(screen.getByText(/1\.2\.3\.4/)).toBeInTheDocument());
+  });
+
+  it('shows "Show Domain" button after IP is revealed, and clicking it hides the IP', async () => {
+    mockApi.getLoadBalancer.mockResolvedValue({
+      success: true,
+      data: { loadBalancer: LB_WITH_IP_RECORD },
+      message: 'ok',
+    });
+    mockApi.getOriginIp.mockResolvedValue({
+      success: true,
+      data: { originalUrl: 'http://1.2.3.4' },
+      message: 'ok',
+    });
+
+    render(<EditLoadBalancerPage />);
+    const showIpBtn = await screen.findByRole('button', { name: /show ip/i });
+    fireEvent.click(showIpBtn);
+
+    // Wait for IP details to appear — at this point there will be two "Show Domain" buttons:
+    // one in the input row and one in the IP details card
+    await waitFor(() => {
+      const btns = screen.getAllByRole('button', { name: /show domain/i });
+      expect(btns.length).toBeGreaterThan(0);
+    });
+
+    // Click the first Show Domain button (the one in the details card)
+    const showDomainBtns = screen.getAllByRole('button', { name: /show domain/i });
+    fireEvent.click(showDomainBtns[0]);
+    await waitFor(() =>
+      expect(screen.queryByText(/Original IP:/)).not.toBeInTheDocument()
     );
   });
 });

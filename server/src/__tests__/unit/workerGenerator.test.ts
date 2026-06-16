@@ -52,3 +52,56 @@ describe('generateWorkerCode — exposeRealOrigin', () => {
     }
   });
 });
+
+// ─── CORS ─────────────────────────────────────────────────────────────────────
+
+describe('generateWorkerCode — CORS', () => {
+  it('injects corsEnabled: true when explicitly set', () => {
+    const code = generateWorkerCode({ origins: BASE_ORIGINS, strategy: 'round-robin', corsEnabled: true });
+    const config = extractConfig(code);
+    expect(config.corsEnabled).toBe(true);
+  });
+
+  it('injects corsEnabled: false when explicitly set', () => {
+    const code = generateWorkerCode({ origins: BASE_ORIGINS, strategy: 'round-robin', corsEnabled: false });
+    const config = extractConfig(code);
+    expect(config.corsEnabled).toBe(false);
+  });
+
+  it('defaults corsEnabled to false when omitted', () => {
+    const code = generateWorkerCode({ origins: BASE_ORIGINS, strategy: 'round-robin' });
+    const config = extractConfig(code);
+    expect(config.corsEnabled).toBe(false);
+  });
+
+  it('embeds corsOrigins array in the config', () => {
+    const corsOrigins = ['https://a.com', 'https://b.com'];
+    const code = generateWorkerCode({ origins: BASE_ORIGINS, strategy: 'round-robin', corsEnabled: true, corsOrigins });
+    const config = extractConfig(code);
+    expect(config.corsOrigins).toEqual(corsOrigins);
+  });
+
+  it('corsEnabled: true and corsEnabled: false produce different worker code', () => {
+    const withTrue  = generateWorkerCode({ origins: BASE_ORIGINS, strategy: 'round-robin', corsEnabled: true });
+    const withFalse = generateWorkerCode({ origins: BASE_ORIGINS, strategy: 'round-robin', corsEnabled: false });
+    expect(withTrue).not.toBe(withFalse);
+  });
+
+  it('includes corsEnabled in the config for every strategy', () => {
+    const strategies = [
+      'round-robin',
+      'weighted-round-robin',
+      'ip-hash',
+      'cookie-sticky',
+      'weighted-cookie-sticky',
+      'failover',
+      'geo-steering',
+    ] as const;
+
+    for (const strategy of strategies) {
+      const code = generateWorkerCode({ origins: BASE_ORIGINS, strategy, corsEnabled: true });
+      const config = extractConfig(code);
+      expect(config.corsEnabled).toBe(true);
+    }
+  });
+});
