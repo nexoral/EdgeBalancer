@@ -37,8 +37,8 @@ spec:
               value: "redis://redis-service:6379"
           resources:
             requests:
-              cpu: 200m
-              memory: 200Mi
+              cpu: 100m
+              memory: 100Mi
             limits:
               cpu: 400m
               memory: 400Mi
