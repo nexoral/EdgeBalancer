@@ -347,7 +347,7 @@ export const cancelLoadBalancerDeployment = async (req: Request, res: Response, 
       throw new Error('Operation id is required');
     }
 
-    const accepted = cancelLoadBalancerOperation(operationId);
+    const accepted = await cancelLoadBalancerOperation(operationId);
 
     res.json({
       success: true,
@@ -435,7 +435,7 @@ export const getLoadBalancer = async (req: Request, res: Response, next: NextFun
 
 export const createLoadBalancer = async (req: Request, res: Response, next: NextFunction) => {
   const operationId = req.header('x-operation-id');
-  beginLoadBalancerOperation(operationId);
+  await beginLoadBalancerOperation(operationId);
   const cancellation = createRequestCancellation(req, res, operationId);
   let createdLoadBalancer: any = null;
   let scriptName = '';
@@ -475,7 +475,7 @@ export const createLoadBalancer = async (req: Request, res: Response, next: Next
       apiToken,
       scriptName,
     });
-    cancellation.throwIfCancelled();
+    await cancellation.throwIfCancelled();
 
     // Generate Worker code
     const workerCode = generateWorkerCode({
@@ -491,7 +491,7 @@ export const createLoadBalancer = async (req: Request, res: Response, next: Next
       workerCode,
       placement,
     });
-    cancellation.throwIfCancelled();
+    await cancellation.throwIfCancelled();
 
     // Construct full hostname
     hostname = toHostname(domain, subdomain);
@@ -502,7 +502,7 @@ export const createLoadBalancer = async (req: Request, res: Response, next: Next
       apiToken,
       hostname,
     });
-    cancellation.throwIfCancelled();
+    await cancellation.throwIfCancelled();
 
     // Attach domain to Worker
     const workerUrl = await attachDomainToWorker({
@@ -512,7 +512,7 @@ export const createLoadBalancer = async (req: Request, res: Response, next: Next
       zoneId,
       scriptName,
     });
-    cancellation.throwIfCancelled();
+    await cancellation.throwIfCancelled();
 
     // Save load balancer to database
     createdLoadBalancer = await LoadBalancer.create({
@@ -529,7 +529,7 @@ export const createLoadBalancer = async (req: Request, res: Response, next: Next
       status: 'active',
       workerUrl,
     });
-    cancellation.throwIfCancelled();
+    await cancellation.throwIfCancelled();
 
     res.status(201).json({
       success: true,
@@ -563,7 +563,7 @@ export const createLoadBalancer = async (req: Request, res: Response, next: Next
       if (!res.headersSent) {
         res.status(409).json({
           success: false,
-          message: isLoadBalancerOperationCancelled(operationId)
+          message: (await isLoadBalancerOperationCancelled(operationId))
             ? 'Operation cancelled and rolled back'
             : 'Request cancelled by client',
           data: null,
@@ -577,13 +577,13 @@ export const createLoadBalancer = async (req: Request, res: Response, next: Next
     }
     next(error as Error);
   } finally {
-    completeLoadBalancerOperation(operationId);
+    await completeLoadBalancerOperation(operationId);
   }
 };
 
 export const updateLoadBalancer = async (req: Request, res: Response, next: NextFunction) => {
   const operationId = req.header('x-operation-id');
-  beginLoadBalancerOperation(operationId);
+  await beginLoadBalancerOperation(operationId);
   const cancellation = createRequestCancellation(req, res, operationId);
   try {
     const userId = req.user?.userId;
@@ -641,7 +641,7 @@ export const updateLoadBalancer = async (req: Request, res: Response, next: Next
       hostname: nextHostname,
       excludeLoadBalancerId: id,
     });
-    cancellation.throwIfCancelled();
+    await cancellation.throwIfCancelled();
 
     const nextStrategy = normalizeStrategy(strategy, weightedEnabled);
     const nextWeightedEnabled = isWeightedStrategy(nextStrategy);
@@ -706,7 +706,7 @@ export const updateLoadBalancer = async (req: Request, res: Response, next: Next
           placement,
         });
 
-        cancellation.throwIfCancelled();
+        await cancellation.throwIfCancelled();
 
         await createWorkerDeployment({
           accountId,
@@ -722,7 +722,7 @@ export const updateLoadBalancer = async (req: Request, res: Response, next: Next
         });
 
         newVersionDeployed = true;
-        cancellation.throwIfCancelled();
+        await cancellation.throwIfCancelled();
       }
 
       if (hostnameChanged) {
@@ -734,7 +734,7 @@ export const updateLoadBalancer = async (req: Request, res: Response, next: Next
           scriptName: loadBalancer.scriptName,
         });
         newHostnameAttached = true;
-        cancellation.throwIfCancelled();
+        await cancellation.throwIfCancelled();
       }
 
       const updatedLoadBalancer = await LoadBalancer.findOneAndUpdate(
@@ -770,7 +770,7 @@ export const updateLoadBalancer = async (req: Request, res: Response, next: Next
 
       persistedLoadBalancer = updatedLoadBalancer;
       databaseSaved = true;
-      cancellation.throwIfCancelled();
+      await cancellation.throwIfCancelled();
 
       if (hostnameValueChanged) {
         await detachDomainFromWorker({
@@ -779,7 +779,7 @@ export const updateLoadBalancer = async (req: Request, res: Response, next: Next
           hostname: previousHostname,
         });
         oldHostnameDetached = true;
-        cancellation.throwIfCancelled();
+        await cancellation.throwIfCancelled();
       }
 
       if (configChanged) {
@@ -871,7 +871,7 @@ export const updateLoadBalancer = async (req: Request, res: Response, next: Next
       if (!res.headersSent) {
         res.status(409).json({
           success: false,
-          message: isLoadBalancerOperationCancelled(operationId)
+          message: (await isLoadBalancerOperationCancelled(operationId))
             ? 'Operation cancelled and rolled back'
             : 'Request cancelled by client',
           data: null,
@@ -885,7 +885,7 @@ export const updateLoadBalancer = async (req: Request, res: Response, next: Next
     }
     next(error as Error);
   } finally {
-    completeLoadBalancerOperation(operationId);
+    await completeLoadBalancerOperation(operationId);
   }
 };
 

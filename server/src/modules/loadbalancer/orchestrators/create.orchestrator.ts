@@ -100,12 +100,12 @@ export async function createLoadBalancerOrchestrator(params: {
       apiToken,
       scriptName,
     });
-    cancellation.throwIfCancelled();
+    await cancellation.throwIfCancelled();
 
     // Step 3: Resolve raw IP origins to internal grey-cloud DNS hostnames
     const resolved = await resolveIpOrigins({ origins, scriptName, domain, zoneId, apiToken });
     ipOriginRecords = resolved.ipOriginRecords;
-    cancellation.throwIfCancelled();
+    await cancellation.throwIfCancelled();
 
     // Step 4: Generate Worker code using resolved origins (hostnames, not raw IPs)
     workerCode = generateWorkerCode({
@@ -124,7 +124,7 @@ export async function createLoadBalancerOrchestrator(params: {
       workerCode,
       placement: placement || { smartPlacement: false },
     });
-    cancellation.throwIfCancelled();
+    await cancellation.throwIfCancelled();
 
     // Step 6: Construct and validate hostname
     hostname = toHostname(domain, subdomain);
@@ -134,7 +134,7 @@ export async function createLoadBalancerOrchestrator(params: {
       apiToken,
       hostname,
     });
-    cancellation.throwIfCancelled();
+    await cancellation.throwIfCancelled();
 
     // Step 7: Attach domain to Worker
     const workerUrl = await attachDomainToWorker({
@@ -144,7 +144,7 @@ export async function createLoadBalancerOrchestrator(params: {
       zoneId,
       scriptName,
     });
-    cancellation.throwIfCancelled();
+    await cancellation.throwIfCancelled();
 
     // Step 8: Save load balancer to database
     // Strip transient rawIp field from origins before persisting (it's only used for DNS record creation)
@@ -167,7 +167,7 @@ export async function createLoadBalancerOrchestrator(params: {
       status: 'active',
       workerUrl,
     });
-    cancellation.throwIfCancelled();
+    await cancellation.throwIfCancelled();
 
     // Step 9: Save session log (non-blocking — failure must not roll back the LB)
     try {

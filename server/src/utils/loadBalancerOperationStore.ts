@@ -1,26 +1,34 @@
-const operations = new Map<string, { cancelled: boolean }>();
+import { getRedisClient } from './redisClient';
 
-export const beginLoadBalancerOperation = (operationId?: string | null) => {
+const OP_TTL_SECONDS = 60 * 60;
+
+function opKey(operationId: string): string {
+  return `lb:op:${operationId}`;
+}
+
+export const beginLoadBalancerOperation = async (operationId?: string | null): Promise<void> => {
   if (!operationId) return;
-  operations.set(operationId, { cancelled: false });
+  const redis = await getRedisClient();
+  await redis.set(opKey(operationId), 'false', { EX: OP_TTL_SECONDS });
 };
 
-export const cancelLoadBalancerOperation = (operationId: string): boolean => {
-  const operation = operations.get(operationId);
-  if (!operation) {
-    return false;
-  }
-
-  operation.cancelled = true;
+export const cancelLoadBalancerOperation = async (operationId: string): Promise<boolean> => {
+  const redis = await getRedisClient();
+  const exists = await redis.exists(opKey(operationId));
+  if (!exists) return false;
+  await redis.set(opKey(operationId), 'true', { KEEPTTL: true });
   return true;
 };
 
-export const isLoadBalancerOperationCancelled = (operationId?: string | null): boolean => {
+export const isLoadBalancerOperationCancelled = async (operationId?: string | null): Promise<boolean> => {
   if (!operationId) return false;
-  return operations.get(operationId)?.cancelled === true;
+  const redis = await getRedisClient();
+  const val = await redis.get(opKey(operationId));
+  return val === 'true';
 };
 
-export const completeLoadBalancerOperation = (operationId?: string | null) => {
+export const completeLoadBalancerOperation = async (operationId?: string | null): Promise<void> => {
   if (!operationId) return;
-  operations.delete(operationId);
+  const redis = await getRedisClient();
+  await redis.del(opKey(operationId));
 };

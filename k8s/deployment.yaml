@@ -6,6 +6,7 @@ metadata:
   labels:
     app: edgebalancer-server
 spec:
+  replicas: 2
   selector:
     matchLabels:
       app: edgebalancer-server
@@ -32,13 +33,15 @@ spec:
           env:
             - name: PORT
               value: "8000"
+            - name: REDIS_URL
+              value: "redis://redis-service:6379"
           resources:
             requests:
-              cpu: 100m
-              memory: 150Mi
+              cpu: 200m
+              memory: 200Mi
             limits:
-              cpu: 300m
-              memory: 300Mi
+              cpu: 400m
+              memory: 400Mi
           readinessProbe:
             httpGet:
               path: /health
