@@ -328,8 +328,16 @@ jobs:
               --namespace edgebalancer
 
             echo "Waiting for rollout..."
-            sudo k3s kubectl rollout status deployment/edgebalancer-server \
-              --namespace edgebalancer --timeout=5m
+            if ! sudo k3s kubectl rollout status deployment/edgebalancer-server \
+              --namespace edgebalancer --timeout=5m; then
+              echo "Rollout failed — rolling back to previous version..."
+              sudo k3s kubectl rollout undo deployment/edgebalancer-server \
+                --namespace edgebalancer
+              sudo k3s kubectl rollout status deployment/edgebalancer-server \
+                --namespace edgebalancer --timeout=3m
+              echo "Rollback complete."
+              exit 1
+            fi
 
             echo "Deployed $IMAGE successfully!"
 
