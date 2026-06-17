@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: edgebalancer-service
+  namespace: edgebalancer
+  labels:
+    app: edgebalancer-server
+spec:
+  selector:
+    app: edgebalancer-server
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+  type: ClusterIP

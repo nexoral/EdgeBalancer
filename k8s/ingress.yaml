@@ -1,0 +1,36 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: edgebalancer-ingress
+  namespace: edgebalancer
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - apiedge.nexoral.in
+        - prod-edgebalancer-lb-o2.nexoral.in
+      secretName: edgebalancer-tls
+  rules:
+    - host: apiedge.nexoral.in
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: edgebalancer-service
+                port:
+                  number: 8000
+    - host: prod-edgebalancer-lb-o2.nexoral.in
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: edgebalancer-service
+                port:
+                  number: 8000
