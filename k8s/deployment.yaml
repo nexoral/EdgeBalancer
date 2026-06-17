@@ -23,7 +23,7 @@ spec:
         - name: ghcr-pull-secret
       containers:
         - name: edgebalancer-server
-          image: ghcr.io/placeholder/edgebalancer-server:latest
+          image: ghcr.io/ankansaha/edgebalancer-server:latest
           ports:
             - containerPort: 8000
           envFrom:
