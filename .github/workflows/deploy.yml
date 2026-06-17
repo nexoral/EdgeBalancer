@@ -6,7 +6,7 @@ on:
     paths:
       - 'server/**'
       - 'client/**'
-      - 'config/**'
+      - 'k8s/**'
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────────────
@@ -18,7 +18,7 @@ jobs:
     outputs:
       server: ${{ steps.filter.outputs.server }}
       client: ${{ steps.filter.outputs.client }}
-      config: ${{ steps.filter.outputs.config }}
+      k8s: ${{ steps.filter.outputs.k8s }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -32,12 +32,11 @@ jobs:
               - 'server/**'
             client:
               - 'client/**'
-            config:
-              - 'config/**'
+            k8s:
+              - 'k8s/**'
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Stage 2 — Builds (client-build and server-build run in PARALLEL)
-  #           Each uploads a dist artifact for downstream jobs to reuse.
   # ─────────────────────────────────────────────────────────────────────────────
   client-build:
     name: Client — Build
@@ -92,7 +91,6 @@ jobs:
 
   # ─────────────────────────────────────────────────────────────────────────────
   # Stage 3 — Tests (client-test and server-test run in PARALLEL)
-  #           Each downloads its own build artifact — no rebuild.
   # ─────────────────────────────────────────────────────────────────────────────
   client-test:
     name: Client — Test
@@ -171,230 +169,145 @@ jobs:
           echo "| Tests  | passed |" >> $GITHUB_STEP_SUMMARY
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # Stage 4 — Deploys (deploy-server and deploy-nginx run in PARALLEL)
-  #           Both wait for all tests to finish, but neither waits for the other.
+  # Stage 4 — Build Docker image and push to GHCR
   # ─────────────────────────────────────────────────────────────────────────────
-  deploy-server:
-    name: Deploy Server to VPS
+  build-push-server:
+    name: Build & Push Docker Image
     runs-on: ubuntu-latest
     needs: [changes, server-test]
     if: |
       needs.changes.outputs.server == 'true' &&
       needs.server-test.result == 'success'
-
+    outputs:
+      image: ${{ steps.image-tag.outputs.image }}
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: server/package-lock.json
-
-      - name: Download build artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: server-dist
-          path: server/dist/
-
-      - name: Install production dependencies
-        run: cd server && npm ci --only=production
-
-      - name: Create deployment archive
-        run: |
-          cd server
-          tar -czf ../server-deploy.tar.gz dist/ node_modules/ package.json package-lock.json
-          ls -lh ../server-deploy.tar.gz
 
       - name: Get server version
         id: version
         run: echo "version=$(node -p "require('./server/package.json').version")" >> $GITHUB_OUTPUT
 
-      - name: Transfer archive to VPS
-        uses: appleboy/scp-action@v0.1.7
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
         with:
-          host: ${{ vars.SERVER_HOST }}
-          username: ${{ vars.SERVER_USER }}
-          key: ${{ vars.SSH_PRIVATE_KEY }}
-          source: "server-deploy.tar.gz"
-          target: "~/"
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract, configure, and restart on VPS
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Set image tag output
+        id: image-tag
+        run: echo "image=ghcr.io/${{ github.repository_owner }}/edgebalancer-server:${{ steps.version.outputs.version }}" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
         with:
-          host: ${{ vars.SERVER_HOST }}
-          username: ${{ vars.SERVER_USER }}
-          key: ${{ vars.SSH_PRIVATE_KEY }}
-          script: |
-            VERSION="${{ steps.version.outputs.version }}"
-            DEPLOY_DIR="$HOME/edgebalancer-$VERSION"
-
-            if ! command -v pm2 &> /dev/null; then
-                npm install -g pm2
-            fi
-
-            # --- old server still running during all of this ---
-
-            rm -rf "$DEPLOY_DIR"
-            mkdir -p "$DEPLOY_DIR"
-
-            echo "Extracting v$VERSION..."
-            tar -xzf ~/server-deploy.tar.gz -C "$DEPLOY_DIR"
-            rm ~/server-deploy.tar.gz
-
-            echo "Writing .env..."
-            echo "MONGODB_URI=${{ secrets.MONGODB_URI }}" > "$DEPLOY_DIR/.env"
-            echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> "$DEPLOY_DIR/.env"
-            echo "ENCRYPTION_KEY=${{ secrets.ENCRYPTION_KEY }}" >> "$DEPLOY_DIR/.env"
-            echo "PORT=${{ secrets.PORT }}" >> "$DEPLOY_DIR/.env"
-            echo "CLIENT_URL=${{ secrets.CLIENT_URL }}" >> "$DEPLOY_DIR/.env"
-            echo "CORS_ORIGIN=${{ secrets.CORS_ORIGIN }}" >> "$DEPLOY_DIR/.env"
-            echo "NODE_ENV=${{ secrets.NODE_ENV }}" >> "$DEPLOY_DIR/.env"
-            echo "FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}" >> "$DEPLOY_DIR/.env"
-            echo "FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }}" >> "$DEPLOY_DIR/.env"
-            echo 'FIREBASE_PRIVATE_KEY=${{ secrets.FIREBASE_PRIVATE_KEY }}' >> "$DEPLOY_DIR/.env"
-
-            # --- downtime window starts here ---
-
-            cd "$DEPLOY_DIR"
-            if pm2 list | grep -q "edgebalancer-api"; then
-                pm2 delete edgebalancer-api
-            fi
-
-            pm2 start dist/index.js --name edgebalancer-api --cwd "$DEPLOY_DIR" --update-env
-            pm2 save
-
-            # --- downtime window ends here ---
-
-            find "$HOME" -maxdepth 1 -type d -name 'edgebalancer-*' ! -name "edgebalancer-$VERSION" -exec rm -rf {} +
-            rm -rf "$HOME/edgebalancer" "$HOME/edgebalancer.backup"
-
-            pm2 list
-            echo "Deployed v$VERSION successfully!"
+          context: ./server
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/edgebalancer-server:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/edgebalancer-server:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Annotate summary
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          echo "## Deployed to VPS" >> $GITHUB_STEP_SUMMARY
+          echo "## Docker Image — Built & Pushed to GHCR" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Detail  | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|---------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Version | \`v$VERSION\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Host    | \`${{ vars.SERVER_HOST }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Process | \`edgebalancer-api\` (pm2) |" >> $GITHUB_STEP_SUMMARY
-          echo "| Status  | running |" >> $GITHUB_STEP_SUMMARY
+          echo "| Detail   | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Version  | \`v$VERSION\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image    | \`ghcr.io/${{ github.repository_owner }}/edgebalancer-server:$VERSION\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| SHA Tag  | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Registry | GHCR |" >> $GITHUB_STEP_SUMMARY
 
-  deploy-nginx:
-    name: Deploy Nginx Config to VPS
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Stage 5 — Deploy to k3s on VPS via SSH
+  # ─────────────────────────────────────────────────────────────────────────────
+  deploy-k3s:
+    name: Deploy to k3s
     runs-on: ubuntu-latest
-    needs: [changes, server-test]
+    needs: [changes, build-push-server]
     if: |
-      always() &&
-      needs.changes.outputs.config == 'true' &&
-      (needs.server-test.result == 'success' || needs.server-test.result == 'skipped')
-
+      needs.changes.outputs.server == 'true' &&
+      needs.build-push-server.result == 'success'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Transfer nginx config to VPS
+      - name: Copy k8s manifests to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ vars.SERVER_HOST }}
           username: ${{ vars.SERVER_USER }}
           key: ${{ vars.SSH_PRIVATE_KEY }}
-          source: "config/edgebalancer.conf"
-          target: "~/nginx-temp/"
-          strip_components: 1
+          source: "k8s"
+          target: "~/k8s-deploy/"
 
-      - name: Deploy nginx configuration
+      - name: Deploy to k3s
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ vars.SERVER_HOST }}
           username: ${{ vars.SERVER_USER }}
           key: ${{ vars.SSH_PRIVATE_KEY }}
           script: |
-            export PATH="$PATH:/usr/sbin"
+            IMAGE="${{ needs.build-push-server.outputs.image }}"
 
-            if ! command -v nginx &> /dev/null; then
-                echo "nginx not found, installing..."
-                export DEBIAN_FRONTEND=noninteractive
-                sudo apt-get update -qq
-                sudo apt-get install -y nginx
-                sudo systemctl enable nginx
-                sudo systemctl start nginx
-                echo "nginx installed and started"
-            fi
+            echo "Creating namespace..."
+            sudo k3s kubectl create namespace edgebalancer --dry-run=client -o yaml | sudo k3s kubectl apply -f -
 
-            sudo mkdir -p /etc/nginx/conf.d
+            echo "Upserting GHCR pull secret..."
+            sudo k3s kubectl create secret docker-registry ghcr-pull-secret \
+              --namespace edgebalancer \
+              --docker-server=ghcr.io \
+              --docker-username=${{ github.repository_owner }} \
+              --docker-password=${{ secrets.GHCR_TOKEN }} \
+              --dry-run=client -o yaml | sudo k3s kubectl apply -f -
 
-            echo "Deploying nginx configuration..."
-            sudo cp ~/nginx-temp/edgebalancer.conf /etc/nginx/conf.d/edgebalancer.conf
+            echo "Upserting app env secret..."
+            sudo k3s kubectl create secret generic edgebalancer-env \
+              --namespace edgebalancer \
+              --from-literal=MONGODB_URI="${{ secrets.MONGODB_URI }}" \
+              --from-literal=JWT_SECRET="${{ secrets.JWT_SECRET }}" \
+              --from-literal=ENCRYPTION_KEY="${{ secrets.ENCRYPTION_KEY }}" \
+              --from-literal=CLIENT_URL="${{ secrets.CLIENT_URL }}" \
+              --from-literal=CORS_ORIGIN="${{ secrets.CORS_ORIGIN }}" \
+              --from-literal=FIREBASE_PROJECT_ID="${{ secrets.FIREBASE_PROJECT_ID }}" \
+              --from-literal=FIREBASE_CLIENT_EMAIL="${{ secrets.FIREBASE_CLIENT_EMAIL }}" \
+              --from-literal=FIREBASE_PRIVATE_KEY="${{ secrets.FIREBASE_PRIVATE_KEY }}" \
+              --dry-run=client -o yaml | sudo k3s kubectl apply -f -
 
-            echo "Validating nginx configuration..."
-            sudo nginx -t
+            echo "Applying k8s manifests..."
+            sudo k3s kubectl apply -f ~/k8s-deploy/k8s/
 
-            echo "Reloading nginx..."
-            sudo systemctl reload nginx
+            echo "Rolling update to image: $IMAGE"
+            sudo k3s kubectl set image deployment/edgebalancer-server \
+              edgebalancer-server=$IMAGE \
+              --namespace edgebalancer
 
-            rm -rf ~/nginx-temp
-            echo "Nginx configuration deployed successfully!"
+            echo "Waiting for rollout..."
+            sudo k3s kubectl rollout status deployment/edgebalancer-server \
+              --namespace edgebalancer --timeout=5m
 
-      - name: Obtain SSL Certificate with Certbot
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ vars.SERVER_HOST }}
-          username: ${{ vars.SERVER_USER }}
-          key: ${{ vars.SSH_PRIVATE_KEY }}
-          script: |
-            if ! command -v certbot &> /dev/null; then
-                echo "certbot not found, installing..."
-                export DEBIAN_FRONTEND=noninteractive
-                sudo apt-get update -qq
-                sudo apt-get install -y certbot python3-certbot-nginx
-                echo "certbot installed"
-            fi
-
-            DOMAINS=$(grep -oP 'server_name\s+\K[^;]+' /etc/nginx/conf.d/edgebalancer.conf | xargs)
-            DOMAIN=${DOMAINS%% *}
-            CERTBOT_DOMAINS=""
-            for DOMAIN_NAME in $DOMAINS; do
-                CERTBOT_DOMAINS="$CERTBOT_DOMAINS -d $DOMAIN_NAME"
-            done
-            echo "Domain from config: $DOMAIN"
-
-            if sudo certbot certificates 2>/dev/null | grep -q "Certificate Name: $DOMAIN"; then
-                echo "✓ SSL certificate already exists for $DOMAIN — auto-renews at 30 days before expiry"
-            else
-                echo "No SSL certificate found for $DOMAIN"
-                echo "Obtaining SSL certificate from Let's Encrypt..."
-
-                sudo certbot --nginx $CERTBOT_DOMAINS --non-interactive --agree-tos --email ${{ vars.LETSENCRYPT_EMAIL }} --redirect
-
-                if [ $? -eq 0 ]; then
-                    echo "✓ SSL certificate obtained successfully!"
-                    echo "Certificate will auto-renew via systemd timer"
-                    echo "Your site is now accessible at: https://$DOMAIN"
-                else
-                    echo "✗ Failed to obtain SSL certificate"
-                    echo "Common issues: DNS not pointing to this server, port 80/443 blocked, domain not resolving"
-                    echo "Run manually: sudo certbot --nginx -d $DOMAIN"
-                    exit 1
-                fi
-            fi
-
-            echo ""
-            echo "Certificate Status:"
-            sudo certbot certificates
+            rm -rf ~/k8s-deploy
+            echo "Deployed $IMAGE successfully!"
 
       - name: Annotate summary
         run: |
-          echo "## Nginx Config Deployed" >> $GITHUB_STEP_SUMMARY
+          VERSION="${{ needs.build-push-server.outputs.version }}"
+          IMAGE="${{ needs.build-push-server.outputs.image }}"
+          echo "## Deployed to k3s" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Detail | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Config | \`/etc/nginx/conf.d/edgebalancer.conf\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Host   | \`${{ vars.SERVER_HOST }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| Status | reloaded |" >> $GITHUB_STEP_SUMMARY
+          echo "| Detail    | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Version   | \`v$VERSION\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image     | \`$IMAGE\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Host      | \`${{ vars.SERVER_HOST }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Strategy  | Rolling Update (maxSurge=1, maxUnavailable=0) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Replicas  | HPA min=1 / max=2 (CPU target 70%) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Status    | deployed |" >> $GITHUB_STEP_SUMMARY
