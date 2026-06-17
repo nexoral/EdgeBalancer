@@ -1,4 +1,4 @@
-import type { FastifyReply, FastifyRequest } from 'fastify';;
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { JwtPayload } from '../utils/jwt';
 
 export interface AppRequest extends FastifyRequest {

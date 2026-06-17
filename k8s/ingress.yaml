@@ -22,16 +22,6 @@ spec:
                 name: edgebalancer-service
                 port:
                   number: 8000
-    - host: prod-edgebalancer-lb-o2.nexoral.in
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: edgebalancer-service
-                port:
-                  number: 8000
 
 ---
 apiVersion: helm.cattle.io/v1
