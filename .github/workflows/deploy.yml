@@ -145,6 +145,7 @@ jobs:
       needs.server-test.result == 'success'
     permissions:
       packages: write
+      contents: read
     outputs:
       image: ${{ steps.image-tag.outputs.image }}
       version: ${{ steps.version.outputs.version }}
@@ -183,6 +184,7 @@ jobs:
           tags: |
             ghcr.io/${{ steps.owner.outputs.name }}/edgebalancer-server:${{ steps.version.outputs.version }}
             ghcr.io/${{ steps.owner.outputs.name }}/edgebalancer-server:${{ github.sha }}
+            ghcr.io/${{ steps.owner.outputs.name }}/edgebalancer-server:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -256,10 +258,12 @@ jobs:
   deploy-k3s-image:
     name: Rolling Update Image
     runs-on: ubuntu-latest
-    needs: [changes, build-push-server]
+    needs: [changes, build-push-server, deploy-k3s-config]
     if: |
+      always() &&
       needs.changes.outputs.server == 'true' &&
-      needs.build-push-server.result == 'success'
+      needs.build-push-server.result == 'success' &&
+      (needs.deploy-k3s-config.result == 'success' || needs.deploy-k3s-config.result == 'skipped')
     steps:
       - name: Lowercase owner
         id: owner
@@ -267,21 +271,29 @@ jobs:
 
       - name: Update image and env secrets
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+          CF_ORIGIN_CERT: ${{ secrets.CF_ORIGIN_CERT }}
+          CF_ORIGIN_KEY: ${{ secrets.CF_ORIGIN_KEY }}
         with:
           host: ${{ vars.SERVER_HOST }}
           username: ${{ vars.SERVER_USER }}
           key: ${{ vars.SSH_PRIVATE_KEY }}
+          envs: FIREBASE_PRIVATE_KEY,CF_ORIGIN_CERT,CF_ORIGIN_KEY
           script: |
             IMAGE="${{ needs.build-push-server.outputs.image }}"
 
             sudo k3s kubectl create namespace edgebalancer --dry-run=client -o yaml | sudo k3s kubectl apply -f -
 
             echo "Upserting Cloudflare Origin TLS secret..."
+            printf '%s' "$CF_ORIGIN_CERT" > /tmp/tls.crt
+            printf '%s' "$CF_ORIGIN_KEY"  > /tmp/tls.key
             sudo k3s kubectl create secret tls edgebalancer-tls \
               --namespace edgebalancer \
-              --cert=<(printf '%s' '${{ secrets.CF_ORIGIN_CERT }}') \
-              --key=<(printf '%s' '${{ secrets.CF_ORIGIN_KEY }}') \
+              --cert=/tmp/tls.crt \
+              --key=/tmp/tls.key \
               --dry-run=client -o yaml | sudo k3s kubectl apply -f -
+            rm -f /tmp/tls.crt /tmp/tls.key
 
             echo "Upserting GHCR pull secret..."
             sudo k3s kubectl create secret docker-registry ghcr-pull-secret \
@@ -292,7 +304,7 @@ jobs:
               --dry-run=client -o yaml | sudo k3s kubectl apply -f -
 
             echo "Upserting app env secret..."
-            FIREBASE_PRIVATE_KEY=$(printf '%s' '${{ secrets.FIREBASE_PRIVATE_KEY }}' | sed 's/\\n/\n/g')
+            FIREBASE_KEY=$(printf '%s' "$FIREBASE_PRIVATE_KEY" | sed 's/\\n/\n/g')
             sudo k3s kubectl create secret generic edgebalancer-env \
               --namespace edgebalancer \
               --from-literal=MONGODB_URI="${{ secrets.MONGODB_URI }}" \
@@ -302,7 +314,7 @@ jobs:
               --from-literal=CORS_ORIGIN="${{ secrets.CORS_ORIGIN }}" \
               --from-literal=FIREBASE_PROJECT_ID="${{ secrets.FIREBASE_PROJECT_ID }}" \
               --from-literal=FIREBASE_CLIENT_EMAIL="${{ secrets.FIREBASE_CLIENT_EMAIL }}" \
-              --from-literal=FIREBASE_PRIVATE_KEY="$FIREBASE_PRIVATE_KEY" \
+              --from-literal=FIREBASE_PRIVATE_KEY="$FIREBASE_KEY" \
               --dry-run=client -o yaml | sudo k3s kubectl apply -f -
 
             echo "Rolling update to: $IMAGE"
