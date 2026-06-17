@@ -276,6 +276,13 @@ jobs:
 
             sudo k3s kubectl create namespace edgebalancer --dry-run=client -o yaml | sudo k3s kubectl apply -f -
 
+            echo "Upserting Cloudflare Origin TLS secret..."
+            sudo k3s kubectl create secret tls edgebalancer-tls \
+              --namespace edgebalancer \
+              --cert=<(printf '%s' '${{ secrets.CF_ORIGIN_CERT }}') \
+              --key=<(printf '%s' '${{ secrets.CF_ORIGIN_KEY }}') \
+              --dry-run=client -o yaml | sudo k3s kubectl apply -f -
+
             echo "Upserting GHCR pull secret..."
             sudo k3s kubectl create secret docker-registry ghcr-pull-secret \
               --namespace edgebalancer \
