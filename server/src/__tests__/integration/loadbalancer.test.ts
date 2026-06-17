@@ -54,6 +54,13 @@ jest.mock('../../modules/loadbalancer/services/credentials.service', () => ({
     apiToken: 'fake-api-token-for-testing-purposes-only-xx',
   }),
 }));
+jest.mock('../../utils/redisClient', () => ({
+  getRedisClient: jest.fn().mockResolvedValue({
+    get: jest.fn().mockResolvedValue(null),
+    set: jest.fn().mockResolvedValue('OK'),
+  }),
+  closeRedisClient: jest.fn().mockResolvedValue(undefined),
+}));
 
 const MockCloudflareClient = CloudflareClient as jest.MockedClass<typeof CloudflareClient>;
 
