@@ -181,6 +181,7 @@ jobs:
           context: ./server
           push: true
           platforms: linux/arm64
+          provenance: false
           tags: |
             ghcr.io/${{ steps.owner.outputs.name }}/edgebalancer-server:${{ steps.version.outputs.version }}
             ghcr.io/${{ steps.owner.outputs.name }}/edgebalancer-server:${{ github.sha }}
