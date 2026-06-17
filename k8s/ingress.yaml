@@ -11,7 +11,6 @@ spec:
   tls:
     - hosts:
         - apiedge.nexoral.in
-        - prod-edgebalancer-lb-o2.nexoral.in
       secretName: edgebalancer-tls
   rules:
     - host: apiedge.nexoral.in
