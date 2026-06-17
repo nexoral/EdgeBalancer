@@ -1,5 +1,23 @@
 export default {
   async fetch(request, env, ctx) {
+    const origin = request.headers.get('Origin');
+
+    const corsHeaders = {
+      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,PATCH,OPTIONS',
+      'Access-Control-Allow-Headers':
+        request.headers.get('Access-Control-Request-Headers') || 'Content-Type, Authorization',
+      'Vary': 'Origin',
+    };
+
+    if (origin) {
+      corsHeaders['Access-Control-Allow-Origin'] = origin;
+      corsHeaders['Access-Control-Allow-Credentials'] = 'true';
+    }
+
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: corsHeaders });
+    }
+
     const html = `
       <!DOCTYPE html>
       <html lang="en">
@@ -114,6 +132,7 @@ export default {
     return new Response(html, {
       status: 503,
       headers: {
+        ...corsHeaders,
         'Content-Type': 'text/html;charset=UTF-8',
         'Retry-After': '3600',
       },
