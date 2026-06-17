@@ -2,6 +2,7 @@ import { FastifyRequest, FastifyReply, FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 import crypto from 'crypto';
 import { getRedisClient } from '../utils/redisClient';
+import { verifyToken } from '../utils/jwt';
 
 interface IdempotencyRecord {
   statusCode: number;
@@ -21,12 +22,29 @@ function processingKey(composite: string): string {
   return `idempotency:processing:${composite}`;
 }
 
-function hashRequestBody(body: any): string {
-  return crypto.createHash('sha256').update(JSON.stringify(body || {})).digest('hex');
+function hashBody(body: any): string {
+  return crypto.createHash('sha256').update(JSON.stringify(body ?? {})).digest('hex');
+}
+
+function extractUserId(request: FastifyRequest): string {
+  try {
+    const cookieHeader = request.headers.cookie || '';
+    const cookies = cookieHeader.split(';').reduce<Record<string, string>>((acc, c) => {
+      const [k, ...v] = c.trim().split('=');
+      if (k) acc[decodeURIComponent(k.trim())] = decodeURIComponent(v.join('=') || '');
+      return acc;
+    }, {});
+    const token = cookies['token'];
+    if (!token) return 'anonymous';
+    return verifyToken(token).userId;
+  } catch {
+    return 'anonymous';
+  }
 }
 
 async function idempotencyPlugin(fastify: FastifyInstance) {
-  fastify.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
+  // preHandler: body is fully parsed, cookies available from raw header
+  fastify.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
     if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) return;
 
     const idempotencyKey = request.headers['idempotency-key'] as string;
@@ -39,7 +57,7 @@ async function idempotencyPlugin(fastify: FastifyInstance) {
       });
     }
 
-    const userId = (request as any).user?.userId || 'anonymous';
+    const userId = extractUserId(request);
     const compositeKey = crypto
       .createHash('sha256')
       .update(`${userId}:${request.url}:${idempotencyKey}`)
@@ -58,9 +76,9 @@ async function idempotencyPlugin(fastify: FastifyInstance) {
     const raw = await redis.get(idempKey(compositeKey));
     if (raw) {
       const cached: IdempotencyRecord = JSON.parse(raw);
-      const currentBodyHash = hashRequestBody(request.body);
+      const incomingBodyHash = hashBody(request.body);
 
-      if (cached.requestBodyHash !== currentBodyHash) {
+      if (cached.requestBodyHash !== incomingBodyHash) {
         return reply.status(409).send({
           success: false,
           message: 'Idempotency key reused with different request body',
@@ -73,6 +91,7 @@ async function idempotencyPlugin(fastify: FastifyInstance) {
 
     await redis.set(processingKey(compositeKey), '1', { EX: PROCESSING_TTL_SECONDS });
     (request as any).idempotencyKey = compositeKey;
+    (request as any).idempotencyBodyHash = hashBody(request.body);
   });
 
   fastify.addHook('preSerialization', async (request: FastifyRequest, reply: FastifyReply, payload: any) => {
@@ -87,7 +106,7 @@ async function idempotencyPlugin(fastify: FastifyInstance) {
         statusCode,
         headers: reply.getHeaders() as Record<string, string>,
         body: payload,
-        requestBodyHash: hashRequestBody(request.body),
+        requestBodyHash: (request as any).idempotencyBodyHash,
       };
       await redis.set(idempKey(compositeKey), JSON.stringify(record), { EX: TTL_SECONDS });
     }
