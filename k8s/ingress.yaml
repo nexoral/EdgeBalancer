@@ -48,3 +48,4 @@ spec:
       traefik:
         expose:
           default: true
+
