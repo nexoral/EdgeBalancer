@@ -6,6 +6,7 @@ import {getRedisClient} from '../../../utils/redisClient';
 import type { AppRequest as Request, AppResponse as Response, NextFunction } from '../../../types/http';
 
 export async function getLoadBalancerAnalytics(req: Request, res: Response, next: NextFunction) {
+  const  redis = await getRedisClient();
   try {
     const userId = req.user?.userId;
     if (!userId) {
@@ -37,7 +38,6 @@ export async function getLoadBalancerAnalytics(req: Request, res: Response, next
     const { accountId, apiToken } = await getCloudflareCredentialsForUser(userId);
 
     // Check  Redis for cached analytics data
-    const  redis = await getRedisClient();
     const cacheKey = `analytics:${lb.scriptName}:${period}`;
     const cachedData = await redis.get(cacheKey);
     if (cachedData) {
@@ -52,8 +52,16 @@ export async function getLoadBalancerAnalytics(req: Request, res: Response, next
     const analytics = await fetchWorkerAnalytics({ accountId, apiToken, scriptName: lb.scriptName, period });
 
     // Cache the analytics data in Redis for 5 minutes
-    await redis.set(cacheKey, JSON.stringify(analytics), {expiration: {type: 'EX', value: 600}});
-    
+    console.log('About to cache key:', cacheKey);
+    try {
+      const setResult = await redis.set(cacheKey, JSON.stringify(analytics), {
+        expiration: { type: 'EX', value: 600 }
+      });
+      console.log('Cache set result:', setResult); // should be "OK"
+    } catch (err) {
+      console.error('Cache set FAILED:', err);
+    }
+
     res.json({
       success: true,
       message: 'Analytics retrieved successfully',
