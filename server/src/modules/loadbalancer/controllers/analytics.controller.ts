@@ -51,8 +51,7 @@ export async function getLoadBalancerAnalytics(req: Request, res: Response, next
 
     const analytics = await fetchWorkerAnalytics({ accountId, apiToken, scriptName: lb.scriptName, period });
 
-    // Cache the analytics data in Redis for 5 minutes
-    console.log('About to cache key:', cacheKey);
+    // Cache the analytics data in Redis for 10 minutes
     try {
       const setResult = await redis.set(cacheKey, JSON.stringify(analytics), {
         expiration: { type: 'EX', value: 600 }
