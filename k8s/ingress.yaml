@@ -32,3 +32,19 @@ spec:
                 name: edgebalancer-service
                 port:
                   number: 8000
+
+---
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    api:
+      dashboard: true
+      insecure: true
+    ports:
+      traefik:
+        expose:
+          default: true
