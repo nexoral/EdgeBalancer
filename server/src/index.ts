@@ -4,6 +4,7 @@
  */
 import dotenv from 'dotenv';
 import { connectDatabase, disconnectDatabase } from './utils/database';
+import { getRedisClient, closeRedisClient } from './utils/redisClient';
 import { buildServer } from './app';
 import type { FastifyInstance } from 'fastify';
 
@@ -51,8 +52,9 @@ async function gracefulShutdown(signal: string) {
       console.log('✅ Fastify server closed');
     }
 
-    // Disconnect from MongoDB
+    // Disconnect from MongoDB and Redis
     await disconnectDatabase();
+    await closeRedisClient();
 
     console.log('✅ Graceful shutdown complete');
     process.exit(0);
@@ -69,8 +71,9 @@ process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 // Bootstrap server with proper async initialization
 async function bootstrap() {
   try {
-    // Connect to database first
+    // Connect to database and Redis first
     await connectDatabase();
+    await getRedisClient();
 
     // Then build and start server
     app = await buildServer();
@@ -79,7 +82,7 @@ async function bootstrap() {
 
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`📚 API Docs: http://localhost:${PORT}/api-docs`);
-    console.log(`🔄 Idempotency: Enabled (in-memory)`);
+    console.log(`🔄 Idempotency: Enabled (Redis)`);
   } catch (error) {
     console.error('❌ Failed to start server');
     console.error(error);

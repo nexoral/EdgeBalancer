@@ -20,7 +20,7 @@ export async function cancelLoadBalancerDeployment(req: Request, res: Response, 
       throw new Error('Operation id is required');
     }
 
-    const accepted = cancelLoadBalancerOperation(operationId);
+    const accepted = await cancelLoadBalancerOperation(operationId);
 
     res.json({
       success: true,

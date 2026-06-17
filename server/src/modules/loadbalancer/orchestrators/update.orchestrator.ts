@@ -118,7 +118,7 @@ export async function updateLoadBalancerOrchestrator(params: {
     hostname: nextHostname,
     excludeLoadBalancerId: loadBalancerId,
   });
-  cancellation.throwIfCancelled();
+  await cancellation.throwIfCancelled();
 
   const nextStrategy = normalizeStrategy(strategy, weightedEnabled || false);
   const nextWeightedEnabled = isWeightedStrategy(nextStrategy);
@@ -167,7 +167,7 @@ export async function updateLoadBalancerOrchestrator(params: {
     zoneId,
     apiToken,
   });
-  cancellation.throwIfCancelled();
+  await cancellation.throwIfCancelled();
 
   // Always generate worker code using resolved origins (hostnames, not raw IPs)
   const workerCode = generateWorkerCode({ origins: resolvedOrigins, strategy: nextStrategy, exposeRealOrigin: exposeRealOrigin ?? false, corsEnabled: nextCorsEnabled, corsOrigins: corsOrigins ?? [] });
@@ -218,7 +218,7 @@ export async function updateLoadBalancerOrchestrator(params: {
         placement: placement || { smartPlacement: false },
       });
 
-      cancellation.throwIfCancelled();
+      await cancellation.throwIfCancelled();
 
       await createWorkerDeployment({
         accountId,
@@ -234,7 +234,7 @@ export async function updateLoadBalancerOrchestrator(params: {
       });
 
       newVersionDeployed = true;
-      cancellation.throwIfCancelled();
+      await cancellation.throwIfCancelled();
     }
 
     // Step 2: Attach new hostname (if hostname changed)
@@ -247,7 +247,7 @@ export async function updateLoadBalancerOrchestrator(params: {
         scriptName: loadBalancer.scriptName,
       });
       newHostnameAttached = true;
-      cancellation.throwIfCancelled();
+      await cancellation.throwIfCancelled();
     }
 
     // Step 3: Update database
@@ -291,7 +291,7 @@ export async function updateLoadBalancerOrchestrator(params: {
 
     persistedLoadBalancer = updatedLoadBalancer;
     databaseSaved = true;
-    cancellation.throwIfCancelled();
+    await cancellation.throwIfCancelled();
 
     // Step 4: Detach old hostname (if hostname value changed)
     if (hostnameValueChanged) {
@@ -301,7 +301,7 @@ export async function updateLoadBalancerOrchestrator(params: {
         hostname: previousHostname,
       });
       oldHostnameDetached = true;
-      cancellation.throwIfCancelled();
+      await cancellation.throwIfCancelled();
     }
 
     // Step 5: Delete DNS records for IP origins removed from this update

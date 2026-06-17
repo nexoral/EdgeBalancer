@@ -10,7 +10,7 @@ import type { AppRequest as Request, AppResponse as Response, NextFunction } fro
 
 export async function createLoadBalancer(req: Request, res: Response, next: NextFunction) {
   const operationId = req.header('x-operation-id');
-  beginLoadBalancerOperation(operationId);
+  await beginLoadBalancerOperation(operationId);
   const cancellation = createRequestCancellation(req, res, operationId);
 
   try {
@@ -34,7 +34,7 @@ export async function createLoadBalancer(req: Request, res: Response, next: Next
       if (!res.headersSent) {
         res.status(409).json({
           success: false,
-          message: isLoadBalancerOperationCancelled(operationId)
+          message: (await isLoadBalancerOperationCancelled(operationId))
             ? 'Operation cancelled and rolled back'
             : 'Request cancelled by client',
           data: null,
@@ -48,6 +48,6 @@ export async function createLoadBalancer(req: Request, res: Response, next: Next
     }
     next(error as Error);
   } finally {
-    completeLoadBalancerOperation(operationId);
+    await completeLoadBalancerOperation(operationId);
   }
 }

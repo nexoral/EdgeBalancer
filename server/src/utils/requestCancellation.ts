@@ -27,14 +27,14 @@ export const createRequestCancellation = (req: Request, res: Response, operation
   });
 
   return {
-    isCancelled: () => cancelled || isLoadBalancerOperationCancelled(operationId),
-    throwIfCancelled: () => {
-      if (cancelled || isLoadBalancerOperationCancelled(operationId)) {
-        throw new RequestCancelledError(
-          isLoadBalancerOperationCancelled(operationId)
-            ? 'Operation cancelled and rolled back'
-            : 'Request cancelled by client'
-        );
+    isCancelled: () => cancelled,
+    throwIfCancelled: async () => {
+      if (cancelled) {
+        throw new RequestCancelledError('Request cancelled by client');
+      }
+      const opCancelled = await isLoadBalancerOperationCancelled(operationId);
+      if (opCancelled) {
+        throw new RequestCancelledError('Operation cancelled and rolled back');
       }
     },
   };
