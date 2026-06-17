@@ -208,11 +208,20 @@ jobs:
         with:
           context: ./server
           push: true
+          platforms: linux/arm64
           tags: |
             ghcr.io/${{ github.repository_owner }}/edgebalancer-server:${{ steps.version.outputs.version }}
             ghcr.io/${{ github.repository_owner }}/edgebalancer-server:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Delete old GHCR versions (keep current + 2 previous)
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: edgebalancer-server
+          package-type: container
+          min-versions-to-keep: 3
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Annotate summary
         run: |
@@ -224,18 +233,17 @@ jobs:
           echo "| Version  | \`v$VERSION\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Image    | \`ghcr.io/${{ github.repository_owner }}/edgebalancer-server:$VERSION\` |" >> $GITHUB_STEP_SUMMARY
           echo "| SHA Tag  | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Platform | linux/arm64 (Graviton) |" >> $GITHUB_STEP_SUMMARY
           echo "| Registry | GHCR |" >> $GITHUB_STEP_SUMMARY
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # Stage 5 — Deploy to k3s on VPS via SSH
+  # Stage 5a — Apply k8s config (ONLY when k8s/** changes)
   # ─────────────────────────────────────────────────────────────────────────────
-  deploy-k3s:
-    name: Deploy to k3s
+  deploy-k3s-config:
+    name: Apply k8s Config
     runs-on: ubuntu-latest
-    needs: [changes, build-push-server]
-    if: |
-      needs.changes.outputs.server == 'true' &&
-      needs.build-push-server.result == 'success'
+    needs: changes
+    if: needs.changes.outputs.k8s == 'true'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -249,7 +257,40 @@ jobs:
           source: "k8s"
           target: "~/k8s-deploy/"
 
-      - name: Deploy to k3s
+      - name: Apply manifests
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ vars.SERVER_HOST }}
+          username: ${{ vars.SERVER_USER }}
+          key: ${{ vars.SSH_PRIVATE_KEY }}
+          script: |
+            sudo k3s kubectl create namespace edgebalancer --dry-run=client -o yaml | sudo k3s kubectl apply -f -
+            sudo k3s kubectl apply -f ~/k8s-deploy/k8s/
+            rm -rf ~/k8s-deploy
+            echo "k8s config applied successfully!"
+
+      - name: Annotate summary
+        run: |
+          echo "## k8s Config Applied" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Detail   | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Manifests | Deployment, Service, Ingress |" >> $GITHUB_STEP_SUMMARY
+          echo "| Host     | \`${{ vars.SERVER_HOST }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Status   | applied |" >> $GITHUB_STEP_SUMMARY
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Stage 5b — Rolling image update (ONLY when server/** changes)
+  # ─────────────────────────────────────────────────────────────────────────────
+  deploy-k3s-image:
+    name: Rolling Update Image
+    runs-on: ubuntu-latest
+    needs: [changes, build-push-server]
+    if: |
+      needs.changes.outputs.server == 'true' &&
+      needs.build-push-server.result == 'success'
+    steps:
+      - name: Update image and env secrets
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ vars.SERVER_HOST }}
@@ -258,7 +299,6 @@ jobs:
           script: |
             IMAGE="${{ needs.build-push-server.outputs.image }}"
 
-            echo "Creating namespace..."
             sudo k3s kubectl create namespace edgebalancer --dry-run=client -o yaml | sudo k3s kubectl apply -f -
 
             echo "Upserting GHCR pull secret..."
@@ -282,19 +322,23 @@ jobs:
               --from-literal=FIREBASE_PRIVATE_KEY="${{ secrets.FIREBASE_PRIVATE_KEY }}" \
               --dry-run=client -o yaml | sudo k3s kubectl apply -f -
 
-            echo "Applying k8s manifests..."
-            sudo k3s kubectl apply -f ~/k8s-deploy/k8s/
-
-            echo "Rolling update to image: $IMAGE"
+            echo "Rolling update to: $IMAGE"
             sudo k3s kubectl set image deployment/edgebalancer-server \
               edgebalancer-server=$IMAGE \
               --namespace edgebalancer
 
             echo "Waiting for rollout..."
-            sudo k3s kubectl rollout status deployment/edgebalancer-server \
-              --namespace edgebalancer --timeout=5m
+            if ! sudo k3s kubectl rollout status deployment/edgebalancer-server \
+              --namespace edgebalancer --timeout=5m; then
+              echo "Rollout failed — rolling back to previous version..."
+              sudo k3s kubectl rollout undo deployment/edgebalancer-server \
+                --namespace edgebalancer
+              sudo k3s kubectl rollout status deployment/edgebalancer-server \
+                --namespace edgebalancer --timeout=3m
+              echo "Rollback complete."
+              exit 1
+            fi
 
-            rm -rf ~/k8s-deploy
             echo "Deployed $IMAGE successfully!"
 
       - name: Annotate summary
@@ -309,5 +353,5 @@ jobs:
           echo "| Image     | \`$IMAGE\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Host      | \`${{ vars.SERVER_HOST }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Strategy  | Rolling Update (maxSurge=1, maxUnavailable=0) |" >> $GITHUB_STEP_SUMMARY
-          echo "| Replicas  | HPA min=1 / max=2 (CPU target 70%) |" >> $GITHUB_STEP_SUMMARY
+          echo "| Replicas  | 2 fixed (500m CPU / 512Mi RAM each) |" >> $GITHUB_STEP_SUMMARY
           echo "| Status    | deployed |" >> $GITHUB_STEP_SUMMARY
