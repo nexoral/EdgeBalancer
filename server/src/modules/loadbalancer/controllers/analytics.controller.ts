@@ -2,6 +2,7 @@ import { LoadBalancer } from '../../../models/LoadBalancer';
 import { getValidatedLoadBalancerId } from '../services/validation.service';
 import { getCloudflareCredentialsForUser } from '../services/credentials.service';
 import { fetchWorkerAnalytics } from '../services/analytics.service';
+import {getRedisClient} from '../../../utils/redisClient';
 import type { AppRequest as Request, AppResponse as Response, NextFunction } from '../../../types/http';
 
 export async function getLoadBalancerAnalytics(req: Request, res: Response, next: NextFunction) {
@@ -35,8 +36,24 @@ export async function getLoadBalancerAnalytics(req: Request, res: Response, next
 
     const { accountId, apiToken } = await getCloudflareCredentialsForUser(userId);
 
+    // Check  Redis for cached analytics data
+    const  redis = await getRedisClient();
+    const cacheKey = `analytics:${lb.scriptName}:${period}`;
+    const cachedData = await redis.get(cacheKey);
+    if (cachedData) {
+      res.json({
+        success: true,
+        message: 'Analytics retrieved successfully (from cache)',
+        data: { analytics: JSON.parse(cachedData) },
+      });
+      return;
+    }
+
     const analytics = await fetchWorkerAnalytics({ accountId, apiToken, scriptName: lb.scriptName, period });
 
+    // Cache the analytics data in Redis for 5 minutes
+    await redis.set(cacheKey, JSON.stringify(analytics), {expiration: {type: 'EX', value: 600}});
+    
     res.json({
       success: true,
       message: 'Analytics retrieved successfully',
