@@ -72,4 +72,4 @@ export async function getLoadBalancerAnalytics(req: Request, res: Response, next
     }
     next(error as Error);
   }
-}
+};;
