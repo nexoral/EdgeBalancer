@@ -21,10 +21,8 @@ SaaS control plane for deploying and managing Cloudflare Worker-based load balan
 EdgeBalancer/
 ├── client/   # Next.js 16 (App Router), React 19, TS, Tailwind v4
 ├── server/   # Fastify 5, TS strict, Mongoose
-├── config/   # Nginx (edgebalancer.conf)
 ├── k8s/      # deployment.yaml
-├── AGENTS.md # canonical context
-└── CLAUDE.md # identical mirror of AGENTS.md — keep in sync when editing either
+└── AGENTS.md # canonical context
 ```
 
 ## Architecture (small)
