@@ -26,7 +26,7 @@ provider "aws" {
 # Architecture (minimal, no NAT — tasks run in public subnets):
 #   Internet → Cloudflare → ALB (HTTPS) → ECS Fargate Task → app:8000
 #                                              ↓
-#                                 ElastiCache Redis (Serverless)
+#                                 ElastiCache Valkey (Serverless)
 #
 # Auto-scaling: app autoscaling — min 1 task, target-tracking on CPU
 # (max 100 — App Autoscaling requires a max, this is effectively uncapped)
@@ -119,12 +119,12 @@ resource "aws_security_group" "ecs" {
   }
 }
 
-resource "aws_security_group" "redis" {
-  name        = "edgebalancer-redis-sg"
-  description = "Redis (ElastiCache Serverless)"
+resource "aws_security_group" "valkey" {
+  name        = "edgebalancer-valkey-sg"
+  description = "Valkey (ElastiCache Serverless)"
   vpc_id      = aws_vpc.main.id
   ingress {
-    description     = "ECS to Redis"
+    description     = "ECS to Valkey"
     from_port       = 6379
     to_port         = 6379
     protocol        = "tcp"
@@ -204,7 +204,7 @@ resource "aws_ecs_task_definition" "app" {
       }
       environment = [
         { name = "PORT", value = "8000" },
-        { name = "REDIS_URL", value = "rediss://${aws_elasticache_serverless_cache.redis.endpoint[0].address}:6379" },
+        { name = "REDIS_URL", value = "rediss://${aws_elasticache_serverless_cache.valkey.endpoint[0].address}:6379" },
         { name = "JWT_SECRET", value = var.jwt_secret },
         { name = "MONGODB_URI", value = var.mongodb_uri },
         { name = "ENCRYPTION_KEY", value = var.encryption_key },
@@ -323,12 +323,12 @@ resource "aws_appautoscaling_policy" "cpu" {
   }
 }
 
-# ─── ElastiCache Redis (Serverless — no nodes, no subnet group) ───
-resource "aws_elasticache_serverless_cache" "redis" {
-  engine = "redis"
-  name   = "edgebalancer-redis"
+# ─── ElastiCache Valkey (Serverless — no nodes, no subnet group) ───
+resource "aws_elasticache_serverless_cache" "valkey" {
+  engine = "valkey"
+  name   = "edgebalancer-valkey"
 
-  security_group_ids = [aws_security_group.redis.id]
+  security_group_ids = [aws_security_group.valkey.id]
   subnet_ids         = [aws_subnet.public.id, aws_subnet.public_b.id]
 
   cache_usage_limits {
@@ -340,7 +340,7 @@ resource "aws_elasticache_serverless_cache" "redis" {
       maximum = 1000
     }
   }
-  tags = { Name = "edgebalancer-redis" }
+  tags = { Name = "edgebalancer-valkey" }
 }
 
 # ─── Outputs (used by GitHub Actions for force-deploy) ────────────
@@ -356,6 +356,6 @@ output "alb_dns" {
   value = aws_lb.main.dns_name
 }
 
-output "redis_endpoint" {
-  value = "${aws_elasticache_serverless_cache.redis.endpoint[0].address}:${aws_elasticache_serverless_cache.redis.endpoint[0].port}"
+output "valkey_endpoint" {
+  value = "${aws_elasticache_serverless_cache.valkey.endpoint[0].address}:${aws_elasticache_serverless_cache.valkey.endpoint[0].port}"
 }

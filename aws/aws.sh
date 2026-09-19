@@ -233,7 +233,7 @@ if objs:
 down() {
   echo "=== DOWN — full delete of all edgebalancer* resources (via aws CLI, no terraform) ==="
   echo "This will DELETE: ECS edgebalancer, ALB edgebalancer-alb, TG edgebalancer-tg,"
-  echo "  ElastiCache edgebalancer-redis, ACM unused certs, log group /ecs/edgebalancer,"
+  echo "  ElastiCache edgebalancer-valkey, ACM unused certs, log group /ecs/edgebalancer,"
   echo "  IAM roles edgebalancer*, S3 $BUCKET (and all versions), IAM user $USER + policy $POLICY,"
   echo "  and non-default VPCs that belong to edgebalancer."
   echo "Terraform will ONLY run in CI/CD (.github/workflows/deploy.yml) — this down is local aws CLI only."
@@ -270,29 +270,29 @@ down() {
     aws elbv2 delete-target-group --target-group-arn "$TG" 2>/dev/null || true
   fi
 
-  echo "=== 3. ElastiCache Redis (serverless or replication group) ==="
-  SC=$(aws elasticache describe-serverless-caches --query "ServerlessCaches[?ServerlessCacheName=='edgebalancer-redis'].ServerlessCacheName" --output text 2>/dev/null || true)
+  echo "=== 3. ElastiCache Valkey (serverless or replication group) ==="
+  SC=$(aws elasticache describe-serverless-caches --query "ServerlessCaches[?ServerlessCacheName=='edgebalancer-valkey'].ServerlessCacheName" --output text 2>/dev/null || true)
   if [ -n "$SC" ] && [ "$SC" != "None" ]; then
-    aws elasticache delete-serverless-cache --serverless-cache-name edgebalancer-redis >/dev/null 2>&1 || true
+    aws elasticache delete-serverless-cache --serverless-cache-name edgebalancer-valkey >/dev/null 2>&1 || true
     sleep 10
     for i in $(seq 1 60); do
-      REMAIN=$(aws elasticache describe-serverless-caches --serverless-cache-name edgebalancer-redis --query 'ServerlessCaches[0].ServerlessCacheName' --output text 2>/dev/null || true)
+      REMAIN=$(aws elasticache describe-serverless-caches --serverless-cache-name edgebalancer-valkey --query 'ServerlessCaches[0].ServerlessCacheName' --output text 2>/dev/null || true)
       [ -z "$REMAIN" ] || [ "$REMAIN" = "None" ] && break
       sleep 10
     done
-    echo "Serverless Redis deleted"
+    echo "Serverless Valkey deleted"
   fi
-  RG=$(aws elasticache describe-replication-groups --replication-group-id edgebalancer-redis --query 'ReplicationGroups[0].ReplicationGroupId' --output text 2>/dev/null || true)
+  RG=$(aws elasticache describe-replication-groups --replication-group-id edgebalancer-valkey --query 'ReplicationGroups[0].ReplicationGroupId' --output text 2>/dev/null || true)
   if [ -n "$RG" ] && [ "$RG" != "None" ]; then
-    aws elasticache delete-replication-group --replication-group-id edgebalancer-redis >/dev/null 2>&1 || true
+    aws elasticache delete-replication-group --replication-group-id edgebalancer-valkey >/dev/null 2>&1 || true
     for i in $(seq 1 120); do
-      REMAIN=$(aws elasticache describe-replication-groups --replication-group-id edgebalancer-redis --query 'ReplicationGroups[0].ReplicationGroupId' --output text 2>/dev/null || true)
+      REMAIN=$(aws elasticache describe-replication-groups --replication-group-id edgebalancer-valkey --query 'ReplicationGroups[0].ReplicationGroupId' --output text 2>/dev/null || true)
       [ -z "$REMAIN" ] || [ "$REMAIN" = "None" ] && break
       sleep 10
     done
-    echo "Redis deleted"
+    echo "Valkey deleted"
   fi
-  aws elasticache delete-cache-subnet-group --cache-subnet-group-name edgebalancer-redis-subnet 2>/dev/null || true
+  aws elasticache delete-cache-subnet-group --cache-subnet-group-name edgebalancer-valkey-subnet 2>/dev/null || true
 
   echo "=== 4. ACM certificates no longer in use (edgebalancer*) ==="
   for c in $(aws acm list-certificates --query 'CertificateSummaryList[].CertificateArn' --output text 2>/dev/null); do
@@ -409,7 +409,7 @@ down() {
   echo "ECS clusters:      $(aws ecs list-clusters --query 'length(clusterArns)' --output text 2>/dev/null)"
   echo "ECS services:      $(aws ecs list-services --cluster edgebalancer --query 'length(serviceArns)' --output text 2>/dev/null)"
   echo "ALBs:              $(aws elbv2 describe-load-balancers --query 'length(LoadBalancers)' --output text 2>/dev/null)"
-  echo "Redis serverless:  $(aws elasticache describe-serverless-caches --query 'length(ServerlessCaches)' --output text 2>/dev/null)"
+  echo "Valkey serverless:  $(aws elasticache describe-serverless-caches --query 'length(ServerlessCaches)' --output text 2>/dev/null)"
   echo "log group:         $(aws logs describe-log-groups --log-group-name-prefix /ecs/edgebalancer --query 'length(logGroups)' --output text 2>/dev/null)"
   echo "IAM edgebalancer roles: $(aws iam list-roles --query 'Roles[?starts_with(RoleName,`edgebalancer`)].RoleName' --output text 2>/dev/null || echo 'none')"
   echo "======================================================================"
