@@ -245,6 +245,26 @@ jobs:
           username: ${{ vars.SERVER_USER }}
           key: ${{ vars.SSH_PRIVATE_KEY }}
           script: |
+            set -eu
+            if ! command -v k3s >/dev/null 2>&1; then
+              curl -sfL https://get.k3s.io | sudo sh -
+            fi
+
+            if ! sudo systemctl is-active --quiet k3s; then
+              sudo systemctl start k3s
+            fi
+
+            for attempt in $(seq 1 60); do
+              if sudo k3s kubectl get --raw=/readyz >/dev/null 2>&1; then
+                break
+              fi
+              if [ "$attempt" -eq 60 ]; then
+                echo "k3s did not become ready"
+                exit 1
+              fi
+              sleep 2
+            done
+
             sudo k3s kubectl create namespace edgebalancer --dry-run=client -o yaml | sudo k3s kubectl apply -f -
             sudo k3s kubectl apply -f ~/k8s-deploy/k8s/
             rm -rf ~/k8s-deploy
