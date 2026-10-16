@@ -36,14 +36,11 @@ cat > "$POLICY_FILE" <<'POLICY_JSON'
         "ecs:*",
         "elasticloadbalancing:*",
         "elasticache:*",
-        "autoscaling:*",
         "application-autoscaling:*",
         "acm:*",
         "cloudwatch:PutMetricAlarm",
         "cloudwatch:DescribeAlarms",
-        "cloudwatch:DeleteAlarms",
-        "ssm:GetParameter",
-        "ssm:GetParameters"
+        "cloudwatch:DeleteAlarms"
       ],
       "Resource": "*"
     },
