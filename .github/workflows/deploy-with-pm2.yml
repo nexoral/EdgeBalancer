@@ -1,0 +1,149 @@
+name: Deploy to PM2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+  workflow_dispatch:
+
+jobs:
+  deploy-with-pm2:
+    name: Deploy with PM2
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install dependencies
+        run: cd server && npm i
+
+      - name: Build server
+        run: cd server && npm run build
+
+      - name: Prune dev dependencies
+        run: cd server && npm prune --omit=dev
+
+      - name: Get server version
+        id: version
+        run: echo "version=$(node -p "require('./server/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Create deploy zip
+        run: |
+          cd server
+          zip -rq "../server-${{ steps.version.outputs.version }}.zip" dist node_modules package.json
+
+      - name: Upload zip to server temp folder
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ vars.SERVER_HOST }}
+          username: ${{ vars.SERVER_USER }}
+          key: ${{ vars.SSH_PRIVATE_KEY }}
+          source: "server-${{ steps.version.outputs.version }}.zip"
+          target: "~/"
+
+      - name: Deploy with PM2
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          ZIP_NAME: server-${{ steps.version.outputs.version }}.zip
+        with:
+          host: ${{ vars.SERVER_HOST }}
+          username: ${{ vars.SERVER_USER }}
+          key: ${{ vars.SSH_PRIVATE_KEY }}
+          envs: VERSION,ZIP_NAME
+          script: |
+            set -eu
+
+            APP_NAME="edgebalancer-server"
+            APP_ROOT="$HOME/edgebalancer/apps"
+            TMP_DIR="$HOME/edgebalancer/tmp"
+            ZIP="$TMP_DIR/$ZIP_NAME"
+            APPDIR="$APP_ROOT/$VERSION"
+
+            # Make node/npm/pm2 resolvable if the server manages Node via nvm.
+            if [ -s "$HOME/.nvm/nvm.sh" ]; then
+              export NVM_DIR="$HOME/.nvm"
+              . "$HOME/.nvm/nvm.sh"
+            fi
+
+            # 1) Ensure npm (and Node) is installed.
+            if ! command -v npm >/dev/null 2>&1; then
+              echo "npm not found — installing Node.js + npm via nvm..."
+              if [ ! -s "$HOME/.nvm/nvm.sh" ]; then
+                curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+              fi
+              export NVM_DIR="$HOME/.nvm"
+              . "$HOME/.nvm/nvm.sh"
+              nvm install --lts
+            fi
+
+            # 2) Ensure pm2 is installed.
+            if ! command -v pm2 >/dev/null 2>&1; then
+              echo "pm2 not found — installing via npm..."
+              npm install -g pm2
+            fi
+
+            # 3) Move the uploaded zip into the temp folder and check it exists.
+            mkdir -p "$APP_ROOT" "$TMP_DIR"
+            mv -f "$HOME/$ZIP_NAME" "$ZIP"
+            test -f "$ZIP" || { echo "Zip not found: $ZIP"; exit 1; }
+
+            # 4) Place the code into a folder named after the server version.
+            if [ ! -d "$APPDIR" ]; then
+              echo "Version folder does not exist — placing fresh copy."
+              mkdir -p "$APPDIR"
+              unzip -qo "$ZIP" -d "$APPDIR"
+            else
+              echo "Version folder already exists — checking pm2 process."
+              if pm2 describe "$APP_NAME" >/dev/null 2>&1; then
+                echo "pm2 already has process '$APP_NAME' — deleting it."
+                pm2 delete "$APP_NAME"
+              else
+                echo "pm2 has no process for '$APP_NAME'."
+              fi
+              rm -rf "$APPDIR"/dist "$APPDIR"/node_modules
+              unzip -qo "$ZIP" -d "$APPDIR"
+            fi
+
+            # 5) Delete any stale pm2 process, then start the app from the new folder.
+            if pm2 describe "$APP_NAME" >/dev/null 2>&1; then
+              echo "Process '$APP_NAME' exists — deleting then starting."
+              pm2 delete "$APP_NAME"
+            fi
+            cd "$APPDIR"
+            pm2 start dist/index.js --name "$APP_NAME" --update-env
+            pm2 save
+
+            # 6) Ensure pm2 respawns this app after a server reboot (idempotent).
+            DEPLOY_USER=$(whoami)
+            DEPLOY_HOME=$(getent passwd "$DEPLOY_USER" | cut -d: -f6)
+            if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
+              echo "Configuring pm2 to auto-start on reboot..."
+              sudo -n pm2 startup systemd -u "$DEPLOY_USER" --hp "$DEPLOY_HOME" >/dev/null 2>&1 || echo "Note: pm2 startup failed — reboot persistence will be skipped."
+            else
+              echo "Skipping pm2 startup — requires sudo."
+            fi
+            rm -f "$ZIP"
+
+            echo "Deployed version $VERSION to $APPDIR under pm2 ($APP_NAME)."
+
+      - name: Annotate summary
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          echo "## Deployed to PM2" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Detail   | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|----------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Version  | \`v$VERSION\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Host     | \`${{ vars.SERVER_HOST }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Manager  | PM2 |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Status   | deployed |" >> "$GITHUB_STEP_SUMMARY"
