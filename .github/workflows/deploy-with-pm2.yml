@@ -35,37 +35,37 @@ jobs:
         id: version
         run: echo "version=$(node -p "require('./server/package.json').version")" >> "$GITHUB_OUTPUT"
 
-      - name: Create deploy zip
+      - name: Create deploy archive
         run: |
           cd server
-          zip -rq "../server-${{ steps.version.outputs.version }}.zip" dist node_modules package.json
+          tar -czf "../server-${{ steps.version.outputs.version }}.tar.gz" dist node_modules package.json
 
-      - name: Upload zip to server temp folder
+      - name: Upload archive to server temp folder
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ vars.SERVER_HOST }}
           username: ${{ vars.SERVER_USER }}
           key: ${{ vars.SSH_PRIVATE_KEY }}
-          source: "server-${{ steps.version.outputs.version }}.zip"
+          source: "server-${{ steps.version.outputs.version }}.tar.gz"
           target: "~/"
 
       - name: Deploy with PM2
         uses: appleboy/ssh-action@v1.0.3
         env:
           VERSION: ${{ steps.version.outputs.version }}
-          ZIP_NAME: server-${{ steps.version.outputs.version }}.zip
+          ARCHIVE_NAME: server-${{ steps.version.outputs.version }}.tar.gz
         with:
           host: ${{ vars.SERVER_HOST }}
           username: ${{ vars.SERVER_USER }}
           key: ${{ vars.SSH_PRIVATE_KEY }}
-          envs: VERSION,ZIP_NAME
+          envs: VERSION,ARCHIVE_NAME
           script: |
             set -eu
 
             APP_NAME="edgebalancer-server"
             APP_ROOT="$HOME/edgebalancer/apps"
             TMP_DIR="$HOME/edgebalancer/tmp"
-            ZIP="$TMP_DIR/$ZIP_NAME"
+            ARCHIVE="$TMP_DIR/$ARCHIVE_NAME"
             APPDIR="$APP_ROOT/$VERSION"
 
             # Make node/npm/pm2 resolvable if the server manages Node via nvm.
@@ -91,16 +91,16 @@ jobs:
               npm install -g pm2
             fi
 
-            # 3) Move the uploaded zip into the temp folder and check it exists.
+            # 3) Move the uploaded archive into the temp folder and check it exists.
             mkdir -p "$APP_ROOT" "$TMP_DIR"
-            mv -f "$HOME/$ZIP_NAME" "$ZIP"
-            test -f "$ZIP" || { echo "Zip not found: $ZIP"; exit 1; }
+            mv -f "$HOME/$ARCHIVE_NAME" "$ARCHIVE"
+            test -f "$ARCHIVE" || { echo "Archive not found: $ARCHIVE"; exit 1; }
 
             # 4) Place the code into a folder named after the server version.
             if [ ! -d "$APPDIR" ]; then
               echo "Version folder does not exist — placing fresh copy."
               mkdir -p "$APPDIR"
-              unzip -qo "$ZIP" -d "$APPDIR"
+              tar -xzf "$ARCHIVE" -C "$APPDIR"
             else
               echo "Version folder already exists — checking pm2 process."
               if pm2 describe "$APP_NAME" >/dev/null 2>&1; then
@@ -110,7 +110,7 @@ jobs:
                 echo "pm2 has no process for '$APP_NAME'."
               fi
               rm -rf "$APPDIR"/dist "$APPDIR"/node_modules
-              unzip -qo "$ZIP" -d "$APPDIR"
+              tar -xzf "$ARCHIVE" -C "$APPDIR"
             fi
 
             # 5) Delete any stale pm2 process, then start the app from the new folder.
@@ -131,7 +131,7 @@ jobs:
             else
               echo "Skipping pm2 startup — requires sudo."
             fi
-            rm -f "$ZIP"
+            rm -f "$ARCHIVE"
 
             echo "Deployed version $VERSION to $APPDIR under pm2 ($APP_NAME)."
 
