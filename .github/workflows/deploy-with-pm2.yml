@@ -35,10 +35,45 @@ jobs:
         id: version
         run: echo "version=$(node -p "require('./server/package.json').version")" >> "$GITHUB_OUTPUT"
 
+      - name: Generate .env from secrets
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          CLIENT_URL: ${{ secrets.CLIENT_URL }}
+          CORS_ORIGIN: ${{ secrets.CORS_ORIGIN }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          CLOUDFLARE_OAUTH_CLIENT_ID: ${{ secrets.CLOUDFLARE_OAUTH_CLIENT_ID }}
+          CLOUDFLARE_OAUTH_CLIENT_SECRET: ${{ secrets.CLOUDFLARE_OAUTH_CLIENT_SECRET }}
+          CLOUDFLARE_OAUTH_REDIRECT_URI: ${{ secrets.CLOUDFLARE_OAUTH_REDIRECT_URI }}
+          CASHFREE_APP_ID: ${{ secrets.CASHFREE_APP_ID }}
+          CASHFREE_SECRET_KEY: ${{ secrets.CASHFREE_SECRET_KEY }}
+          CASHFREE_ENV: ${{ secrets.CASHFREE_ENV }}
+          NODE_ENV: production
+          PORT: "8000"
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const keys = [
+            'MONGODB_URI', 'JWT_SECRET', 'ENCRYPTION_KEY', 'CLIENT_URL', 'CORS_ORIGIN',
+            'FIREBASE_PROJECT_ID', 'FIREBASE_CLIENT_EMAIL', 'FIREBASE_PRIVATE_KEY',
+            'MISTRAL_API_KEY', 'OPENROUTER_API_KEY',
+            'CLOUDFLARE_OAUTH_CLIENT_ID', 'CLOUDFLARE_OAUTH_CLIENT_SECRET', 'CLOUDFLARE_OAUTH_REDIRECT_URI',
+            'CASHFREE_APP_ID', 'CASHFREE_SECRET_KEY', 'CASHFREE_ENV',
+            'NODE_ENV', 'PORT'
+          ];
+          const lines = keys.filter((k) => process.env[k]).map((k) => k + '=' + process.env[k]);
+          fs.writeFileSync('server/.env', lines.join('\n') + '\n');
+          NODE
+
       - name: Create deploy archive
         run: |
           cd server
-          tar -czf "../server-${{ steps.version.outputs.version }}.tar.gz" dist node_modules package.json
+          tar -czf "../server-${{ steps.version.outputs.version }}.tar.gz" dist node_modules package.json .env
 
       - name: Upload archive to server temp folder
         uses: appleboy/scp-action@v0.1.7
