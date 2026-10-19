@@ -171,7 +171,17 @@ jobs:
             else
               echo "Skipping pm2 startup — requires sudo."
             fi
-            rm -f "$ARCHIVE"
+
+            # 7) Keep only the current version — delete older version folders and the temp folder.
+            cd "$APP_ROOT"
+            for old in */; do
+              [ "$old" = "$VERSION/" ] && continue
+              [ -d "$APP_ROOT/$old" ] || continue
+              echo "Removing old version folder: $APP_ROOT/$old"
+              rm -rf "$APP_ROOT/$old"
+            done
+            rm -rf "$TMP_DIR"
+            rm -f "$HOME/$ARCHIVE_NAME"
 
             echo "Deployed version $VERSION to $APPDIR under pm2 ($APP_NAME)."
 
