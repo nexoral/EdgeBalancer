@@ -12,11 +12,14 @@ export async function getRedisClient(): Promise<RedisClientType> {
   if (!client) {
     client = createClient({
       url: process.env.REDIS_URL || 'redis://localhost:6379',
+      username: process.env.REDIS_USERNAME || undefined,
+      password: process.env.REDIS_PASSWORD || undefined,
       // Callers already degrade gracefully on a Redis error (the rate limiter skips, locks fail
       // open). Queueing commands while disconnected would hang those requests instead of erroring,
       // so the degradation never runs.
       disableOfflineQueue: true,
       socket: {
+        port: process.env.REDIS_PORT ? Number(process.env.REDIS_PORT) : undefined,
         connectTimeout: 3000,
         // Unreachable at startup is fatal — a pod that hangs here never becomes ready and never
         // restarts. Once connected, retry forever so a blip does not permanently orphan the client.

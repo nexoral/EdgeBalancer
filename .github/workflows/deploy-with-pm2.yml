@@ -53,6 +53,10 @@ jobs:
           CASHFREE_APP_ID: ${{ secrets.CASHFREE_APP_ID }}
           CASHFREE_SECRET_KEY: ${{ secrets.CASHFREE_SECRET_KEY }}
           CASHFREE_ENV: ${{ secrets.CASHFREE_ENV }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          REDIS_PORT: ${{ secrets.REDIS_PORT }}
+          REDIS_USERNAME: ${{ secrets.REDIS_USERNAME }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
           NODE_ENV: production
           PORT: "8000"
         run: |
@@ -63,7 +67,8 @@ jobs:
             'FIREBASE_PROJECT_ID', 'FIREBASE_CLIENT_EMAIL', 'FIREBASE_PRIVATE_KEY',
             'MISTRAL_API_KEY', 'OPENROUTER_API_KEY',
             'CLOUDFLARE_OAUTH_CLIENT_ID', 'CLOUDFLARE_OAUTH_CLIENT_SECRET', 'CLOUDFLARE_OAUTH_REDIRECT_URI',
-            'CASHFREE_APP_ID', 'CASHFREE_SECRET_KEY', 'CASHFREE_ENV',
+            'CASHFREE_APP_ID', 'CASHFREE_SECRET_KEY', 'CASHFREE_ENV', 'REDIS_URL', 'REDIS_PORT',
+            'REDIS_USERNAME', 'REDIS_PASSWORD',
             'NODE_ENV', 'PORT'
           ];
           const lines = keys.filter((k) => process.env[k]).map((k) => k + '=' + process.env[k]);
