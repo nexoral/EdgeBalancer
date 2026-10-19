@@ -6,4 +6,5 @@ export function createMcpServer(user: McpUserContext) {
   const server = new McpServer({ name: 'EdgeBalancer', version: '1.0.0' });
   registerTools(server, user);
   return server;
-}
+};
+
