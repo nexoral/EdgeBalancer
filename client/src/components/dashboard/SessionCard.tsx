@@ -28,56 +28,52 @@ export const SessionCard = ({ session, onDownload, isDownloading, canDownload }:
     : session.domain;
 
   return (
-    <div style={{
-      background: 'var(--bg-1)', border: '1px solid var(--line)',
-      borderRadius: 'var(--radius-lg)', padding: 20,
-      display: 'flex', flexDirection: 'column', gap: 14,
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-            <span className={`chip ${session.isActive ? 'live' : ''}`}
-              style={!session.isActive ? { color: 'var(--text-3)', background: 'var(--bg-2)' } : undefined}>
+    <div className="feature-card feature-card-lift p-5 flex flex-col gap-3.5">
+      <div className="flex justify-between items-start gap-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            <span
+              className={`chip ${session.isActive ? 'live' : ''}`}
+              style={!session.isActive ? { color: 'var(--text-3)', background: 'var(--bg-2)' } : undefined}
+            >
               {session.isActive ? 'active' : 'inactive'}
             </span>
-            <span className="chip mono" style={{ textTransform: 'uppercase' }}>
+            <span className="chip mono uppercase">
               {session.actionType}
             </span>
           </div>
-          <div style={{ fontFamily: 'var(--mono)', fontSize: 15, fontWeight: 500, letterSpacing: '-0.01em' }}>
+          <div className="font-mono text-[15px] font-semibold text-[var(--text)] tracking-tight truncate">
             {session.loadBalancerName}
           </div>
-          <div style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-3)', marginTop: 4 }}>
+          <div className="font-mono text-xs text-[var(--text-3)] mt-1 truncate">
             {fullDomain}
           </div>
         </div>
-        <div style={{ color: 'var(--text-3)', flexShrink: 0, fontFamily: 'var(--mono)', fontSize: 11 }}>
+        <div className="text-[var(--text-3)] shrink-0 font-mono text-xs">
           {relativeTime(session.createdAt)}
         </div>
       </div>
 
-      <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12,
-        paddingTop: 14, borderTop: '1px solid var(--line)',
-      }}>
+      <div className="grid grid-cols-3 gap-3 pt-3.5 border-t border-[var(--line)]">
         {[
           { l: 'Strategy', v: session.strategy },
           { l: 'Action', v: session.actionType },
           { l: 'Date', v: new Date(session.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) },
         ].map((s, i) => (
           <div key={i}>
-            <div className="kicker" style={{ fontSize: 10 }}>{s.l}</div>
-            <div className="mono" style={{ fontSize: 12, marginTop: 4, fontWeight: 500 }}>{s.v}</div>
+            <div className="kicker text-[10px]">{s.l}</div>
+            <div className="mono text-xs font-medium mt-1 truncate text-[var(--text)]">{s.v}</div>
           </div>
         ))}
       </div>
 
       {session.isActive && (
-        <div style={{ paddingTop: 8, borderTop: '1px solid var(--line)' }}>
+        <div className="pt-2.5 border-t border-[var(--line)]">
           {!canDownload ? (
             <Link href="/pro">
               <button className="btn btn-ghost btn-sm">
-                <Icons.Lock size={13} /> Upgrade to download
+                <Icons.Lock size={13} />
+                <span>Upgrade to download</span>
               </button>
             </Link>
           ) : (
@@ -85,9 +81,10 @@ export const SessionCard = ({ session, onDownload, isDownloading, canDownload }:
               onClick={onDownload}
               disabled={isDownloading}
               className="btn btn-ghost btn-sm"
-              style={{ opacity: isDownloading ? 0.5 : 1 }}>
+              style={{ opacity: isDownloading ? 0.5 : 1 }}
+            >
               <Icons.Download size={13} />
-              {isDownloading ? 'Fetching…' : 'Download Script'}
+              <span>{isDownloading ? 'Fetching…' : 'Download Script'}</span>
             </button>
           )}
         </div>
@@ -97,21 +94,12 @@ export const SessionCard = ({ session, onDownload, isDownloading, canDownload }:
 };
 
 export const SessionsEmptyState = () => (
-  <div style={{
-    maxWidth: 480, margin: '80px auto', textAlign: 'center',
-    padding: 48, border: '1px dashed var(--line-2)', borderRadius: 'var(--radius-lg)',
-    background: 'var(--bg-1)',
-  }}>
-    <div style={{
-      width: 64, height: 64, margin: '0 auto 24px',
-      borderRadius: 'var(--radius)',
-      border: '1px solid var(--line-2)', background: 'var(--bg)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-    }}>
-      <Icons.History size={24} stroke="var(--accent)" />
+  <div className="max-w-lg mx-auto my-16 text-center p-8 sm:p-12 border-2 border-dashed border-[var(--line-2)] rounded-2xl bg-[var(--surface,var(--bg-1))] shadow-sm">
+    <div className="w-14 h-14 mx-auto mb-6 rounded-2xl border border-[var(--line-2)] bg-[var(--bg-2)] flex items-center justify-center text-[var(--accent)] shadow-sm">
+      <Icons.History size={24} />
     </div>
-    <h2 style={{ fontSize: 20, margin: 0, letterSpacing: '-0.02em' }}>No sessions yet</h2>
-    <p style={{ color: 'var(--text-3)', fontSize: 14, marginTop: 8, lineHeight: 1.6 }}>
+    <h2 className="text-xl font-bold tracking-tight text-[var(--text)]">No sessions yet</h2>
+    <p className="text-sm text-[var(--text-3)] mt-2 leading-relaxed">
       Sessions are recorded automatically when you create or edit a load balancer.
     </p>
   </div>

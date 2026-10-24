@@ -49,8 +49,6 @@ export function GoogleAuthPanel() {
     router.push('/overview');
   };
 
-  // Driven by the events that enter the stage, never by an effect watching it: the challenge
-  // cookie is single-use, so a second ceremony would fail with an expired-session error.
   const startPasskey = async () => {
     setStage('passkey');
     setBusy('passkey');
@@ -65,7 +63,12 @@ export function GoogleAuthPanel() {
     }
   };
 
-  const handleLogin = async (provider: 'google' | 'github', login: () => Promise<{ twoFactorRequired: boolean; methods: SecondFactorMethod[]; preferred: SecondFactorMethod | null }>, success: string, failure: string) => {
+  const handleLogin = async (
+    provider: 'google' | 'github',
+    login: () => Promise<{ twoFactorRequired: boolean; methods: SecondFactorMethod[]; preferred: SecondFactorMethod | null }>,
+    success: string,
+    failure: string
+  ) => {
     setBusy(provider);
     try {
       const { twoFactorRequired, methods: available, preferred } = await login();
@@ -112,14 +115,10 @@ export function GoogleAuthPanel() {
 
   if (authLoading) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{
-            width: 48, height: 48, margin: '0 auto 16px',
-            border: '2px solid var(--line)', borderTopColor: 'var(--accent)',
-            borderRadius: '50%', animation: 'spin 0.9s linear infinite',
-          }} />
-          <p style={{ color: 'var(--text-3)' }}>Loading...</p>
+      <div className="min-h-screen flex items-center justify-center bg-[var(--bg)]">
+        <div className="text-center">
+          <div className="w-10 h-10 mx-auto mb-4 border-2 border-[var(--line)] border-t-[var(--accent)] rounded-full animate-spin" />
+          <p className="text-xs text-[var(--text-3)] font-mono">Loading...</p>
         </div>
       </div>
     );
@@ -127,9 +126,13 @@ export function GoogleAuthPanel() {
 
   if (stage) {
     const tryAnotherWay = methods.length > 1 && (
-      <div style={{ textAlign: 'center', marginTop: 24 }}>
-        <button type="button" onClick={() => setStage('choose')} disabled={busy !== null}
-          style={{ color: 'var(--accent)', fontWeight: 500, fontSize: 13 }}>
+      <div className="text-center mt-6">
+        <button
+          type="button"
+          onClick={() => setStage('choose')}
+          disabled={busy !== null}
+          className="text-[var(--accent)] hover:opacity-80 active:scale-95 transition-transform text-xs font-medium"
+        >
           Try another way
         </button>
       </div>
@@ -137,11 +140,11 @@ export function GoogleAuthPanel() {
 
     return (
       <AuthLayout step="signin" onBack={() => { setStage(null); setMethods([]); }}>
-        <div className="kicker" style={{ marginBottom: 8 }}>// Step 02 of 02</div>
-        <h2 style={{ fontSize: 'clamp(28px, 5vw, 32px)', letterSpacing: '-0.03em', margin: 0, lineHeight: 1.1 }}>
+        <div className="kicker mb-2">// Step 02 of 02</div>
+        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--text)]">
           {stage === 'passkey' ? 'Fetching Passkey' : stage === 'totp' ? 'Two-factor code' : 'Choose a method'}
         </h2>
-        <p style={{ color: 'var(--text-3)', fontSize: 'clamp(13px, 2vw, 14px)', marginTop: 8, marginBottom: 28 }}>
+        <p className="text-xs sm:text-sm text-[var(--text-3)] mt-2 mb-6 leading-relaxed">
           {stage === 'passkey'
             ? 'Confirm with your passkey, security key or password manager.'
             : stage === 'totp'
@@ -150,13 +153,9 @@ export function GoogleAuthPanel() {
         </p>
 
         {stage === 'passkey' && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: '16px 0' }}>
-            <div style={{
-              width: 48, height: 48,
-              border: '2px solid var(--line)', borderTopColor: 'var(--accent)',
-              borderRadius: '50%', animation: 'spin 0.9s linear infinite',
-            }} />
-            <div style={{ fontSize: 13, color: 'var(--text-3)' }}>Waiting for your authenticator...</div>
+          <div className="flex flex-col items-center gap-4 py-6">
+            <div className="w-10 h-10 border-2 border-[var(--line)] border-t-[var(--accent)] rounded-full animate-spin" />
+            <div className="text-xs text-[var(--text-3)] font-mono">Waiting for your authenticator...</div>
           </div>
         )}
 
@@ -170,31 +169,33 @@ export function GoogleAuthPanel() {
               disabled={busy !== null}
             />
 
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 20, minHeight: 20, fontSize: 13, color: 'var(--text-3)' }}>
+            <div className="flex items-center justify-center gap-2 mt-5 text-xs text-[var(--text-3)]">
               {busy !== null ? (
                 <>
-                  <div style={{
-                    width: 14, height: 14,
-                    border: '2px solid var(--line)', borderTopColor: 'var(--accent)',
-                    borderRadius: '50%', animation: 'spin 0.6s linear infinite',
-                  }} />
-                  Verifying...
+                  <div className="w-3.5 h-3.5 border-2 border-[var(--line)] border-t-[var(--accent)] rounded-full animate-spin" />
+                  <span>Verifying...</span>
                 </>
               ) : (
-                <><Icons.Lock size={12} /> The code changes every 30 seconds</>
+                <>
+                  <Icons.Lock size={12} />
+                  <span>The code changes every 30 seconds</span>
+                </>
               )}
             </div>
           </>
         )}
 
         {stage === 'choose' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="flex flex-col gap-3">
             {methods.map((method) => (
-              <button key={method} type="button" className="btn btn-dark btn-lg"
+              <button
+                key={method}
+                type="button"
+                className="btn btn-ghost btn-lg w-full justify-start gap-3 shadow-xs"
                 onClick={() => (method === 'passkey' ? startPasskey() : setStage('totp'))}
-                style={{ width: '100%', justifyContent: 'flex-start', gap: 12 }}>
+              >
                 {method === 'passkey' ? <Icons.Key size={16} /> : <Icons.Lock size={16} />}
-                {method === 'passkey' ? 'Passkey or security key' : 'Authenticator app code'}
+                <span>{method === 'passkey' ? 'Passkey or security key' : 'Authenticator app code'}</span>
               </button>
             ))}
           </div>
@@ -207,42 +208,42 @@ export function GoogleAuthPanel() {
 
   return (
     <AuthLayout step={copy.step} onBack={() => router.push('/')}>
-      <div className="kicker" style={{ marginBottom: 8 }}>{copy.kicker}</div>
-      <h2 style={{ fontSize: 'clamp(28px, 5vw, 32px)', letterSpacing: '-0.03em', margin: 0, lineHeight: 1.1 }}>
+      <div className="kicker mb-2">{copy.kicker}</div>
+      <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--text)]">
         {copy.title}
       </h2>
-      <p style={{ color: 'var(--text-3)', fontSize: 'clamp(13px, 2vw, 14px)', marginTop: 8, marginBottom: 24 }}>
+      <p className="text-xs sm:text-sm text-[var(--text-3)] mt-2 mb-6 leading-relaxed">
         {copy.subtitle}
       </p>
 
-      {/* Google and GitHub are the only credentials, so a missing Firebase config is a dead
-          end rather than a fallback to another method — say so plainly. */}
       {isFirebaseConfigured() ? (
-        <>
-          <button type="button" className="btn btn-dark btn-lg"
+        <div className="space-y-3">
+          <button
+            type="button"
+            className="btn btn-ghost btn-lg w-full justify-center gap-3 shadow-xs"
             onClick={handleGoogle}
             disabled={busy !== null}
-            style={{ width: '100%', justifyContent: 'center' }}>
-            <GoogleG /> {busy === 'google' ? copy.busy : copy.cta}
+          >
+            <GoogleG />
+            <span>{busy === 'google' ? copy.busy : copy.cta}</span>
           </button>
 
           <Divider label="or" />
 
-          <button type="button" className="btn btn-dark btn-lg"
+          <button
+            type="button"
+            className="btn btn-ghost btn-lg w-full justify-center gap-3 shadow-xs"
             onClick={handleGitHub}
             disabled={busy !== null}
-            style={{ width: '100%', justifyContent: 'center' }}>
-            <GithubMark /> {busy === 'github' ? copy.busyGithub : copy.ctaGithub}
+          >
+            <GithubMark />
+            <span>{busy === 'github' ? copy.busyGithub : copy.ctaGithub}</span>
           </button>
-        </>
+        </div>
       ) : (
-        <div style={{
-          padding: 16, borderRadius: 'var(--radius-lg)',
-          border: '1px solid var(--line)', background: 'var(--bg-1)',
-          fontSize: 13, color: 'var(--text-2)', lineHeight: 1.6,
-        }}>
+        <div className="p-4 rounded-xl border border-[var(--line)] bg-[var(--surface,var(--bg-1))] text-xs text-[var(--text-2)] leading-relaxed">
           Sign-in isn&apos;t configured on this deployment. Set the
-          {' '}<span className="mono" style={{ color: 'var(--accent)' }}>NEXT_PUBLIC_FIREBASE_*</span>{' '}
+          {' '}<span className="font-mono text-[var(--accent)] font-semibold">NEXT_PUBLIC_FIREBASE_*</span>{' '}
           environment variables and reload.
         </div>
       )}

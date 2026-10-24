@@ -26,62 +26,56 @@ export function Footer() {
   const statusColor = status === 'ok' ? 'var(--green)' : status === 'down' ? 'var(--red)' : 'var(--text-3)';
 
   return (
-    <footer style={{ borderTop: '1px solid var(--line)', background: 'var(--bg)' }}>
-      <div style={{
-        maxWidth: '1400px', margin: '0 auto',
-        padding: '32px clamp(20px, 4vw, 48px)',
-        display: 'grid', gridTemplateColumns: '1.2fr repeat(3, 1fr)', gap: 'clamp(24px, 4vw, 48px)',
-      }} className="footer-grid">
+    <footer className="w-full border-t border-[var(--line)] bg-[var(--surface,var(--bg-1))]/50 transition-colors">
+      <div className="w-full px-6 sm:px-10 lg:px-16 py-12 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10">
         <div>
-          <div style={{ fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>EdgeBalancer</div>
-          <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 8, lineHeight: 1.6, maxWidth: 260 }}>
-            Control plane for Cloudflare Worker load balancers & API gateways. Deploy in 60 seconds.
+          <div className="font-mono text-sm font-bold text-[var(--text)] tracking-tight">EdgeBalancer</div>
+          <div className="text-xs text-[var(--text-3)] mt-2.5 leading-relaxed max-w-sm">
+            Control plane for Cloudflare Worker load balancers & API gateways. Deploy across 330+ edge locations in 60 seconds.
           </div>
-          <div style={{ marginTop: 12, fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-3)' }}>
+          <div className="mt-4 font-mono text-xs text-[var(--text-3)]">
             Status: <span style={{ color: statusColor }}>{statusText}</span>
           </div>
         </div>
+
         <div>
-          <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>Product</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12, color: 'var(--text-3)' }}>
-            <a href="/features" className="nav-link" style={{ fontSize: 12, textTransform: 'none', letterSpacing: 'normal' }}>Features</a>
-            <a href="/strategies" className="nav-link" style={{ fontSize: 12, textTransform: 'none', letterSpacing: 'normal' }}>Strategies</a>
-            <a href="/pricing" className="nav-link" style={{ fontSize: 12, textTransform: 'none', letterSpacing: 'normal' }}>Pricing</a>
-            <a href="/stats" className="nav-link" style={{ fontSize: 12, textTransform: 'none', letterSpacing: 'normal' }}>Stats</a>
+          <div className="font-mono text-xs font-semibold text-[var(--text)] uppercase tracking-wider mb-3">Product</div>
+          <div className="flex flex-col gap-2.5 text-xs text-[var(--text-3)]">
+            <a href="/features" className="hover:text-[var(--text)] transition-colors">Features</a>
+            <a href="/strategies" className="hover:text-[var(--text)] transition-colors">Strategies</a>
+            <a href="/pricing" className="hover:text-[var(--text)] transition-colors">Pricing</a>
+            <a href="/stats" className="hover:text-[var(--text)] transition-colors">Stats</a>
           </div>
         </div>
+
         <div>
-          <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>Resources</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12, color: 'var(--text-3)' }}>
-            <a href="/blog" className="nav-link" style={{ fontSize: 12, textTransform: 'none', letterSpacing: 'normal' }}>Blog</a>
-            <a href="/testimonials" className="nav-link" style={{ fontSize: 12, textTransform: 'none', letterSpacing: 'normal' }}>Testimonials</a>
-            <a href="/faq" className="nav-link" style={{ fontSize: 12, textTransform: 'none', letterSpacing: 'normal' }}>FAQ</a>
-            <a href="/about" className="nav-link" style={{ fontSize: 12, textTransform: 'none', letterSpacing: 'normal' }}>About</a>
-            <a href="/developers" className="nav-link" style={{ fontSize: 12, textTransform: 'none', letterSpacing: 'normal' }}>Developers</a>
-            <a href="/security" className="nav-link" style={{ fontSize: 12, textTransform: 'none', letterSpacing: 'normal' }}>Security</a>
-            <a href="/contact" className="nav-link" style={{ fontSize: 12, textTransform: 'none', letterSpacing: 'normal' }}>Contact</a>
+          <div className="font-mono text-xs font-semibold text-[var(--text)] uppercase tracking-wider mb-3">Resources</div>
+          <div className="flex flex-col gap-2.5 text-xs text-[var(--text-3)]">
+            <a href="/blog" className="hover:text-[var(--text)] transition-colors">Blog</a>
+            <a href="/testimonials" className="hover:text-[var(--text)] transition-colors">Testimonials</a>
+            <a href="/faq" className="hover:text-[var(--text)] transition-colors">FAQ</a>
+            <a href="/about" className="hover:text-[var(--text)] transition-colors">About</a>
+            <a href="/developers" className="hover:text-[var(--text)] transition-colors">Developers</a>
+            <a href="/security" className="hover:text-[var(--text)] transition-colors">Security</a>
+            <a href="/contact" className="hover:text-[var(--text)] transition-colors">Contact</a>
           </div>
         </div>
+
         <div>
-          <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>Legal</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12, color: 'var(--text-3)' }}>
-            <a href="/terms" className="nav-link" style={{ fontSize: 12, textTransform: 'none', letterSpacing: 'normal' }}>Terms</a>
-            <a href="/privacy" className="nav-link" style={{ fontSize: 12, textTransform: 'none', letterSpacing: 'normal' }}>Privacy</a>
-            <a href="/refund" className="nav-link" style={{ fontSize: 12, textTransform: 'none', letterSpacing: 'normal' }}>Refund</a>
-            <a href="/cancellation" className="nav-link" style={{ fontSize: 12, textTransform: 'none', letterSpacing: 'normal' }}>Cancellation</a>
+          <div className="font-mono text-xs font-semibold text-[var(--text)] uppercase tracking-wider mb-3">Legal</div>
+          <div className="flex flex-col gap-2.5 text-xs text-[var(--text-3)]">
+            <a href="/terms" className="hover:text-[var(--text)] transition-colors">Terms</a>
+            <a href="/privacy" className="hover:text-[var(--text)] transition-colors">Privacy</a>
+            <a href="/refund" className="hover:text-[var(--text)] transition-colors">Refund</a>
+            <a href="/cancellation" className="hover:text-[var(--text)] transition-colors">Cancellation</a>
           </div>
         </div>
       </div>
-      <div style={{
-        maxWidth: '1400px', margin: '0 auto',
-        padding: '16px clamp(20px, 4vw, 48px)', borderTop: '1px solid var(--line)',
-        display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8,
-        fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em',
-      }}>
+
+      <div className="w-full px-6 sm:px-10 lg:px-16 py-4 border-t border-[var(--line)] flex justify-between flex-wrap gap-4 font-mono text-[11px] text-[var(--text-3)] uppercase tracking-wider">
         <div>&copy; 2026 Nexoral — EdgeBalancer</div>
         <div>Built on Cloudflare Workers · 330+ PoPs</div>
       </div>
-      <style>{`@media (max-width: 640px) { .footer-grid { grid-templateColumns: 1fr 1fr !important; } }`}</style>
     </footer>
   );
 }

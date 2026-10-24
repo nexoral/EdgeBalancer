@@ -21,7 +21,6 @@ export function MultiSelect({ options, value, onChange, placeholder = 'Select...
   const [search, setSearch] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
@@ -55,71 +54,41 @@ export function MultiSelect({ options, value, onChange, placeholder = 'Select...
   const selectedOptions = options.filter(opt => value.includes(opt.code));
 
   return (
-    <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
+    <div ref={containerRef} className="relative w-full">
       <div
         onClick={() => !disabled && setIsOpen(!isOpen)}
-        style={{
-          minHeight: 44,
-          padding: '8px 12px',
-          border: '1px solid var(--line)',
-          borderRadius: 'var(--radius)',
-          background: disabled ? 'var(--bg-3)' : 'var(--bg-1)',
-          cursor: disabled ? 'not-allowed' : 'pointer',
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: 6,
-          alignItems: 'center',
-          fontSize: 13,
-          opacity: disabled ? 0.5 : 1,
-        }}
+        className={`min-h-[42px] px-3 py-1.5 rounded-xl border border-[var(--line)] bg-[var(--bg-2)] transition-all duration-150 flex flex-wrap gap-1.5 items-center text-sm ${
+          disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:border-[var(--line-2)]'
+        } ${isOpen ? 'ring-2 ring-[var(--accent-dim)] border-[var(--accent)] bg-[var(--bg-1)]' : ''}`}
       >
         {selectedOptions.length === 0 ? (
-          <span style={{ color: 'var(--text-3)', fontSize: 12 }}>{placeholder}</span>
+          <span className="text-xs text-[var(--text-3)]">{placeholder}</span>
         ) : (
           selectedOptions.map(opt => {
             const codeMatchesName = opt.code.toLowerCase() === opt.name.toLowerCase();
             return (
               <span
                 key={opt.code}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '4px 8px',
-                  background: 'var(--accent-dim)',
-                  color: 'var(--accent)',
-                  borderRadius: 4,
-                  fontSize: 11,
-                  fontFamily: 'var(--mono)',
-                }}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[var(--accent-dim)] text-[var(--accent)] rounded-lg text-xs font-mono font-medium border border-[var(--accent)]/20 shadow-2xs"
               >
                 {opt.icon ? (
                   <>
-                    <span style={{ fontFamily: 'inherit', fontSize: 14 }}>{opt.icon}</span>
-                    <span style={{ fontFamily: 'inherit' }}>{opt.name}</span>
+                    <span className="text-sm leading-none">{opt.icon}</span>
+                    <span>{opt.name}</span>
                   </>
                 ) : codeMatchesName ? (
-                  <span style={{ fontFamily: 'inherit' }}>{opt.name}</span>
+                  <span>{opt.name}</span>
                 ) : (
                   <>
                     <span>{opt.code}</span>
-                    <span style={{ color: 'var(--text-2)' }}>·</span>
-                    <span style={{ fontFamily: 'inherit' }}>{opt.name}</span>
+                    <span className="opacity-40">·</span>
+                    <span>{opt.name}</span>
                   </>
                 )}
                 {!disabled && (
                   <button
                     onClick={(e) => removeOption(opt.code, e)}
-                    style={{
-                      marginLeft: 2,
-                      padding: 0,
-                      border: 'none',
-                      background: 'none',
-                      color: 'var(--accent)',
-                      cursor: 'pointer',
-                      fontSize: 14,
-                      lineHeight: 1,
-                    }}
+                    className="ml-1 text-[var(--accent)] hover:opacity-80 active:scale-90 transition-transform font-bold leading-none cursor-pointer"
                   >
                     ×
                   </button>
@@ -132,44 +101,22 @@ export function MultiSelect({ options, value, onChange, placeholder = 'Select...
 
       {isOpen && !disabled && (
         <div
-          style={{
-            position: 'absolute',
-            top: 'calc(100% + 4px)',
-            left: 0,
-            right: 0,
-            maxHeight: 280,
-            background: 'var(--bg-1)',
-            border: '1px solid var(--line)',
-            borderRadius: 'var(--radius)',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-            zIndex: 1000,
-            display: 'flex',
-            flexDirection: 'column',
-          }}
+          className="absolute top-[calc(100%+6px)] left-0 right-0 max-h-[300px] rounded-xl border border-[var(--line)] bg-[var(--surface-elevated,var(--bg-1))] text-[var(--text)] shadow-[0_12px_36px_rgba(0,0,0,0.15)] dark:shadow-[0_16px_48px_rgba(0,0,0,0.5)] backdrop-blur-xl z-[1000] flex flex-col overflow-hidden"
         >
-          <div style={{ padding: 8, borderBottom: '1px solid var(--line)' }}>
+          <div className="p-2 border-b border-[var(--line)] bg-[var(--bg-1)]">
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search..."
               autoFocus
-              style={{
-                width: '100%',
-                padding: '6px 10px',
-                border: '1px solid var(--line)',
-                borderRadius: 4,
-                background: 'var(--bg-2)',
-                color: 'var(--text)',
-                fontSize: 12,
-                outline: 'none',
-              }}
+              className="w-full px-3 py-1.5 rounded-lg border border-[var(--line)] bg-[var(--bg-2)] text-[var(--text)] text-xs outline-none focus:border-[var(--accent)] focus:ring-1 focus:ring-[var(--accent)]"
             />
           </div>
 
-          <div style={{ overflowY: 'auto', maxHeight: 220 }}>
+          <div className="overflow-y-auto max-h-[240px] divide-y divide-[var(--line)]/50">
             {filteredOptions.length === 0 ? (
-              <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-3)', fontSize: 12 }}>
+              <div className="p-4 text-center text-xs text-[var(--text-3)]">
                 No options found
               </div>
             ) : (
@@ -177,54 +124,32 @@ export function MultiSelect({ options, value, onChange, placeholder = 'Select...
                 <div
                   key={option.code}
                   onClick={() => toggleOption(option.code)}
-                  style={{
-                    padding: '10px 12px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    borderBottom: '1px solid var(--line)',
-                    background: value.includes(option.code) ? 'var(--accent-dim)' : 'transparent',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!value.includes(option.code)) {
-                      e.currentTarget.style.background = 'var(--bg-2)';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!value.includes(option.code)) {
-                      e.currentTarget.style.background = 'transparent';
-                    }
-                  }}
+                  className={`px-3 py-2.5 cursor-pointer flex items-center gap-2.5 text-xs transition-colors ${
+                    value.includes(option.code) ? 'bg-[var(--accent-dim)] text-[var(--accent)]' : 'hover:bg-[var(--bg-2)] text-[var(--text)]'
+                  }`}
                 >
                   <div
-                    style={{
-                      width: 16,
-                      height: 16,
-                      border: `2px solid ${value.includes(option.code) ? 'var(--accent)' : 'var(--line)'}`,
-                      borderRadius: 3,
-                      background: value.includes(option.code) ? 'var(--accent)' : 'transparent',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                    }}
+                    className={`w-4 h-4 rounded-md border flex items-center justify-center shrink-0 transition-colors ${
+                      value.includes(option.code)
+                        ? 'bg-[var(--accent)] border-[var(--accent)] text-white'
+                        : 'border-[var(--line-2)] bg-[var(--bg-1)]'
+                    }`}
                   >
                     {value.includes(option.code) && (
                       <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                        <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M1 4L3.5 6.5L9 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     )}
                   </div>
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div className="flex-1 flex items-center gap-2">
                     {option.icon ? (
-                      <span style={{ fontSize: 16, lineHeight: 1 }}>{option.icon}</span>
+                      <span className="text-sm leading-none">{option.icon}</span>
                     ) : option.code.toLowerCase() !== option.name.toLowerCase() && (
-                      <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--accent)' }}>
+                      <span className="font-mono text-[11px] font-semibold text-[var(--accent)]">
                         {option.code}
                       </span>
                     )}
-                    <span style={{ fontSize: 12, color: 'var(--text)' }}>
+                    <span className="font-normal">
                       {option.name}
                     </span>
                   </div>
