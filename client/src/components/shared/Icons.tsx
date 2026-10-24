@@ -4,6 +4,7 @@ interface IconProps {
   fill?: string;
   stroke?: string;
   strokeWidth?: number;
+  className?: string;
   style?: React.CSSProperties;
 }
 
@@ -14,10 +15,11 @@ const Icon = ({
   stroke = 'currentColor',
   strokeWidth = 1.5,
   children,
+  className,
   style
 }: IconProps & { d?: string; children?: React.ReactNode }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke={stroke} strokeWidth={strokeWidth}
-       strokeLinecap="round" strokeLinejoin="round" style={style}>
+       strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
     {d && <path d={d} />}
     {children}
   </svg>

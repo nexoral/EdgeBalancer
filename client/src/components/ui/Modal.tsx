@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Icons } from '@/components/shared/Icons';
 
 interface ModalProps {
@@ -36,84 +37,65 @@ export function Modal({ isOpen, onClose, title, children, footer, size = 'md' }:
   if (!isOpen) return null;
 
   const sizeMap = {
-    sm: '480px',
-    md: '600px',
-    lg: '800px',
+    sm: 'max-w-[480px]',
+    md: 'max-w-[600px]',
+    lg: 'max-w-[800px]',
   };
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 9999,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: 16,
-    }}>
-      {/* Backdrop */}
-      <div
-        style={{
-          position: 'fixed', inset: 0,
-          background: 'rgba(0, 0, 0, 0.75)',
-          backdropFilter: 'blur(4px)',
-        }}
-        onClick={onClose}
-      />
+    <AnimatePresence>
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+        {/* Apple Frosted Backdrop */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 bg-black/40 backdrop-blur-xl"
+          onClick={onClose}
+        />
 
-      {/* Modal */}
-      <div
-        ref={modalRef}
-        className="slide-in"
-        style={{
-          position: 'relative',
-          width: '100%',
-          maxWidth: sizeMap[size],
-          background: 'var(--bg-1)',
-          border: '1px solid var(--line)',
-          borderRadius: 'var(--radius-lg)',
-          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5)',
-        }}
-      >
-        {/* Header */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: 24, borderBottom: '1px solid var(--line)',
-        }}>
-          <h2 style={{ fontSize: 20, margin: 0, letterSpacing: '-0.02em', fontWeight: 500 }}>
-            {title}
-          </h2>
-          <button
-            onClick={onClose}
-            style={{
-              width: 32, height: 32,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              borderRadius: 'var(--radius)', color: 'var(--text-3)',
-              transition: 'all 120ms',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'var(--bg-2)';
-              e.currentTarget.style.color = 'var(--text)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.color = 'var(--text-3)';
-            }}
-          >
-            <Icons.X size={16} />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div style={{ padding: 24 }}>{children}</div>
-
-        {/* Footer */}
-        {footer && (
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
-            gap: 12, padding: 24, borderTop: '1px solid var(--line)',
-          }}>
-            {footer}
+        {/* Apple Modal Card */}
+        <motion.div
+          ref={modalRef}
+          role="dialog"
+          aria-modal="true"
+          initial={{ opacity: 0, scale: 0.96, y: 8 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.96, y: 8 }}
+          transition={{
+            type: 'spring',
+            damping: 28,
+            stiffness: 350,
+          }}
+          className={`relative w-full ${sizeMap[size]} rounded-2xl border border-[var(--line)] bg-[var(--surface-elevated,var(--bg-1))] text-[var(--text)] shadow-[0_20px_60px_rgba(0,0,0,0.18)] dark:shadow-[0_24px_70px_rgba(0,0,0,0.6)] backdrop-blur-2xl overflow-hidden`}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-[var(--line)] px-6 py-5">
+            <h2 className="text-lg font-semibold tracking-[-0.02em] text-[var(--text)]">
+              {title}
+            </h2>
+            <button
+              onClick={onClose}
+              aria-label="Close"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--text-3)] transition-all duration-150 hover:bg-[var(--bg-2)] hover:text-[var(--text)] active:scale-95"
+            >
+              <Icons.X size={16} />
+            </button>
           </div>
-        )}
+
+          {/* Body */}
+          <div className="p-6 text-sm text-[var(--text-2)]">{children}</div>
+
+          {/* Footer */}
+          {footer && (
+            <div className="flex items-center justify-end gap-3 border-t border-[var(--line)] bg-[var(--bg-1)]/50 px-6 py-4">
+              {footer}
+            </div>
+          )}
+        </motion.div>
       </div>
-    </div>
+    </AnimatePresence>
   );
 }
 
@@ -161,10 +143,10 @@ export function ConfirmModal({
             disabled={loading}
             style={confirmVariant === 'danger' ? {
               background: 'var(--red)',
-              color: 'var(--text)',
+              color: '#ffffff',
             } : {
               background: 'var(--accent)',
-              color: 'oklch(0.18 0.02 60)',
+              color: '#ffffff',
             }}
           >
             {loading ? (

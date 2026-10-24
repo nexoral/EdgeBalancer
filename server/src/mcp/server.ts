@@ -3,7 +3,7 @@ import { registerTools } from './tools/index';
 import type { McpUserContext } from './types';
 
 export function createMcpServer(user: McpUserContext) {
-  const server = new McpServer({ name: 'EdgeBalancer', version: '1.0.0' });
+  const server = new McpServer({ name: 'EdgeBalancer', version: '1.0.1' });
   registerTools(server, user);
   return server;
 };
