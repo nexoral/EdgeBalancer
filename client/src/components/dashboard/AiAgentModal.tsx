@@ -245,25 +245,44 @@ interface AiAgentModalProps {
   onReply: (text: string) => void;
 }
 
-/**
- * Bold headline states, one per phase — the middle-top slot of the modal.
- */
-const STATUS_COPY: Record<string, { label: string; color: string }> = {
-  running: { label: 'Working…', color: 'var(--accent)' },
-  success: { label: 'Completed', color: 'var(--green)' },
-  failure: { label: 'Failed', color: 'var(--red)' },
-};
+const THINKING_PHRASES = [
+  'Brainstorming routing topology…',
+  'Analyzing edge requirements…',
+  'Formulating deployment strategy…',
+  'Fighting against server latency…',
+  'Struggling with edge complexities…',
+  'Calibrating origin configurations…',
+  'Negotiating with Cloudflare edge…',
+  'Synthesizing worker rules…',
+  'Fine-tuning health checks…',
+  'Optimizing failover paths…',
+  'Consulting edge documentation…',
+  'Synthesizing response…',
+];
+
+function useThinkingPhrase(isRunning: boolean, activeStepLabel?: string): string {
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    if (!isRunning) return;
+    const interval = window.setInterval(() => {
+      setIndex((prev) => (prev + 1) % THINKING_PHRASES.length);
+    }, 2400);
+    return () => window.clearInterval(interval);
+  }, [isRunning]);
+
+  if (!isRunning) return '';
+  if (activeStepLabel) return activeStepLabel;
+  return THINKING_PHRASES[index];
+}
 
 export function AiAgentModal({ isOpen, run, messages, onCancel, onClose, onReply }: AiAgentModalProps) {
   const finished = run.phase === 'done';
   const succeeded = run.outcome === 'success';
 
-  // Hooks must run unconditionally, so the early return comes after them.
   const typed = useTypewriter(finished ? run.message : '');
   const stillTyping = typed.length < run.message.length;
   const [reply, setReply] = useState('');
-  // The box is always open — questions arrive as ordinary messages now. A failed (RCA) run ends
-  // the conversation outright; a successful one allows exactly one follow-up before locking.
   const [followUpUsed, setFollowUpUsed] = useState(false);
   const threadRef = useRef<HTMLDivElement>(null);
 
@@ -279,17 +298,25 @@ export function AiAgentModal({ isOpen, run, messages, onCancel, onClose, onReply
     if (el) el.scrollTop = el.scrollHeight;
   }, [run.steps.length, run.message, messages.length]);
 
+  const activeStep = run.steps.find((s) => s.state === 'running')?.label;
+  const isRca = run.statusMessage.toLowerCase().includes('wrong') || run.statusMessage.toLowerCase().includes('problem');
+  const thinkingPhrase = useThinkingPhrase(!finished, activeStep || (isRca ? run.statusMessage : undefined));
+
+  const displayStatus = !finished
+    ? thinkingPhrase
+    : succeeded
+      ? 'All tasks completed successfully'
+      : 'Run stopped with issues';
+
   if (!isOpen) return null;
 
-  const statusKey = !finished ? 'running' : (run.outcome ?? 'failure');
-  const status = STATUS_COPY[statusKey] ?? STATUS_COPY.failure;
-  const tone = finished ? status.color : 'var(--accent)';
+  const tone = finished ? (succeeded ? 'var(--green)' : 'var(--red)') : 'var(--accent)';
   const inputLocked = !finished || run.outcome === 'failure' || followUpUsed;
   const canSendReply = !inputLocked && reply.trim().length > 0;
   const placeholder = !finished
-    ? 'The agent is working…'
+    ? 'AI Agent is executing…'
     : run.outcome === 'failure'
-      ? 'Run failed — start a new conversation to try again.'
+      ? 'Run stopped — start a new conversation to try again.'
       : followUpUsed
         ? 'Follow-up used — start a new conversation to continue.'
         : 'Reply, give new instructions, or close when done… (Enter to send)';
@@ -305,8 +332,8 @@ export function AiAgentModal({ isOpen, run, messages, onCancel, onClose, onReply
     <div
       style={{
         position: 'fixed', inset: 0, zIndex: 90,
-        background: 'rgba(8, 10, 14, 0.55)',
-        backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)',
+        background: 'rgba(8, 10, 14, 0.65)',
+        backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: 'clamp(12px, 3vw, 32px)',
       }}
@@ -314,83 +341,101 @@ export function AiAgentModal({ isOpen, run, messages, onCancel, onClose, onReply
       aria-modal="true"
     >
       <div style={{
-        width: '100%', maxWidth: 780, maxHeight: '88vh', display: 'flex', flexDirection: 'column',
+        width: '100%', maxWidth: 760, maxHeight: '88vh', display: 'flex', flexDirection: 'column',
         background: 'var(--bg)', border: '1px solid var(--line-2)', borderRadius: 'var(--radius-lg)',
-        boxShadow: '0 24px 80px rgba(0,0,0,0.5)', overflow: 'hidden',
+        boxShadow: '0 24px 80px rgba(0,0,0,0.6)', overflow: 'hidden',
       }}>
 
-        {/* Header — activity top-left, bold status centre-top, cancel/close top-right */}
         <div style={{
-          display: 'flex', alignItems: 'center', gap: 'clamp(10px, 2vw, 20px)',
-          padding: 'clamp(14px, 2.5vw, 20px) clamp(16px, 3vw, 24px)',
-          borderBottom: '1px solid var(--line)', flexWrap: 'wrap',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: 'clamp(14px, 2.5vw, 18px) clamp(16px, 3vw, 24px)',
+          borderBottom: '1px solid var(--line)',
+          background: 'var(--bg)',
         }}>
-          {/* Top-left: the model and what it is doing right now */}
-          <div style={{ minWidth: 180, flex: '1 1 200px' }}>
-            <div className="mono" style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600 }}>
-              {run.activeModel ?? 'AI Agent'}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+            <div style={{
+              width: 34, height: 34, borderRadius: 'var(--radius-md, 8px)',
+              background: 'var(--accent-dim)', border: '1px solid var(--accent)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+            }}>
+              <Icons.Zap size={16} style={{ color: 'var(--accent)' }} />
             </div>
-            <div style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {run.statusMessage}
+            <div style={{ minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                  AI Agent
+                </span>
+                <span style={{
+                  fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em',
+                  padding: '2px 7px', borderRadius: 999,
+                  background: finished
+                    ? (succeeded ? 'rgba(34, 197, 94, 0.12)' : 'rgba(239, 68, 68, 0.12)')
+                    : 'var(--accent-dim)',
+                  color: finished
+                    ? (succeeded ? 'var(--green)' : 'var(--red)')
+                    : 'var(--accent)',
+                  border: `1px solid ${finished ? (succeeded ? 'var(--green)' : 'var(--red)') : 'var(--accent)'}`,
+                }}>
+                  {finished ? (succeeded ? 'Completed' : 'Failed') : 'Active'}
+                </span>
+              </div>
+              <div style={{
+                fontSize: 12, color: 'var(--text-3)', marginTop: 2,
+                display: 'flex', alignItems: 'center', gap: 6,
+                minHeight: 18,
+              }}>
+                {!finished && (
+                  <span style={{
+                    display: 'inline-block', width: 6, height: 6, borderRadius: '50%',
+                    background: 'var(--accent)',
+                    flexShrink: 0,
+                  }} className="animate-pulse" />
+                )}
+                <span key={displayStatus} className="animate-fade-in" style={{
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {displayStatus}
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* Centre-top: the bold headline status */}
-          <div style={{
-            flex: '2 1 220px', textAlign: 'center',
-            fontSize: 'clamp(15px, 2.5vw, 19px)', fontWeight: 700, letterSpacing: '-0.01em',
-            color: status.color,
-          }}>
-            {status.label}
-          </div>
-
-          {/* Top-right: cancel rolls back the step in flight; close appears once settled */}
-          <div style={{ flex: '1 1 auto', display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={{ flexShrink: 0, marginLeft: 12 }}>
             {!finished ? (
-              <button className="btn btn-ghost btn-sm" onClick={onCancel}>Cancel</button>
+              <button className="btn btn-ghost btn-sm" onClick={onCancel} style={{ color: 'var(--text-3)' }}>
+                Cancel
+              </button>
             ) : (
-              <button className="btn btn-ghost btn-sm" onClick={onClose}>Close</button>
+              <button className="btn btn-ghost btn-sm" onClick={onClose}>
+                Close
+              </button>
             )}
           </div>
         </div>
 
-        {/* Progress */}
         {!finished && (
-          <div style={{ padding: '0 clamp(16px, 3vw, 24px)', paddingTop: 14 }}>
+          <div style={{
+            height: 2, width: '100%', background: 'var(--bg-2)', overflow: 'hidden',
+          }}>
             <div style={{
-              height: 8, background: 'var(--bg-2)', borderRadius: 999,
-              overflow: 'hidden', border: '1px solid var(--line)',
-            }}>
-              <div style={{
-                height: '100%', width: `${run.progress}%`, borderRadius: 999,
-                background: 'linear-gradient(90deg, var(--accent) 0%, var(--green) 100%)',
-                transition: 'width 700ms ease',
-              }} />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 11, color: 'var(--text-3)' }}>
-              <span>Keep this tab open — cancelling rolls back the step in flight.</span>
-              <span className="mono" style={{ color: 'var(--accent)' }}>{run.progress}%</span>
-            </div>
+              height: '100%', width: `${Math.max(run.progress, 12)}%`,
+              background: 'linear-gradient(90deg, var(--accent) 0%, var(--green) 100%)',
+              transition: 'width 0.4s ease-out',
+            }} />
           </div>
         )}
 
-        {run.modelNote && (
-          <div className="mono" style={{ fontSize: 11, color: 'var(--text-3)', padding: '8px clamp(16px, 3vw, 24px) 0' }}>
-            {run.modelNote}
-          </div>
-        )}
-
-        {/* Thread: conversation turns above, live tool steps below */}
         <div ref={threadRef} style={{ flex: 1, overflowY: 'auto', padding: 'clamp(14px, 2.5vw, 20px) clamp(16px, 3vw, 24px)' }}>
           {messages.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
               {messages.map((turn, i) => (
                 <div
                   key={i}
                   style={{
                     alignSelf: turn.role === 'user' ? 'flex-end' : 'flex-start',
                     maxWidth: '85%',
-                    padding: '9px 13px', borderRadius: 'var(--radius-lg)',
+                    padding: '10px 14px', borderRadius: 'var(--radius-lg)',
                     fontSize: 13, lineHeight: 1.55, whiteSpace: 'pre-wrap',
                     ...(turn.role === 'user'
                       ? { background: 'var(--accent-dim)', border: '1px solid var(--accent)', color: 'var(--text)' }
@@ -403,7 +448,7 @@ export function AiAgentModal({ isOpen, run, messages, onCancel, onClose, onReply
             </div>
           )}
 
-          <StepList steps={run.steps} running={!finished} />
+          <StepList steps={run.steps} />
 
           {finished && (
             <div style={{
@@ -441,12 +486,11 @@ export function AiAgentModal({ isOpen, run, messages, onCancel, onClose, onReply
           )}
         </div>
 
-        {/* Input — always visible; locked while the agent works and after the one follow-up.
-            Closing stays in the header (Close appears once the run settles). */}
         <div style={{
           borderTop: '1px solid var(--line)',
           padding: 'clamp(12px, 2vw, 16px) clamp(16px, 3vw, 24px)',
-          display: 'flex', gap: 10, alignItems: 'flex-end',
+          display: 'flex', gap: 10, alignItems: 'center',
+          background: 'var(--bg)',
         }}>
           <textarea
             className="textarea"
@@ -463,7 +507,10 @@ export function AiAgentModal({ isOpen, run, messages, onCancel, onClose, onReply
               }
             }}
             placeholder={placeholder}
-            style={{ flex: 1, resize: 'none', minHeight: 42, fontSize: 13 }}
+            style={{
+              flex: 1, resize: 'none', minHeight: 40, maxHeight: 120,
+              fontSize: 13, padding: '9px 12px',
+            }}
           />
           <button className="btn btn-primary btn-sm" onClick={submitReply} disabled={!canSendReply}>
             Send
@@ -474,35 +521,46 @@ export function AiAgentModal({ isOpen, run, messages, onCancel, onClose, onReply
   );
 }
 
-function StepList({ steps, running }: { steps: AiStep[]; running: boolean }) {
-  if (steps.length === 0) {
-    return running ? (
-      <p style={{ fontSize: 13, color: 'var(--text-3)', margin: '0 0 8px' }}>
-        Interpreting your request…
-      </p>
-    ) : null;
-  }
+function StepList({ steps }: { steps: AiStep[] }) {
+  if (steps.length === 0) return null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
       {steps.map((step, index) => {
-        const color = step.state === 'ok' ? 'var(--green)' : step.state === 'failed' ? 'var(--red)' : 'var(--accent)';
+        const isOk = step.state === 'ok';
+        const isFailed = step.state === 'failed';
+        const isRunning = step.state === 'running';
+
         return (
           <div
             key={`${step.label}-${index}`}
-            className="ai-step"
+            className="animate-fade-in"
             style={{
-              display: 'flex', alignItems: 'flex-start', gap: 12,
-              padding: '10px 13px', borderRadius: 'var(--radius-lg)',
-              border: `1px solid ${step.state === 'running' ? 'var(--accent)' : 'var(--line)'}`,
-              background: step.state === 'running' ? 'var(--accent-dim)' : 'var(--bg-2)',
+              display: 'flex', alignItems: 'flex-start', gap: 10,
+              padding: '8px 12px', borderRadius: 'var(--radius-md, 8px)',
+              border: `1px solid ${isRunning ? 'var(--accent)' : 'var(--line)'}`,
+              background: isRunning ? 'var(--accent-dim)' : 'var(--bg-2)',
+              transition: 'background 0.2s ease, border-color 0.2s ease',
             }}
           >
-            <div style={{ width: 10, height: 10, borderRadius: '50%', background: color, marginTop: 5, flexShrink: 0 }} />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 13, color: 'var(--text)' }}>{step.label}</div>
+            <div style={{ marginTop: 2, flexShrink: 0 }}>
+              {isOk ? (
+                <Icons.Check size={14} style={{ color: 'var(--green)' }} />
+              ) : isFailed ? (
+                <Icons.X size={14} style={{ color: 'var(--red)' }} />
+              ) : (
+                <div style={{
+                  width: 12, height: 12, borderRadius: '50%',
+                  border: '2px solid var(--accent)', borderTopColor: 'transparent',
+                }} className="animate-spin" />
+              )}
+            </div>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: isRunning ? 500 : 400 }}>
+                {step.label}
+              </div>
               {step.detail && (
-                <div className="mono" style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4, wordBreak: 'break-word' }}>
+                <div className="mono" style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2, wordBreak: 'break-word' }}>
                   {step.detail}
                 </div>
               )}
