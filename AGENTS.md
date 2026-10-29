@@ -61,7 +61,7 @@ POST/PUT LB routes use the `fastifyIdempotency` plugin; clients send an `Idempot
 - Conversation persistence: LangChain message state persisted in Redis (`conversation:{userId}:{conversationId}`) with 30-min TTL (`EX: 1800`), written only upon agent loop completion (`finish()`).
 - Compaction: Surgical compaction via `compaction.service.ts` preserves pinned system prompts, tool schemas, and core constraints while compacting older turns when token budget is pressured.
 - UI/UX (`AiAgentModal.tsx`): Dynamic rotating thinking phrases during inference; WhatsApp/iMessage-style bottom pop animation (`messagePop`); isolated `AiReplyInput` state to prevent modal re-renders and backdrop blur lag; unified non-duplicated message thread (`historyMessages` + `latestAssistantMessage`).
-- Safety: before `update/delete/pause/resume` the agent ends its turn with a prose confirmation (zero-tool ending = success, never RCA), calling the tool only after an explicit yes. Loading but not calling a mutating tool is a legitimate pause.
+- Safety: before `update/delete/pause/resume` the agent ends its turn with a prose confirmation (zero-tool ending = success, never RCA), calling the tool only after confirmation or clear intent to proceed (e.g. yes, proceed, go ahead). Loading but not calling a mutating tool is a legitimate pause.
 - Failures: tool fails twice → stop run; 409 conflict → stop on first attempt (never rename/re-target); final model call with `RCA_PROMPT` (no tools) writes the root-cause paragraph. Outcomes: `success` | `failure`.
 - Ladder: free OpenRouter tier (quality-gated large MoE only) → Mistral (ordered by measured rps). Both via `ChatOpenAI` with different `baseURL`. `tryConsume` paces in Redis; router moves down, never waits.
 
