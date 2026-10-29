@@ -99,28 +99,6 @@ export function applyAiEvent(state: AiRunState, event: AiEvent): AiRunState {
   }
 }
 
-/** Reveals text one character at a time; jumps to the end if the text changes mid-run. */
-function useTypewriter(text: string, charsPerTick = 2, tickMs = 16): string {
-  const [shown, setShown] = useState('');
-
-  useEffect(() => {
-    if (!text) {
-      setShown('');
-      return;
-    }
-
-    let index = 0;
-    const timer = window.setInterval(() => {
-      index = Math.min(index + charsPerTick, text.length);
-      setShown(text.slice(0, index));
-      if (index >= text.length) window.clearInterval(timer);
-    }, tickMs);
-
-    return () => window.clearInterval(timer);
-  }, [text, charsPerTick, tickMs]);
-
-  return shown;
-}
 
 function closeLastStep(steps: AiStep[], ok: boolean, detail: string): AiStep[] {
   const lastRunning = steps.map((s) => s.state).lastIndexOf('running');
@@ -280,23 +258,14 @@ export function AiAgentModal({ isOpen, run, messages, onCancel, onClose, onReply
   const finished = run.phase === 'done';
   const succeeded = run.outcome === 'success';
 
-  const typed = useTypewriter(finished ? run.message : '');
-  const stillTyping = typed.length < run.message.length;
-  const [reply, setReply] = useState('');
   const [followUpUsed, setFollowUpUsed] = useState(false);
   const threadRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (run.phase === 'running') {
       setFollowUpUsed(false);
-      setReply('');
     }
   }, [run.phase]);
-
-  useEffect(() => {
-    const el = threadRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [run.steps.length, run.message, messages.length]);
 
   const activeStep = run.steps.find((s) => s.state === 'running')?.label;
   const isRca = run.statusMessage.toLowerCase().includes('wrong') || run.statusMessage.toLowerCase().includes('problem');
@@ -308,11 +277,20 @@ export function AiAgentModal({ isOpen, run, messages, onCancel, onClose, onReply
       ? 'All tasks completed successfully'
       : 'Run stopped with issues';
 
+  const lastIsAssistant = messages.length > 0 && messages[messages.length - 1].role === 'assistant';
+  const historyMessages = lastIsAssistant ? messages.slice(0, -1) : messages;
+  const latestAssistantMessage = lastIsAssistant ? messages[messages.length - 1] : null;
+  const finalMessageText = latestAssistantMessage?.content || (finished && run.message ? run.message : null);
+
+  useEffect(() => {
+    const el = threadRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+  }, [run.steps.length, messages.length, finalMessageText]);
+
   if (!isOpen) return null;
 
-  const tone = finished ? (succeeded ? 'var(--green)' : 'var(--red)') : 'var(--accent)';
   const inputLocked = !finished || run.outcome === 'failure' || followUpUsed;
-  const canSendReply = !inputLocked && reply.trim().length > 0;
   const placeholder = !finished
     ? 'AI Agent is executing…'
     : run.outcome === 'failure'
@@ -321,10 +299,8 @@ export function AiAgentModal({ isOpen, run, messages, onCancel, onClose, onReply
         ? 'Follow-up used — start a new conversation to continue.'
         : 'Reply, give new instructions, or close when done… (Enter to send)';
 
-  const submitReply = () => {
-    if (!canSendReply) return;
-    onReply(reply.trim());
-    setReply('');
+  const handleSendReply = (text: string) => {
+    onReply(text);
     setFollowUpUsed(true);
   };
 
@@ -427,16 +403,21 @@ export function AiAgentModal({ isOpen, run, messages, onCancel, onClose, onReply
         )}
 
         <div ref={threadRef} style={{ flex: 1, overflowY: 'auto', padding: 'clamp(14px, 2.5vw, 20px) clamp(16px, 3vw, 24px)' }}>
-          {messages.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
-              {messages.map((turn, i) => (
+          {historyMessages.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
+              {historyMessages.map((turn, i) => (
                 <div
                   key={i}
+                  className="message-pop"
                   style={{
                     alignSelf: turn.role === 'user' ? 'flex-end' : 'flex-start',
                     maxWidth: '85%',
                     padding: '10px 14px', borderRadius: 'var(--radius-lg)',
                     fontSize: 13, lineHeight: 1.55, whiteSpace: 'pre-wrap',
+                    userSelect: 'text',
+                    WebkitUserSelect: 'text',
+                    transformOrigin: turn.role === 'user' ? 'bottom right' : 'bottom left',
+                    willChange: 'transform, opacity',
                     ...(turn.role === 'user'
                       ? { background: 'var(--accent-dim)', border: '1px solid var(--accent)', color: 'var(--text)' }
                       : { background: 'var(--bg-2)', border: '1px solid var(--line)', color: 'var(--text-2)' }),
@@ -450,22 +431,27 @@ export function AiAgentModal({ isOpen, run, messages, onCancel, onClose, onReply
 
           <StepList steps={run.steps} />
 
-          {finished && (
-            <div style={{
-              padding: 'clamp(12px, 2.5vw, 16px)',
-              borderRadius: 'var(--radius-lg)', border: `1px solid ${tone}`,
-              background: 'var(--bg-2)',
-            }}>
-              <p style={{ margin: 0, fontSize: 14, lineHeight: 1.7, color: 'var(--text)', whiteSpace: 'pre-wrap' }}>
-                {typed}
-                {stillTyping && (
-                  <span style={{
-                    display: 'inline-block', width: 7, height: 15, marginLeft: 2,
-                    background: tone, verticalAlign: 'text-bottom',
-                    animation: 'pulse 1s steps(2) infinite',
-                  }} />
-                )}
-              </p>
+          {finalMessageText && (
+            <div
+              className="message-pop"
+              style={{
+                alignSelf: 'flex-start',
+                maxWidth: '85%',
+                padding: '10px 14px',
+                borderRadius: 'var(--radius-lg)',
+                fontSize: 13,
+                lineHeight: 1.55,
+                whiteSpace: 'pre-wrap',
+                userSelect: 'text',
+                WebkitUserSelect: 'text',
+                transformOrigin: 'bottom left',
+                willChange: 'transform, opacity',
+                background: 'var(--bg-2)',
+                border: `1px solid ${finished && !succeeded ? 'var(--red)' : 'var(--line)'}`,
+                color: finished && !succeeded ? 'var(--red)' : 'var(--text-2)',
+              }}
+            >
+              {finalMessageText}
             </div>
           )}
 
@@ -486,37 +472,62 @@ export function AiAgentModal({ isOpen, run, messages, onCancel, onClose, onReply
           )}
         </div>
 
-        <div style={{
-          borderTop: '1px solid var(--line)',
-          padding: 'clamp(12px, 2vw, 16px) clamp(16px, 3vw, 24px)',
-          display: 'flex', gap: 10, alignItems: 'center',
-          background: 'var(--bg)',
-        }}>
-          <textarea
-            className="textarea"
-            rows={1}
-            autoFocus
-            maxLength={MAX_PROMPT_LENGTH}
-            value={reply}
-            disabled={inputLocked}
-            onChange={(e) => setReply(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                submitReply();
-              }
-            }}
-            placeholder={placeholder}
-            style={{
-              flex: 1, resize: 'none', minHeight: 40, maxHeight: 120,
-              fontSize: 13, padding: '9px 12px',
-            }}
-          />
-          <button className="btn btn-primary btn-sm" onClick={submitReply} disabled={!canSendReply}>
-            Send
-          </button>
-        </div>
+        <AiReplyInput
+          inputLocked={inputLocked}
+          placeholder={placeholder}
+          onSend={handleSendReply}
+        />
       </div>
+    </div>
+  );
+}
+
+interface AiReplyInputProps {
+  inputLocked: boolean;
+  placeholder: string;
+  onSend: (text: string) => void;
+}
+
+function AiReplyInput({ inputLocked, placeholder, onSend }: AiReplyInputProps) {
+  const [reply, setReply] = useState('');
+  const canSend = !inputLocked && reply.trim().length > 0;
+
+  const submit = () => {
+    if (!canSend) return;
+    onSend(reply.trim());
+    setReply('');
+  };
+
+  return (
+    <div style={{
+      borderTop: '1px solid var(--line)',
+      padding: 'clamp(12px, 2vw, 16px) clamp(16px, 3vw, 24px)',
+      display: 'flex', gap: 10, alignItems: 'center',
+      background: 'var(--bg)',
+    }}>
+      <textarea
+        className="textarea"
+        rows={1}
+        autoFocus
+        maxLength={MAX_PROMPT_LENGTH}
+        value={reply}
+        disabled={inputLocked}
+        onChange={(e) => setReply(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            submit();
+          }
+        }}
+        placeholder={placeholder}
+        style={{
+          flex: 1, resize: 'none', minHeight: 40, maxHeight: 120,
+          fontSize: 13, padding: '9px 12px',
+        }}
+      />
+      <button className="btn btn-primary btn-sm" onClick={submit} disabled={!canSend}>
+        Send
+      </button>
     </div>
   );
 }
