@@ -6,6 +6,7 @@ import { buildTools, MUTATING_TOOL_NAMES } from './tools.service';
 import { RESEARCH_TOOL_NAMES } from './research.service';
 import { logRun } from './log.service';
 import { compactHistory, needsCompaction } from './compaction.service';
+import { saveConversation, loadConversation } from './conversation.service';
 import type { RequestCancellation } from '../../../utils/requestCancellation';
 import type { AiEmitter, AiOutcome, ConversationTurn, ModelAttempt, ToolCallRecord } from '../types/ai.types';
 
@@ -69,13 +70,13 @@ export async function runAgent(params: {
   runId: string;
   userId: string;
   userEmail: string | null;
-  /** Full conversation chain — earlier turns first, the newest user message last. */
   history: ConversationTurn[];
+  conversationKey?: string | null;
   cancellation: RequestCancellation;
   emit: AiEmitter;
   trace: AgentTrace;
 }): Promise<AgentRun> {
-  const { runId, userId, userEmail, history, cancellation, emit, trace } = params;
+  const { runId, userId, userEmail, history, conversationKey, cancellation, emit, trace } = params;
   const { modelAttempts, toolCalls, loadBalancers } = trace;
   const log = logRun(runId);
 
@@ -85,12 +86,56 @@ export async function runAgent(params: {
   const tools = buildTools({ runId, userId, userEmail, cancellation, emit, log, touched: loadBalancers, unlocked });
   const toolsByName = new Map(tools.map((t) => [t.name, t]));
 
-  let messages: BaseMessage[] = [new SystemMessage(SYSTEM_PROMPT), ...buildHistory(history)];
+  const loadInitialMessages = async (): Promise<BaseMessage[]> => {
+    if (conversationKey) {
+      const saved = await loadConversation(userId, conversationKey);
+      if (saved && saved.length > 0) {
+        const restored: BaseMessage[] = saved.map((s) => {
+          if (s.type === 'system') return new SystemMessage(s.content);
+          if (s.type === 'human') return new HumanMessage(s.content);
+          if (s.type === 'ai') return new AIMessage({ content: s.content, tool_calls: (s.toolCalls as any) ?? [] });
+          if (s.type === 'tool') return new ToolMessage({ content: s.content, tool_call_id: s.toolCallId || 'call_default' });
+          return new AIMessage({ content: s.content, tool_calls: (s.toolCalls as any) ?? [] });
+        });
+
+        const baseList = restored.some((m) => m instanceof SystemMessage)
+          ? restored
+          : [new SystemMessage(SYSTEM_PROMPT), ...restored];
+
+        const latestUserPrompt = history[history.length - 1]?.content;
+        const tail = baseList[baseList.length - 1];
+        const isAlreadyAtTail = tail instanceof HumanMessage && tail.content === latestUserPrompt;
+
+        const combined = isAlreadyAtTail || !latestUserPrompt
+          ? baseList
+          : [...baseList, new HumanMessage(latestUserPrompt)];
+
+        log.info(`loaded ${combined.length} messages from Redis (${saved.length} restored)`);
+        return combined;
+      }
+    }
+
+    log.info(`initialized from client history (${history.length} turn(s))`);
+    return [new SystemMessage(SYSTEM_PROMPT), ...buildHistory(history)];
+  };
+
+  let messages: BaseMessage[] = await loadInitialMessages();
+
   const failuresByTool = new Map<string, number>();
   const routerState = createRouterState();
 
-  const finish = (outcome: AiOutcome, message: string): AgentRun => {
+  const saveCurrentState = async (): Promise<void> => {
+    if (!conversationKey) return;
+    await saveConversation(userId, conversationKey, messages);
+  };
+
+  const finish = async (outcome: AiOutcome, message: string): Promise<AgentRun> => {
     log.info(`outcome=${outcome} — ${message}`);
+    const last = messages[messages.length - 1];
+    if (!(last instanceof AIMessage) && message) {
+      messages.push(new AIMessage(message));
+    }
+    await saveCurrentState();
     return { outcome, message, loadBalancers };
   };
 

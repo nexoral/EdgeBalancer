@@ -88,12 +88,15 @@ export const generateWithAi = async (req: Request, res: Response, next: NextFunc
   const startedAt = Date.now();
   const trace = createTrace();
 
+  const conversationKey = conversationId || runId;
+
   try {
     const run = await runAgent({
       runId,
       userId,
       userEmail: req.user?.email ?? null,
       history: conversation,
+      conversationKey,
       cancellation,
       emit,
       trace,

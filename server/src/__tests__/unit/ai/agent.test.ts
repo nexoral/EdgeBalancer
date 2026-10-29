@@ -13,12 +13,22 @@ jest.mock('../../../modules/ai/services/tools.service', () => ({
   MUTATING_TOOL_NAMES: ['create_load_balancer', 'update_load_balancer', 'delete_load_balancer', 'pause_load_balancer', 'resume_load_balancer'],
 }));
 
+jest.mock('../../../modules/ai/services/conversation.service', () => ({
+  saveConversation: jest.fn(),
+  loadConversation: jest.fn(async () => null),
+  deleteConversation: jest.fn(),
+}));
+
 import { createTrace, runAgent } from '../../../modules/ai/services/agent.service';
 import { invokeWithFallback } from '../../../modules/ai/services/model-router.service';
 import { buildTools } from '../../../modules/ai/services/tools.service';
+import { saveConversation, loadConversation, deleteConversation } from '../../../modules/ai/services/conversation.service';
 
 const mockedInvoke = invokeWithFallback as jest.Mock;
 const mockedBuildTools = buildTools as jest.Mock;
+const mockedSaveConversation = saveConversation as jest.Mock;
+const mockedLoadConversation = loadConversation as jest.Mock;
+const mockedDeleteConversation = deleteConversation as jest.Mock;
 
 const aiMessage = (toolCalls: any[] = [], content = '') => ({
   response: { content, tool_calls: toolCalls },
@@ -412,5 +422,53 @@ describe('runAgent failure handling', () => {
 
     expect(result.outcome).toBe('success');
     expect(result.message).toBe('Deployed api.example.com.');
+  });
+
+  it('prefers saved messages from Redis when conversationKey is provided and saves on finish', async () => {
+    mockedBuildTools.mockReturnValue([]);
+    mockedLoadConversation.mockResolvedValueOnce([
+      { type: 'human', content: 'previous turn' },
+      { type: 'ai', content: 'prior reply', toolCalls: [{ id: 'call_old', name: 'find_tools', args: {} }] },
+      { type: 'tool', content: '{"ok":true}', toolCallId: 'call_old' },
+    ]);
+    mockedInvoke.mockResolvedValueOnce(aiMessage([], 'All done.'));
+
+    const result = await runAgent({
+      runId: 'run-1',
+      userId: 'user-1',
+      userEmail: null,
+      history: [{ role: 'user', content: 'client-stale-history' }, { role: 'user', content: 'new message' }],
+      conversationKey: 'conv-123',
+      cancellation: { isCancelled: () => false, throwIfCancelled: async () => undefined } as any,
+      emit: jest.fn(),
+      trace: createTrace(),
+    });
+
+    expect(result.outcome).toBe('success');
+    expect(mockedLoadConversation).toHaveBeenCalledWith('user-1', 'conv-123');
+    expect(mockedSaveConversation).toHaveBeenCalledWith('user-1', 'conv-123', expect.any(Array));
+  });
+
+  it('saves conversation state to Redis only once when loop exits in finish', async () => {
+    const listZones = jest.fn(async () => JSON.stringify({ ok: true, zones: [] }));
+    mockedBuildTools.mockReturnValue([fakeTool('list_zones', listZones)]);
+
+    mockedInvoke
+      .mockResolvedValueOnce(aiMessage([call('list_zones')]))
+      .mockResolvedValueOnce(aiMessage([], 'Finished listing zones.'));
+
+    await runAgent({
+      runId: 'run-1',
+      userId: 'user-1',
+      userEmail: null,
+      history: [{ role: 'user', content: 'list zones' }],
+      conversationKey: 'conv-xyz',
+      cancellation: { isCancelled: () => false, throwIfCancelled: async () => undefined } as any,
+      emit: jest.fn(),
+      trace: createTrace(),
+    });
+
+    expect(mockedSaveConversation).toHaveBeenCalledTimes(1);
+    expect(mockedSaveConversation).toHaveBeenCalledWith('user-1', 'conv-xyz', expect.any(Array));
   });
 });
