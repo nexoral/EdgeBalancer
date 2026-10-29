@@ -9,28 +9,17 @@ export const FREE_MODELS = [
   'z-ai/glm-5.2:free', // flagship reasoning — 3.60s / 104 tok/s
 ];
 
-// OpenCode Zen free tier — no API key required, 12/12 CRUD verified.
-// Falls through to Mistral on 429 or error.
-export const ZEN_MODELS = [
-  { model: 'laguna-s-2.1-free' },
-];
-
 export const MISTRAL_MODELS = [
-  { model: 'mistral-code-latest', rps: 2.08 }, // 125 req/min
-  { model: 'mistral-small-2603', rps: 0.83 }, // 50 req/min — verified 26/26
-  { model: 'mistral-small-latest', rps: 0.83 }, // verified 26/26
-  { model: 'magistral-small-latest', rps: 0.83 }, // verified 26/26
-  { model: 'magistral-medium-latest', rps: 0.83 },
-  { model: 'devstral-latest', rps: 0.83 },
-  { model: 'devstral-medium-latest', rps: 0.83 },
-  { model: 'mistral-code-agent-latest', rps: 0.83 },
-  { model: 'mistral-vibe-cli-with-tools', rps: 0.83 },
-  { model: 'mistral-vibe-cli-fast', rps: 0.83 },
-  { model: 'mistral-large-2512', rps: 0.07 }, // 4 req/min
+  { model: 'mistral-code-latest', rps: 2.08 }, // 125 req/min (Codestral 256k)
+  { model: 'ministral-8b-latest', rps: 0.83 }, // 50 req/min (262k context)
+  { model: 'ministral-14b-latest', rps: 0.83 }, // 50 req/min (262k context)
+  { model: 'ministral-3b-latest', rps: 0.83 }, // 50 req/min (131k context)
+  { model: 'mistral-small-latest', rps: 0.83 }, // 50 req/min (262k context)
+  { model: 'mistral-medium-latest', rps: 0.83 }, // 50 req/min (262k context)
+  { model: 'mistral-large-4', rps: 0.07 }, // 4 req/min (1M context flagship)
 ];
 
 export const MODEL_LADDER: ModelDescriptor[] = [
   ...FREE_MODELS.map((model) => ({ provider: 'openrouter' as const, model })),
-  ...ZEN_MODELS.map(({ model }) => ({ provider: 'opencode' as const, model })),
   ...MISTRAL_MODELS.map(({ model, rps }) => ({ provider: 'mistral' as const, model, rps })),
 ];

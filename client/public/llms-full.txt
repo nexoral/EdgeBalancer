@@ -15,7 +15,7 @@ EdgeBalancer is an API-first platform. The AI agent at https://edge.nexoral.in a
 - All operations are real — the AI agent calls the same API endpoints as the dashboard
 - The AI agent requires a signed-in session (JWT cookie) and a connected Cloudflare account
 - Destructive actions (update, delete, pause, resume) require in-conversation confirmation before execution
-- The AI agent uses a model ladder: OpenRouter free tier → OpenCode Zen → Mistral metered tier
+- The AI agent uses a model ladder: OpenRouter free tier → Mistral metered tier
 - Rate limit: 3 AI runs per 15 minutes per user
 
 ## API endpoints
