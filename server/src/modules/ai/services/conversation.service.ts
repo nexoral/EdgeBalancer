@@ -31,8 +31,8 @@ export async function saveConversation(
     await redis.set(redisKey(userId, conversationKey), serialized, { EX: CONVERSATION_TTL_SECONDS });
   } catch (error: any) {
     console.warn(`Failed to save conversation state to Redis: ${error?.message}`);
-  }
-}
+  };
+};
 
 export async function loadConversation(
   userId: string,
