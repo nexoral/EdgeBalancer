@@ -5,8 +5,8 @@ jest.mock('../../../utils/redisClient', () => ({
   getRedisClient: async () => {
     if (!redisUp) throw new Error('Redis unreachable');
     return {
-      setEx: async (key: string, ex: number, value: string) => {
-        store.set(key, { value, ex });
+      set: async (key: string, value: string, opts?: { EX: number }) => {
+        store.set(key, { value, ex: opts?.EX ?? 0 });
         return 'OK';
       },
       get: async (key: string) => store.get(key)?.value ?? null,
@@ -31,7 +31,7 @@ describe('conversation service', () => {
     redisUp = true;
   });
 
-  it('saves and loads messages with correct key and 2 hour TTL', async () => {
+  it('saves and loads messages with correct key and 30 minute TTL', async () => {
     const messages = [
       new SystemMessage('system instruction'),
       new HumanMessage('create lb'),
@@ -43,7 +43,7 @@ describe('conversation service', () => {
 
     const key = 'ai:conversation:user-123:conv-456';
     expect(store.has(key)).toBe(true);
-    expect(store.get(key)?.ex).toBe(7200);
+    expect(store.get(key)?.ex).toBe(1800);
 
     const loaded = await loadConversation('user-123', 'conv-456');
     expect(loaded).toHaveLength(4);
