@@ -3,6 +3,7 @@ import { invokeWithFallback } from './model-router.service';
 import type { RouterState } from './model-router.service';
 import type { RunLogger } from './log.service';
 import type { StructuredToolInterface } from '@langchain/core/tools';
+import type { AiEmitter } from '../types/ai.types';
 
 // Bounded by tokens, not message count: one oversized tool result overflows a context that a
 // message count still reads as short. ~4 chars per token is close enough to decide when to summarise.
@@ -17,6 +18,9 @@ const PER_MESSAGE_OVERHEAD = 4;
 export interface CompactionResult {
   messages: BaseMessage[];
   summarized: boolean;
+  tokensBefore?: number;
+  tokensAfter?: number;
+  tokensSaved?: number;
 }
 
 const SUMMARIZATION_SYSTEM_PROMPT = `You are a conversation summarizer for a load balancer management agent.
@@ -122,6 +126,7 @@ export async function compactHistory(
   messages: BaseMessage[],
   log: RunLogger,
   state: RouterState,
+  emit?: AiEmitter,
 ): Promise<CompactionResult> {
   if (!needsCompaction(messages)) {
     return { messages, summarized: false };
@@ -167,6 +172,9 @@ export async function compactHistory(
     return { messages, summarized: false };
   }
 
+  const tokensBefore = estimateTokens(messages);
+  emit?.('compaction_start', { tokensBefore });
+
   try {
     const { response } = await invokeWithFallback({
       messages: [new SystemMessage(SUMMARIZATION_SYSTEM_PROMPT), new HumanMessage(buildUserPrompt(toSummarize))],
@@ -185,11 +193,27 @@ export async function compactHistory(
       ...messages.slice(cut),
     ];
 
-    log.info(`Compacted history: ${toSummarize.length} messages → 1 summary (${summary.split(/\s+/).length} words)`);
+    const tokensAfter = estimateTokens(compacted);
+    const tokensSaved = Math.max(0, tokensBefore - tokensAfter);
 
-    return { messages: compacted, summarized: true };
+    log.info(`Compacted history: ${toSummarize.length} messages → 1 summary (${summary.split(/\s+/).length} words, ${tokensSaved} tokens saved: ${tokensBefore} → ${tokensAfter})`);
+
+    emit?.('compaction_result', {
+      ok: true,
+      tokensBefore,
+      tokensAfter,
+      tokensSaved,
+    });
+
+    return { messages: compacted, summarized: true, tokensBefore, tokensAfter, tokensSaved };
   } catch (error: any) {
     log.warn(`Summarization failed, keeping full history: ${error?.message}`);
-    return { messages, summarized: false };
+    emit?.('compaction_result', {
+      ok: false,
+      tokensBefore,
+      tokensAfter: tokensBefore,
+      tokensSaved: 0,
+    });
+    return { messages, summarized: false, tokensBefore, tokensAfter: tokensBefore, tokensSaved: 0 };
   }
 }
