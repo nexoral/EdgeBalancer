@@ -1,4 +1,4 @@
-export type ModelProvider = 'mistral' | 'openrouter' | 'opencode';
+export type ModelProvider = 'mistral' | 'openrouter';
 
 export interface ModelDescriptor {
   provider: ModelProvider;

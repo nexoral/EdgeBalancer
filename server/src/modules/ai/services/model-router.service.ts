@@ -77,7 +77,7 @@ function classify(error: any, provider: ModelProvider): Disposition {
   if (isAuthFailure(error)) return 'provider-dead';
 
   // OpenRouter free tier is account-wide, so any 429 stands the whole provider down for a day.
-  // Mistral and OpenCode Zen publish per-model limits, so their 429 only cools that model.
+  // Mistral publishes per-model limits, so its 429 only cools that model.
   if (statusOf(error) === 429) {
     return provider === 'openrouter' ? 'provider-exhausted' : 'model-exhausted';
   }
