@@ -584,6 +584,10 @@ function PasskeyCard({ user, refreshUser, onPrefer }: any) {
   );
 }
 
+const CF_ORANGE = '#F48120';
+const CF_ORANGE_DIM = 'rgba(244, 129, 32, 0.10)';
+const CF_ORANGE_BORDER = 'rgba(244, 129, 32, 0.28)';
+
 function CloudflareTab({ user, refreshUser }: any) {
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -685,16 +689,25 @@ function CloudflareTab({ user, refreshUser }: any) {
   };
 
   return (
-    <div className="card" style={{ padding: 28, position: 'relative', overflow: 'hidden' }}>
+    <div className="card" style={{
+      padding: 28, position: 'relative', overflow: 'hidden',
+      borderColor: CF_ORANGE_BORDER,
+    }}>
+      <div style={{
+        position: 'absolute', top: 0, left: 0, right: 0, height: 3,
+        background: CF_ORANGE,
+        borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
+      }} />
+
       <div style={{
         position: 'absolute', top: 20, right: 20,
-        opacity: 0.06, pointerEvents: 'none',
+        opacity: 0.07, pointerEvents: 'none', color: CF_ORANGE,
       }}>
         <Icons.Cloud size={80} />
       </div>
 
       <div style={{ position: 'relative' }}>
-        <div className="kicker" style={{ marginBottom: 8 }}>// cloudflare integration</div>
+        <div className="kicker" style={{ marginBottom: 8, color: CF_ORANGE }}>// cloudflare integration</div>
         <h2 style={{ fontSize: 22, margin: 0, letterSpacing: '-0.02em', fontWeight: 500 }}>
           Cloudflare Connection
         </h2>
@@ -709,15 +722,17 @@ function CloudflareTab({ user, refreshUser }: any) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {/* Connection method indicator */}
             <div style={{
-              padding: 16, background: 'var(--bg)',
-              border: `1px solid ${isOAuth ? 'var(--accent)' : 'var(--green)'}`,
+              padding: 16,
+              background: CF_ORANGE_DIM,
+              border: `1px solid ${CF_ORANGE_BORDER}`,
               borderRadius: 'var(--radius)',
               display: 'flex', gap: 12, alignItems: 'center',
             }}>
               <div style={{
                 width: 8, height: 8, borderRadius: '50%',
-                background: isOAuth ? 'var(--accent)' : 'var(--green)',
-                boxShadow: `0 0 8px ${isOAuth ? 'var(--accent)' : 'var(--green)'}`,
+                background: CF_ORANGE,
+                boxShadow: `0 0 8px ${CF_ORANGE}`,
+                flexShrink: 0,
               }} />
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, color: 'var(--text-2)', fontWeight: 500 }}>
@@ -826,10 +841,21 @@ function CloudflareTab({ user, refreshUser }: any) {
           /* Not connected state */
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20, alignItems: 'center' }}>
             <button
-              className="btn btn-primary btn-lg"
               onClick={handleOAuthConnect}
               disabled={loading}
-              style={{ justifyContent: 'center', width: '100%', gap: 10 }}
+              style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                width: '100%', padding: '12px 22px', borderRadius: 'var(--radius-xl)',
+                fontSize: 15, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer',
+                border: `1px solid ${CF_ORANGE}`,
+                background: CF_ORANGE,
+                color: '#fff',
+                opacity: loading ? 0.7 : 1,
+                transition: 'filter 150ms ease, box-shadow 150ms ease',
+                boxShadow: `0 1px 2px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.18)`,
+              }}
+              onMouseEnter={e => { if (!loading) (e.currentTarget as HTMLButtonElement).style.filter = 'brightness(1.08)'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.filter = ''; }}
             >
               <Icons.Cloud size={18} />
               {loading ? 'Redirecting...' : 'Connect with Cloudflare'}
