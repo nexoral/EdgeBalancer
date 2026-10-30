@@ -55,7 +55,7 @@ POST/PUT LB routes use the `fastifyIdempotency` plugin; clients send an `Idempot
 - Login symmetric: `POST /auth/google` returns `{ twoFactorRequired, methods, preferred }`; both methods share a "Try another way" control (hidden if only one method).
 
 ### AI Agent
-- `POST /api/ai/generate` streams SSE events: `run_start`, `model_active`, `model_switch`, `status`, `tool_start`, `tool_result`, `done`, `error`. 3 runs per 15 min.
+- `POST /api/ai/generate` streams SSE events: `run_start`, `model_active`, `model_switch`, `status`, `tool_start`, `tool_result`, `compaction_start`, `compaction_result`, `done`, `error`. 3 runs per 15 min.
 - Tools: `find_tools`, `list_zones`, `list_load_balancers`, `create/update/delete/pause/resume_load_balancer`. All execute for real via the REST orchestrators.
 - Conversation: client owns transcript, replays as `messages` (≤30 turns × 4000 chars). Client echoes the first `runId` as `conversationId` → one `AiRun` doc per conversation (in-place `$push`+`$slice` update). Stale echo → new standalone doc.
 - Conversation persistence: LangChain message state persisted in Redis (`conversation:{userId}:{conversationId}`) with 30-min TTL (`EX: 1800`), written only upon agent loop completion (`finish()`).

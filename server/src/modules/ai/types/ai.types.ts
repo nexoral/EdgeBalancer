@@ -14,6 +14,8 @@ export type AiEventName =
   | 'status'
   | 'tool_start'
   | 'tool_result'
+  | 'compaction_start'
+  | 'compaction_result'
   | 'done'
   | 'error';
 

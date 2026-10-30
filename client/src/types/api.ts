@@ -267,6 +267,8 @@ export type AiEvent =
   | { name: 'status'; payload: { message: string; progress: number } }
   | { name: 'tool_start'; payload: { name: string; args: Record<string, unknown> } }
   | { name: 'tool_result'; payload: { name: string; ok: boolean; summary: string } }
+  | { name: 'compaction_start'; payload: { tokensBefore: number } }
+  | { name: 'compaction_result'; payload: { ok: boolean; tokensBefore: number; tokensAfter: number; tokensSaved: number } }
   | { name: 'done'; payload: { outcome: AiOutcome; message: string; loadBalancers: LoadBalancer[] } }
   | { name: 'error'; payload: { message: string } };
 

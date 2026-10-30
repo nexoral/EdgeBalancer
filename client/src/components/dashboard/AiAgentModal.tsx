@@ -35,6 +35,7 @@ export interface AiRunState {
   outcome: AiOutcome | null;
   message: string;
   loadBalancers: LoadBalancer[];
+  tokensSaved?: number;
 }
 
 export const initialAiRunState: AiRunState = {
@@ -48,6 +49,7 @@ export const initialAiRunState: AiRunState = {
   outcome: null,
   message: '',
   loadBalancers: [],
+  tokensSaved: 0,
 };
 
 /** Single place mapping the server's SSE contract onto what the modal renders. */
@@ -74,6 +76,36 @@ export function applyAiEvent(state: AiRunState, event: AiEvent): AiRunState {
 
     case 'tool_result':
       return { ...state, steps: closeLastStep(state.steps, event.payload.ok, event.payload.summary) };
+
+    case 'compaction_start':
+      return {
+        ...state,
+        statusMessage: 'Compacting conversation history',
+        steps: [
+          ...state.steps,
+          {
+            label: 'Compacting conversation history',
+            state: 'running',
+            detail: event.payload.tokensBefore
+              ? `Context reached ~${event.payload.tokensBefore.toLocaleString()} tokens`
+              : undefined,
+          },
+        ],
+      };
+
+    case 'compaction_result':
+      return {
+        ...state,
+        tokensSaved: (state.tokensSaved ?? 0) + (event.payload.tokensSaved ?? 0),
+        statusMessage: event.payload.ok ? 'Conversation history compacted' : state.statusMessage,
+        steps: closeLastStep(
+          state.steps,
+          event.payload.ok,
+          event.payload.ok
+            ? `Saved ${event.payload.tokensSaved.toLocaleString()} tokens (~${event.payload.tokensBefore.toLocaleString()} → ~${event.payload.tokensAfter.toLocaleString()})`
+            : 'Compaction skipped',
+        ),
+      };
 
     case 'done':
       return {
@@ -338,7 +370,7 @@ export function AiAgentModal({ isOpen, run, messages, onCancel, onClose, onReply
               <Icons.Zap size={16} style={{ color: 'var(--accent)' }} />
             </div>
             <div style={{ minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
                   AI Agent
                 </span>
@@ -355,6 +387,26 @@ export function AiAgentModal({ isOpen, run, messages, onCancel, onClose, onReply
                 }}>
                   {finished ? (succeeded ? 'Completed' : 'Failed') : 'Active'}
                 </span>
+                {run.activeModel && (
+                  <span className="mono" style={{
+                    fontSize: 10, padding: '2px 6px', borderRadius: 'var(--radius-sm, 4px)',
+                    background: 'var(--bg-2)', color: 'var(--text-3)',
+                    border: '1px solid var(--line)',
+                  }}>
+                    {run.activeModel}
+                  </span>
+                )}
+                {typeof run.tokensSaved === 'number' && run.tokensSaved > 0 && (
+                  <span className="mono animate-fade-in" style={{
+                    fontSize: 10, padding: '2px 6px', borderRadius: 'var(--radius-sm, 4px)',
+                    background: 'rgba(34, 197, 94, 0.12)', color: 'var(--green)',
+                    border: '1px solid rgba(34, 197, 94, 0.25)',
+                    display: 'flex', alignItems: 'center', gap: 4,
+                  }}>
+                    <Icons.Zap size={10} />
+                    {run.tokensSaved.toLocaleString()} tokens saved
+                  </span>
+                )}
               </div>
               <div style={{
                 fontSize: 12, color: 'var(--text-3)', marginTop: 2,

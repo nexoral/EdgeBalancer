@@ -35,7 +35,10 @@ const buildHistory = (iterations: number, callsPerBatch = 1, chars = 4800): Base
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockedInvoke.mockResolvedValue({ response: { content: 'A summary of what happened.' }, model: 'test-model' });
+  mockedInvoke.mockResolvedValue({
+    response: { content: JSON.stringify({ prune_tools: ['call-0-0', 'call-1-0', 'big', 'm_3'], summarize_messages: [] }) },
+    model: 'test-model',
+  });
 });
 
 describe('estimateTokens', () => {
@@ -137,18 +140,35 @@ describe('compactHistory', () => {
     expect(estimateTokens(result.messages)).toBeLessThan(estimateTokens(messages));
   });
 
-  it('keeps the RCA instruction, which the first-prompt pin does not cover', async () => {
+  it('keeps the RCA instruction and dialogue intact while pruning tool outputs', async () => {
     const messages = buildHistory(4);
     const rca = new HumanMessage('The run has stopped. Write a root-cause analysis.');
     messages.push(rca, ...buildHistory(4).slice(2));
 
+    mockedInvoke.mockResolvedValueOnce({
+      response: { content: JSON.stringify({ prune_tools: ['call-0-0'], summarize_messages: [] }) },
+      model: 'test-model',
+    });
+
     const result = await compactHistory(messages, log, state());
 
     expect(result.summarized).toBe(true);
-    // Position proves it was pinned, not merely carried along by the recent chunk.
-    expect(String(result.messages[2].content)).toContain('[Conversation Summary]');
-    expect(result.messages[3]).toBe(rca);
+    expect(result.messages).toContain(rca);
     expect(findOrphanIndex(result.messages)).toBe(-1);
+  });
+
+  it('summarizes verbose messages when requested by the optimizer', async () => {
+    const messages = buildHistory(8);
+    mockedInvoke.mockResolvedValueOnce({
+      response: { content: JSON.stringify({ prune_tools: ['call-0-0'], summarize_messages: [{ id: 'm_1', summary: 'User requested LB creation.' }] }) },
+      model: 'test-model',
+    });
+
+    const result = await compactHistory(messages, log, state());
+
+    expect(result.summarized).toBe(true);
+    expect(String(result.messages[1].content)).toBe('User requested LB creation.');
+    expect(String(result.messages[3].content)).toContain('[Output pruned by GC');
   });
 
   it('keeps the full history when the summarizer fails', async () => {
@@ -177,5 +197,25 @@ describe('compactHistory', () => {
 
     expect(result.summarized).toBe(false);
     expect(log.warn).toHaveBeenCalled();
+  });
+
+  it('emits compaction_start and compaction_result with token savings', async () => {
+    const messages = buildHistory(8);
+    const emit = jest.fn();
+
+    const result = await compactHistory(messages, log, state(), emit);
+
+    expect(result.summarized).toBe(true);
+    expect(result.tokensSaved).toBeGreaterThan(0);
+    expect(emit).toHaveBeenCalledWith('compaction_start', {
+      tokensBefore: expect.any(Number),
+    });
+    expect(emit).toHaveBeenCalledWith('compaction_result', {
+      ok: true,
+      tokensBefore: expect.any(Number),
+      tokensAfter: expect.any(Number),
+      tokensSaved: expect.any(Number),
+    });
+    expect(result.tokensBefore).toBeGreaterThan(result.tokensAfter!);
   });
 });

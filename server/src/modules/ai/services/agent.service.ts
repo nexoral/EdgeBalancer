@@ -207,6 +207,14 @@ export async function runAgent(params: {
       : tools.filter((t) => unlocked.has(t.name));
     log.info(`${rcaMode ? 'rca' : 'iteration'} ${rcaMode ? rcaStep : iteration - 1} — bound ${bound.length}/${tools.length}: ${bound.map((t) => t.name).join(', ')}`);
 
+    if (needsCompaction(messages)) {
+      const { messages: compacted, summarized } = await compactHistory(messages, log, routerState, emit);
+      if (summarized) {
+        messages = compacted;
+        log.info(`History compacted: ${messages.length} messages retained`);
+      }
+    }
+
     let response;
     let model;
     try {
@@ -276,14 +284,6 @@ export async function runAgent(params: {
 
       emit('tool_result', { name: call.name, ok, summary: summarize(result) });
       messages.push(new ToolMessage({ content: result, tool_call_id: call.id ?? call.name }));
-
-      if (needsCompaction(messages)) {
-        const { messages: compacted, summarized } = await compactHistory(messages, log, routerState);
-        if (summarized) {
-          messages = compacted;
-          log.info(`History compacted: ${messages.length} messages retained`);
-        }
-      }
 
       if (ok) {
         failuresByTool.delete(call.name);
