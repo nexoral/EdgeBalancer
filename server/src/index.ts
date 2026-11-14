@@ -11,6 +11,7 @@ import {
   sweepOrphanedSchedulers,
   closeHealthCheckQueue,
 } from './modules/healthcheck/services/queue.service';
+import { startPendingPaymentCleanup, closePendingPaymentCleanup } from './modules/payment/services/pending-cleanup.service';
 import { buildServer } from './app';
 import type { FastifyInstance } from 'fastify';
 
@@ -60,6 +61,7 @@ async function gracefulShutdown(signal: string) {
 
     // Disconnect from MongoDB and Redis
     await closeHealthCheckQueue();
+    await closePendingPaymentCleanup();
     await disconnectDatabase();
     await closeRedisClient();
 
@@ -84,6 +86,7 @@ async function bootstrap() {
     await startHealthCheckWorker();
     await resyncHealthCheckJobs();
     await sweepOrphanedSchedulers();
+    await startPendingPaymentCleanup();
 
     // Then build and start server
     app = await buildServer();

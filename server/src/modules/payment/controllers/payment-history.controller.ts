@@ -14,7 +14,7 @@ export const listPayments: AppHandler = async (req, res) => {
   const { cursor, limit: rawLimit } = req.query as { cursor?: string; limit?: string };
   const limit = Math.min(Math.max(Number(rawLimit) || 20, 1), MAX_LIMIT);
 
-  const query: Record<string, any> = { userId };
+  const query: Record<string, any> = { userId, status: { $ne: 'PENDING' } };
   if (cursor) {
     const [createdAt, id] = cursor.split('_');
     query.$or = [
