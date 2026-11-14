@@ -11,6 +11,7 @@ import {
   sweepOrphanedSchedulers,
   closeHealthCheckQueue,
 } from './modules/healthcheck/services/queue.service';
+import { startPendingPaymentCleanup } from './modules/payment/services/pending-cleanup.service';
 import { buildServer } from './app';
 import type { FastifyInstance } from 'fastify';
 
@@ -84,6 +85,7 @@ async function bootstrap() {
     await startHealthCheckWorker();
     await resyncHealthCheckJobs();
     await sweepOrphanedSchedulers();
+    startPendingPaymentCleanup();
 
     // Then build and start server
     app = await buildServer();
