@@ -2,7 +2,7 @@ import { Queue, Worker, type Job } from 'bullmq';
 import { HealthCheckScheduler } from '../../../models/HealthCheckScheduler';
 import { getUserPlan } from '../../payment/services/subscription.service';
 import { PLANS } from '../../../config/plans';
-import { onRedisReconnect } from '../../../utils/redisClient';
+import { onRedisReconnect, redisConnectionForBullMQ } from '../../../utils/redisClient';
 import { processHealthCheckJob } from './worker.service';
 
 const QUEUE_NAME = 'health-checks';
@@ -10,23 +10,9 @@ const QUEUE_NAME = 'health-checks';
 let queue: Queue | null = null;
 let worker: Worker | null = null;
 
-const parseRedisUrl = (rawUrl: string) => {
-  const url = new URL(rawUrl);
-  return {
-    host: url.hostname,
-    port: Number(url.port || 6379),
-    ...(url.password ? { password: decodeURIComponent(url.password) } : {}),
-    ...(url.username && url.username !== 'default'
-      ? { username: decodeURIComponent(url.username) }
-      : {}),
-    ...(url.pathname && url.pathname !== '/' ? { db: Number(url.pathname.slice(1)) } : {}),
-  };
-};
-
 const getQueue = (): Queue => {
   if (!queue) {
-    const connection = parseRedisUrl(process.env.REDIS_URL || 'redis://localhost:6379');
-    queue = new Queue(QUEUE_NAME, { connection });
+    queue = new Queue(QUEUE_NAME, { connection: redisConnectionForBullMQ() });
   }
   return queue;
 };
@@ -34,7 +20,7 @@ const getQueue = (): Queue => {
 export async function startHealthCheckWorker(): Promise<void> {
   if (worker) return;
 
-  const connection = parseRedisUrl(process.env.REDIS_URL || 'redis://localhost:6379');
+  const connection = redisConnectionForBullMQ();
   worker = new Worker(
     QUEUE_NAME,
     async (job: Job<{ loadBalancerId: string }>) => {

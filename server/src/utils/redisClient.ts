@@ -47,6 +47,19 @@ export async function getRedisClient(): Promise<RedisClientType> {
   return client;
 }
 
+export function redisConnectionForBullMQ() {
+  const url = new URL(process.env.REDIS_URL || 'redis://localhost:6379');
+  return {
+    host: url.hostname,
+    port: Number(url.port || 6379),
+    ...(url.password ? { password: decodeURIComponent(url.password) } : {}),
+    ...(url.username && url.username !== 'default'
+      ? { username: decodeURIComponent(url.username) }
+      : {}),
+    ...(url.pathname && url.pathname !== '/' ? { db: Number(url.pathname.slice(1)) } : {}),
+  };
+}
+
 export async function closeRedisClient(): Promise<void> {
   if (client) {
     await client.quit();
