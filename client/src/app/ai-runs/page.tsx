@@ -152,7 +152,6 @@ function AiRunDetailModal({ runId, onClose }: { runId: string; onClose: () => vo
           {/* Final answer or question, as shown to the user */}
           {run.finalMessage && (
             <div>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--text-2)' }}>Agent reply</div>
               <div style={{
                 fontSize: 13.5, lineHeight: 1.65, padding: 14,
                 background: 'var(--bg-2)', borderRadius: 'var(--radius)',
