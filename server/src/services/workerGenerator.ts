@@ -38,7 +38,7 @@ export type WorkerStrategy =
 
 export interface GatewayWorkerConfig {
   upstreams: Array<{ url: string; weight: number }>;
-  pathRoutes?: PathRoute[] & Array<{ upstreamIndex: number }>;
+  pathRoutes?: Array<{ path: string; upstreamIndex: number; priority: number }>;
   bffRoutes?: Array<{ path: string; upstreamIndices: number[]; priority: number }>;
   corsEnabled?: boolean;
   corsOrigins?: string[];
@@ -73,6 +73,8 @@ export interface GatewayWorkerConfig {
     fieldTypes?: Array<{ field: string; type: 'string' | 'number' | 'boolean' | 'array' }>;
   }>;
   rateLimit?: { enabled: boolean; requestsPerMinute: number };
+  rateLimitEnabled?: boolean;
+  rateLimitRequestsPerMinute?: number | null;
   rateLimitKeyType?: 'ip' | 'header' | 'jwt';
   rateLimitHeaderName?: string;
   pathRateLimits?: PathRateLimit[];
@@ -141,8 +143,8 @@ export const generateGatewayWorkerCode = async (config: GatewayWorkerConfig, opt
     schemaRules: config.schemaRules ?? [],
     ipRules: config.ipRules ?? [],
     mockRoutes: config.mockRoutes ?? [],
-    rateLimitEnabled: config.rateLimit?.enabled ?? false,
-    rateLimitRequestsPerMinute: config.rateLimit?.requestsPerMinute ?? null,
+    rateLimitEnabled: config.rateLimitEnabled ?? config.rateLimit?.enabled ?? false,
+    rateLimitRequestsPerMinute: config.rateLimitRequestsPerMinute ?? config.rateLimit?.requestsPerMinute ?? null,
     rateLimitKeyType: config.rateLimitKeyType ?? 'ip',
     rateLimitHeaderName: config.rateLimitHeaderName ?? 'X-API-Key',
     pathRateLimits: (config.pathRateLimits ?? []).sort((a, b) => a.priority - b.priority),
