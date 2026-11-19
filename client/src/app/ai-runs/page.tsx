@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import { Sidebar, Topbar } from '@/components/dashboard/Sidebar';
 import { Icons } from '@/components/shared/Icons';
+import { FormattedMessage } from '@/components/shared/FormattedMessage';
 import { Modal } from '@/components/ui/Modal';
 import type { AiRunListItem, AiRunDetail, AiOutcome } from '@/types/api';
 import toast from 'react-hot-toast';
@@ -136,13 +137,14 @@ function AiRunDetailModal({ runId, onClose }: { runId: string; onClose: () => vo
                       alignSelf: turn.role === 'user' ? 'flex-end' : 'flex-start',
                       maxWidth: '90%',
                       padding: '8px 12px', borderRadius: 'var(--radius)',
-                      fontSize: 13, lineHeight: 1.55, whiteSpace: 'pre-wrap',
+                      fontSize: 13, lineHeight: 1.55,
+                      whiteSpace: turn.role === 'user' ? 'pre-wrap' : undefined,
                       ...(turn.role === 'user'
                         ? { background: 'var(--accent-dim)', border: '1px solid var(--accent)' }
                         : { background: 'var(--bg-2)', border: '1px solid var(--line)', color: 'var(--text-2)' }),
                     }}
                   >
-                    {turn.content}
+                    {turn.role === 'user' ? turn.content : <FormattedMessage content={turn.content} />}
                   </div>
                 ))}
               </div>
@@ -155,9 +157,9 @@ function AiRunDetailModal({ runId, onClose }: { runId: string; onClose: () => vo
               <div style={{
                 fontSize: 13.5, lineHeight: 1.65, padding: 14,
                 background: 'var(--bg-2)', borderRadius: 'var(--radius)',
-                border: `1px solid ${outcomeColor(run.outcome)}`, whiteSpace: 'pre-wrap',
+                border: `1px solid ${outcomeColor(run.outcome)}`,
               }}>
-                {run.finalMessage}
+                <FormattedMessage content={run.finalMessage} />
               </div>
             </div>
           )}

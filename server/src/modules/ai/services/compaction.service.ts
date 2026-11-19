@@ -5,7 +5,7 @@ import type { RunLogger } from './log.service';
 import type { StructuredToolInterface } from '@langchain/core/tools';
 import type { AiEmitter } from '../types/ai.types';
 
-const TOKEN_BUDGET = 3000;
+const TOKEN_BUDGET = 4000;
 const PER_MESSAGE_OVERHEAD = 4;
 
 export interface CompactionResult {
