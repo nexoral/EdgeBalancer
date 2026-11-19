@@ -61,6 +61,8 @@ export default function PaymentsPage() {
 
   const handleNav = (id: string) => {
     if (id === 'overview') router.push('/overview');
+    else if (id === 'gateways') router.push('/gateways');
+    else if (id === 'balancers') router.push('/loadbalancers');
     else if (id === 'settings') router.push('/settings');
     else if (id === 'sessions') router.push('/sessions');
     else if (id === 'ai-runs') router.push('/ai-runs');
