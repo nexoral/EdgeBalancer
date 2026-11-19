@@ -183,16 +183,18 @@ function AiRunCard({ run, onClick }: { run: AiRunListItem; onClick: () => void }
   return (
     <button
       onClick={onClick}
+      className="feature-card feature-card-lift"
       style={{
-        display: 'flex', flexDirection: 'column', gap: 10,
-        padding: 16, border: '1px solid var(--line)', borderRadius: 'var(--radius-lg)',
+        display: 'flex', flexDirection: 'column', gap: 12,
+        padding: 18, border: '1px solid var(--line)', borderRadius: 'var(--radius-lg)',
         background: 'var(--bg-1)', cursor: 'pointer', textAlign: 'left',
-        transition: 'border-color 150ms, background 150ms',
+        width: '100%',
+        transition: 'border-color 150ms, background 150ms, transform 150ms',
       }}
       onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--bg-2)'; }}
       onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--line)'; e.currentTarget.style.background = 'var(--bg-1)'; }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
         <span style={{
           fontSize: 11, padding: '2px 8px', borderRadius: 4,
           background: `${outcomeColor(run.outcome)}15`, color: outcomeColor(run.outcome),
@@ -200,17 +202,24 @@ function AiRunCard({ run, onClick }: { run: AiRunListItem; onClick: () => void }
         }}>
           {outcomeLabel(run.outcome)}
         </span>
-        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-3)' }}>{relativeTime(run.createdAt)}</span>
+        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>
+          {relativeTime(run.createdAt)}
+        </span>
       </div>
       <div style={{
-        fontSize: 13, color: 'var(--text)', lineHeight: 1.5,
-        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        fontSize: 13.5, color: 'var(--text)', lineHeight: 1.5,
+        display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+        minHeight: 40,
       }}>
         {run.prompt}
       </div>
-      <div style={{ display: 'flex', gap: 12, fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>
-        <span>{run.toolCalls?.length ?? 0} tool{(run.toolCalls?.length ?? 0) !== 1 ? 's' : ''}</span>
-        <span>{formatDuration(run.durationMs)}</span>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        paddingTop: 10, borderTop: '1px solid var(--line)', width: '100%',
+        fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--mono)',
+      }}>
+        <span>Duration</span>
+        <span style={{ color: 'var(--text)', fontWeight: 500 }}>{formatDuration(run.durationMs)}</span>
       </div>
     </button>
   );
@@ -357,7 +366,14 @@ export default function AiRunsPage() {
                 }}>
                   <span style={{ fontFamily: 'var(--mono)' }}>{runs.length} runs</span>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div
+                  className="dash-cards"
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))',
+                    gap: 16,
+                  }}
+                >
                   {runs.map(run => (
                     <AiRunCard key={run._id} run={run} onClick={() => openRun(run._id)} />
                   ))}

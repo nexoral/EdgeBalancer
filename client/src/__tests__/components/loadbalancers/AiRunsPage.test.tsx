@@ -113,7 +113,7 @@ describe('AiRunsPage — runs list', () => {
 
     expect(screen.queryByText('mistral-small')).not.toBeInTheDocument();
     expect(screen.getByText(/create a load balancer/)).toBeInTheDocument();
-    expect(screen.getByText('2 tools')).toBeInTheDocument();
+    expect(screen.queryByText('2 tools')).not.toBeInTheDocument();
     expect(screen.getByText('5.0s')).toBeInTheDocument();
   });
 
