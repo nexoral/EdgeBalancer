@@ -181,15 +181,6 @@ export default function PaymentsPage() {
                       </div>
                     </div>
                   </div>
-
-                  {/* Pro expiry */}
-                  {p.expiresAt && p.status === 'SUCCESS' && (
-                    <div style={{ fontSize: 11, color: 'var(--text-3)', paddingTop: 8, borderTop: '1px solid var(--line)' }}>
-                      Pro until: {new Date(p.expiresAt).toLocaleDateString('en-IN', {
-                        day: 'numeric', month: 'short', year: 'numeric',
-                      })}
-                    </div>
-                  )}
                 </div>
               ))}
               {hasMore && <div ref={sentinelRef} style={{ height: 1 }} />}

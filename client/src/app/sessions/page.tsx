@@ -202,7 +202,7 @@ export default function SessionsPage() {
               <SessionsEmptyState />
             ) : (
               <>
-                <div className="dash-cards">
+                <div className="dash-cards" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))' }}>
                   {sessions.map(session => (
                     <SessionCard
                       key={session._id}

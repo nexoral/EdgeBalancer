@@ -27,6 +27,20 @@ export const SessionCard = ({ session, onDownload, isDownloading, canDownload }:
     ? `${session.subdomain}.${session.domain}`
     : session.domain;
 
+  const createdDate = new Date(session.createdAt);
+  const formattedDate = createdDate.toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+  const formattedTime = createdDate
+    .toLocaleTimeString('en-IN', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    })
+    .replace(/\b(am|pm)\b/g, (m) => m.toUpperCase());
+
   return (
     <div className="feature-card feature-card-lift p-5 flex flex-col gap-3.5">
       <div className="flex justify-between items-start gap-4">
@@ -55,16 +69,25 @@ export const SessionCard = ({ session, onDownload, isDownloading, canDownload }:
       </div>
 
       <div className="grid grid-cols-3 gap-3 pt-3.5 border-t border-[var(--line)]">
-        {[
-          { l: 'Strategy', v: session.strategy },
-          { l: 'Action', v: session.actionType },
-          { l: 'Date', v: new Date(session.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) },
-        ].map((s, i) => (
-          <div key={i}>
-            <div className="kicker text-[10px]">{s.l}</div>
-            <div className="mono text-xs font-medium mt-1 truncate text-[var(--text)]">{s.v}</div>
+        <div>
+          <div className="kicker text-[10px]">Strategy</div>
+          <div className="mono text-xs font-medium mt-1 truncate text-[var(--text)]" title={session.strategy}>
+            {session.strategy}
           </div>
-        ))}
+        </div>
+        <div>
+          <div className="kicker text-[10px]">Action</div>
+          <div className="mono text-xs font-medium mt-1 truncate text-[var(--text)]" title={session.actionType}>
+            {session.actionType}
+          </div>
+        </div>
+        <div>
+          <div className="kicker text-[10px]">Date</div>
+          <div className="mono text-[11px] font-medium mt-1 text-[var(--text)] leading-tight" title={`${formattedDate}, ${formattedTime}`}>
+            <div className="truncate">{formattedDate}</div>
+            <div className="text-[10px] text-[var(--text-3)] mt-0.5 font-normal truncate">{formattedTime}</div>
+          </div>
+        </div>
       </div>
 
       {session.isActive && (
