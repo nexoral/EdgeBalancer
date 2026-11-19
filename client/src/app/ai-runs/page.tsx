@@ -318,8 +318,8 @@ export default function AiRunsPage() {
   };
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)', flexDirection: 'column' }}>
-      <div className="app-shell">
+    <div style={{ display: 'flex', height: '100vh', background: 'var(--bg)', flexDirection: 'column', overflow: 'hidden' }}>
+      <div className="app-shell" style={{ height: '100%', minHeight: 0, overflow: 'hidden' }}>
         <Sidebar
           current="ai-runs"
           onNav={handleNav}
@@ -332,13 +332,13 @@ export default function AiRunsPage() {
           plan={user?.plan}
           planExpiresAt={user?.planExpiresAt}
         />
-        <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%' }}>
           <Topbar
             crumbs={['Overview', 'AI Runs']}
             title="AI Runs"
             subtitle="History of every AI Agent request, its steps and its outcome"
           />
-          <div style={{ padding: 'clamp(16px, 4vw, 32px)', overflow: 'auto', flex: 1 }}>
+          <div style={{ padding: 'clamp(16px, 4vw, 32px)', overflowY: 'auto', flex: 1, minHeight: 0 }}>
             {loading ? (
               <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
                 <div style={{
