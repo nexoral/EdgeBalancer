@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Icons } from '@/components/shared/Icons';
+import { FormattedMessage } from '@/components/shared/FormattedMessage';
 import type { AiEvent, AiOutcome, AiStep, ConversationTurn, LoadBalancer } from '@/types/api';
 import Link from 'next/link';
 
@@ -868,7 +869,8 @@ export function AiAgentModal({ isOpen, run, messages, onCancel, onClose, onReply
                     alignSelf: turn.role === 'user' ? 'flex-end' : 'flex-start',
                     maxWidth: '85%',
                     padding: '10px 14px', borderRadius: 'var(--radius-lg)',
-                    fontSize: 13, lineHeight: 1.55, whiteSpace: 'pre-wrap',
+                    fontSize: 13, lineHeight: 1.55,
+                    whiteSpace: turn.role === 'user' ? 'pre-wrap' : undefined,
                     userSelect: 'text',
                     WebkitUserSelect: 'text',
                     transformOrigin: turn.role === 'user' ? 'bottom right' : 'bottom left',
@@ -878,7 +880,7 @@ export function AiAgentModal({ isOpen, run, messages, onCancel, onClose, onReply
                       : { background: 'var(--bg-2)', border: '1px solid var(--line)', color: 'var(--text-2)' }),
                   }}
                 >
-                  {turn.content}
+                  {turn.role === 'user' ? turn.content : <FormattedMessage content={turn.content} />}
                 </div>
               ))}
             </div>
@@ -896,7 +898,6 @@ export function AiAgentModal({ isOpen, run, messages, onCancel, onClose, onReply
                 borderRadius: 'var(--radius-lg)',
                 fontSize: 13,
                 lineHeight: 1.55,
-                whiteSpace: 'pre-wrap',
                 userSelect: 'text',
                 WebkitUserSelect: 'text',
                 transformOrigin: 'bottom left',
@@ -906,7 +907,7 @@ export function AiAgentModal({ isOpen, run, messages, onCancel, onClose, onReply
                 color: finished && !succeeded ? 'var(--red)' : 'var(--text-2)',
               }}
             >
-              {finalMessageText}
+              <FormattedMessage content={finalMessageText} />
             </div>
           )}
 
