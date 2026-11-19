@@ -112,7 +112,6 @@ describe('AiRunsPage — runs list', () => {
     await waitFor(() => expect(screen.getByText('Success')).toBeInTheDocument());
 
     expect(screen.queryByText('mistral-small')).not.toBeInTheDocument();
-    expect(screen.getByText(/create a load balancer/)).toBeInTheDocument();
     expect(screen.queryByText('2 tools')).not.toBeInTheDocument();
     expect(screen.getByText('5.0s')).toBeInTheDocument();
   });
@@ -211,7 +210,7 @@ describe('AiRunsPage — runs list', () => {
     });
 
     render(<AiRunsPage />);
-    const card = await screen.findByText(/test prompt/i);
+    const card = await screen.findByText('3.0s');
     fireEvent.click(card.closest('button')!);
 
     await waitFor(() => expect(mockApi.getAiRun).toHaveBeenCalledWith('run-abc'));
@@ -242,7 +241,7 @@ describe('AiRunsPage — runs list', () => {
     });
 
     render(<AiRunsPage />);
-    const card = await screen.findByText(/free prompt/i);
+    const card = await screen.findByText('1.0s');
     fireEvent.click(card.closest('button')!);
 
     await waitFor(() => expect(screen.getByTestId('modal')).toBeInTheDocument());

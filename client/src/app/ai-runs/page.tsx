@@ -180,13 +180,36 @@ function AiRunDetailModal({ runId, onClose }: { runId: string; onClose: () => vo
 // ─── Run Card ──────────────────────────────────────────────────────
 
 function AiRunCard({ run, onClick }: { run: AiRunListItem; onClick: () => void }) {
+  const startDate = new Date(run.createdAt);
+  const endDate = new Date(startDate.getTime() + (run.durationMs || 0));
+
+  const startFormatted = startDate.toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  }).replace(/\b(am|pm)\b/g, m => m.toUpperCase());
+
+  const endFormatted = endDate.toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  }).replace(/\b(am|pm)\b/g, m => m.toUpperCase());
+
+  const dateFormatted = startDate.toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+
   return (
     <button
       onClick={onClick}
       className="feature-card feature-card-lift"
       style={{
-        display: 'flex', flexDirection: 'column', gap: 12,
-        padding: 18, border: '1px solid var(--line)', borderRadius: 'var(--radius-lg)',
+        display: 'flex', flexDirection: 'column', gap: 10,
+        padding: '14px 16px', border: '1px solid var(--line)', borderRadius: 'var(--radius-lg)',
         background: 'var(--bg-1)', cursor: 'pointer', textAlign: 'left',
         width: '100%',
         transition: 'border-color 150ms, background 150ms, transform 150ms',
@@ -202,24 +225,33 @@ function AiRunCard({ run, onClick }: { run: AiRunListItem; onClick: () => void }
         }}>
           {outcomeLabel(run.outcome)}
         </span>
-        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>
-          {relativeTime(run.createdAt)}
+        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>
+          {dateFormatted} · {relativeTime(run.createdAt)}
         </span>
       </div>
+
       <div style={{
-        fontSize: 13.5, color: 'var(--text)', lineHeight: 1.5,
-        display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-        minHeight: 40,
-      }}>
-        {run.prompt}
-      </div>
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8,
         paddingTop: 10, borderTop: '1px solid var(--line)', width: '100%',
-        fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--mono)',
       }}>
-        <span>Duration</span>
-        <span style={{ color: 'var(--text)', fontWeight: 500 }}>{formatDuration(run.durationMs)}</span>
+        <div>
+          <div className="kicker" style={{ fontSize: 9, color: 'var(--text-3)' }}>Started</div>
+          <div className="mono" style={{ fontSize: 11, fontWeight: 500, color: 'var(--text)', marginTop: 2 }} title={startFormatted}>
+            {startFormatted}
+          </div>
+        </div>
+        <div>
+          <div className="kicker" style={{ fontSize: 9, color: 'var(--text-3)' }}>Ended</div>
+          <div className="mono" style={{ fontSize: 11, fontWeight: 500, color: 'var(--text)', marginTop: 2 }} title={endFormatted}>
+            {endFormatted}
+          </div>
+        </div>
+        <div>
+          <div className="kicker" style={{ fontSize: 9, color: 'var(--text-3)' }}>Duration</div>
+          <div className="mono" style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', marginTop: 2 }}>
+            {formatDuration(run.durationMs)}
+          </div>
+        </div>
       </div>
     </button>
   );
