@@ -17,6 +17,7 @@ import paymentRoutes from './modules/payment/payment.routes';
 import gatewayRoutes from './modules/gateway/gateway.routes';
 import statsRoutes from './modules/stats/stats.routes';
 import mcpPlugin from './mcp';
+import { initKnowledgeBase } from './config/knowledge';
 
 export const buildServer = async () => {
   const app = Fastify({
@@ -45,6 +46,7 @@ export const buildServer = async () => {
   await registerCors(app);
   await registerRateLimit(app);
   await app.register(idempotencyPlugin);
+  await initKnowledgeBase();
   registerErrorHandler(app);
   registerContentTypeParser(app);
 
