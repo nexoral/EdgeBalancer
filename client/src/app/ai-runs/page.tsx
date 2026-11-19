@@ -44,6 +44,28 @@ function outcomeLabel(outcome: AiOutcome): string {
 
 // ─── Detail Modal ──────────────────────────────────────────────────
 
+const runDetailCache = new Map<string, Promise<AiRunDetail> | AiRunDetail>();
+
+async function fetchRunDetail(runId: string): Promise<AiRunDetail> {
+  const cached = runDetailCache.get(runId);
+  if (cached) {
+    return cached;
+  }
+  const promise = (async () => {
+    try {
+      const res = await api.getAiRun(runId);
+      const data = res.data.run as AiRunDetail;
+      runDetailCache.set(runId, data);
+      return data;
+    } catch (err) {
+      runDetailCache.delete(runId);
+      throw err;
+    }
+  })();
+  runDetailCache.set(runId, promise);
+  return promise;
+}
+
 function AiRunDetailModal({ runId, onClose }: { runId: string; onClose: () => void }) {
   const [run, setRun] = useState<AiRunDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -52,8 +74,8 @@ function AiRunDetailModal({ runId, onClose }: { runId: string; onClose: () => vo
     let cancelled = false;
     (async () => {
       try {
-        const res = await api.getAiRun(runId);
-        if (!cancelled) setRun(res.data.run);
+        const runData = await fetchRunDetail(runId);
+        if (!cancelled) setRun(runData);
       } catch (err: any) {
         if (!cancelled) toast.error(err.message || 'Failed to load run details');
       } finally {
