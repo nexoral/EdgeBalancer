@@ -191,7 +191,7 @@ const UNIFIED_FEATURE_SPECS: FeatureSpec[] = [
     titleKey: 'ai',
     category: 'Autonomous Fleet Operations',
     icon: Icons.Crown,
-    getTitle: () => 'Autonomous AI Agent',
+    getTitle: () => 'AI Agent',
     isUnlocked: (p) => p === 'pro',
     lockedHint: 'Requires Pro Plan',
   },
