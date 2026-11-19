@@ -21,15 +21,14 @@ class ApiClient {
       },
     });
 
-    // Response interceptor for error handling
     this.client.interceptors.response.use(
       (response) => response,
       (error: AxiosError<ApiResponse>) => {
-        // Extract error message from API response or use default
         const message = error.response?.data?.message || error.message || 'An error occurred';
-
-        // Re-throw with structured error
-        throw new Error(message);
+        const customError = new Error(message) as Error & { response?: AxiosError['response']; data?: any };
+        customError.response = error.response;
+        customError.data = error.response?.data?.data;
+        throw customError;
       }
     );
   }

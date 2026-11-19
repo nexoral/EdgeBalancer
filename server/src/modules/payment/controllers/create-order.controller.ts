@@ -47,11 +47,20 @@ export const createPaymentOrder: AppHandler = async (req, res) => {
   const durationDays = config.durationDays;
   const amount = config.price;
 
-  // Prevent concurrent double-orders: return existing PENDING if recent (15 min)
-  const recentPending = await PaymentHistory.findOne({ userId, status: 'PENDING', createdAt: { $gte: new Date(Date.now() - 15 * 60 * 1000) } }).lean();
+  const PENDING_WINDOW_MS = 15 * 60 * 1000;
+  const recentPending = await PaymentHistory.findOne({
+    userId,
+    status: 'PENDING',
+    createdAt: { $gte: new Date(Date.now() - PENDING_WINDOW_MS) },
+  }).lean();
   if (recentPending) {
-    res.status(409);
-    throw new Error('A pending order already exists. Please complete or wait for it to expire.');
+    const expiresAt = new Date(recentPending.createdAt.getTime() + PENDING_WINDOW_MS).toISOString();
+    res.status(409).json({
+      success: false,
+      message: 'A pending order already exists. Please complete or wait for it to expire.',
+      data: { expiresAt },
+    });
+    return;
   }
 
   // Free trial: skip Cashfree, activate directly

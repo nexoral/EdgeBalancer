@@ -15,7 +15,7 @@ export const registerErrorHandler = (app: FastifyInstance) => {
     reply.code(statusCode).send({
       success: false,
       message,
-      data: null,
+      data: (appError as any).data ?? null,
     });
   });
 };
