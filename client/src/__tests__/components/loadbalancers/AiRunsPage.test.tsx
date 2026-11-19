@@ -111,7 +111,7 @@ describe('AiRunsPage — runs list', () => {
     await waitFor(() => expect(screen.getByText('AI Runs')).toBeInTheDocument());
     await waitFor(() => expect(screen.getByText('Success')).toBeInTheDocument());
 
-    expect(screen.getByText('mistral-small')).toBeInTheDocument();
+    expect(screen.queryByText('mistral-small')).not.toBeInTheDocument();
     expect(screen.getByText(/create a load balancer/)).toBeInTheDocument();
     expect(screen.getByText('2 tools')).toBeInTheDocument();
     expect(screen.getByText('5.0s')).toBeInTheDocument();

@@ -387,15 +387,6 @@ export function AiAgentModal({ isOpen, run, messages, onCancel, onClose, onReply
                 }}>
                   {finished ? (succeeded ? 'Completed' : 'Failed') : 'Active'}
                 </span>
-                {run.activeModel && (
-                  <span className="mono" style={{
-                    fontSize: 10, padding: '2px 6px', borderRadius: 'var(--radius-sm, 4px)',
-                    background: 'var(--bg-2)', color: 'var(--text-3)',
-                    border: '1px solid var(--line)',
-                  }}>
-                    {run.activeModel}
-                  </span>
-                )}
                 {typeof run.tokensSaved === 'number' && run.tokensSaved > 0 && (
                   <span className="mono animate-fade-in" style={{
                     fontSize: 10, padding: '2px 6px', borderRadius: 'var(--radius-sm, 4px)',

@@ -168,11 +168,15 @@ export const listAiRuns = async (req: Request, res: Response, next: NextFunction
     const runs = await AiRun.find(query)
       .sort({ createdAt: -1, _id: -1 })
       .limit(limit + 1)
-      .select('runId prompt outcome durationMs finalModel toolCalls.name createdAt')
+      .select('runId prompt outcome durationMs toolCalls.name createdAt')
       .lean();
 
     const hasMore = runs.length > limit;
-    const items = hasMore ? runs.slice(0, limit) : runs;
+    const rawItems = hasMore ? runs.slice(0, limit) : runs;
+    const items = rawItems.map((r: any) => {
+      const { finalModel, modelsUsed, ...rest } = r;
+      return rest;
+    });
     const nextCursor = hasMore ? items[items.length - 1]._id.toString() : null;
 
     res.json({
@@ -202,7 +206,6 @@ export const getAiRun = async (req: Request, res: Response, next: NextFunction) 
       throw new Error('AI run not found');
     }
 
-    // Free users see limited data — only prompt, time, models used summary
     const pro = await isUserPro(userId);
 
     if (!pro) {
@@ -215,12 +218,6 @@ export const getAiRun = async (req: Request, res: Response, next: NextFunction) 
             prompt: run.prompt,
             outcome: run.outcome,
             durationMs: run.durationMs,
-            finalModel: run.finalModel,
-            modelsUsed: (run.modelsUsed || []).map((m: any) => ({
-              provider: m.provider,
-              model: m.model,
-              ok: m.ok,
-            })),
             createdAt: run.createdAt,
           },
         },
@@ -228,10 +225,12 @@ export const getAiRun = async (req: Request, res: Response, next: NextFunction) 
       return;
     }
 
+    const { finalModel, modelsUsed, ...sanitizedRun } = run as any;
+
     res.json({
       success: true,
       message: 'AI run retrieved',
-      data: { run },
+      data: { run: sanitizedRun },
     });
   } catch (error) {
     next(error as Error);

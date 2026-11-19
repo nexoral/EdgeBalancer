@@ -201,9 +201,6 @@ function AiRunCard({ run, onClick }: { run: AiRunListItem; onClick: () => void }
         }}>
           {outcomeLabel(run.outcome)}
         </span>
-        <span style={{ fontSize: 12, color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>
-          {run.finalModel || '—'}
-        </span>
         <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-3)' }}>{relativeTime(run.createdAt)}</span>
       </div>
       <div style={{
