@@ -103,7 +103,16 @@ export const Sidebar = ({
                   textOverflow: 'ellipsis',
                 }}
               >
-                Until {new Date(planExpiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                Until {new Date(planExpiresAt)
+                  .toLocaleString('en-IN', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true,
+                  })
+                  .replace(/\b(am|pm)\b/g, (m) => m.toUpperCase())}
               </div>
             </div>
           </div>

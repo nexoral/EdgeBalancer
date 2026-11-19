@@ -338,13 +338,16 @@ export default function ProPage() {
   const currentPlan = user.plan || 'free';
   const isActive = user.isSubscribed && user.planExpiresAt && new Date(user.planExpiresAt) > new Date();
   const expiryDate = user.planExpiresAt
-    ? new Date(user.planExpiresAt).toLocaleString(undefined, {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
+    ? new Date(user.planExpiresAt)
+        .toLocaleString('en-IN', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        })
+        .replace(/\b(am|pm)\b/g, (m) => m.toUpperCase())
     : null;
   const canTrial = !user.hasEverSubscribed;
 
