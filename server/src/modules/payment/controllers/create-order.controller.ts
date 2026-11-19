@@ -2,7 +2,7 @@ import { PaymentHistory } from '../../../models/PaymentHistory';
 import { User } from '../../../models/User';
 import { PLANS, type PlanType } from '../../../config/plans';
 import { createOrder } from '../services/cashfree.service';
-import { activatePlan } from '../services/subscription.service';
+import { activatePlan, getUserPlan } from '../services/subscription.service';
 import type { AppHandler } from '../../../types/http';
 import { resolvePlan } from '../../../config/plans';
 
@@ -25,14 +25,13 @@ export const createPaymentOrder: AppHandler = async (req, res) => {
   const plan = planType as PlanType;
   const config = PLANS[plan];
 
-  // Check if user already has an active plan
-  const user = await User.findById(userId).select('plan planExpiresAt hasEverSubscribed').lean();
+  const user = await User.findById(userId).select('hasEverSubscribed').lean();
   if (!user) {
     res.status(404);
     throw new Error('User not found');
   }
 
-  const currentPlan = resolvePlan(user.plan, user.planExpiresAt);
+  const { plan: currentPlan } = await getUserPlan(userId);
   if (currentPlan !== 'free') {
     res.status(400);
     throw new Error('You already have an active subscription');
@@ -73,9 +72,7 @@ export const createPaymentOrder: AppHandler = async (req, res) => {
         throw new Error('Trial is only available for first-time subscribers');
       }
     }
-    await activatePlan(userId, plan);
-
-    await PaymentHistory.create({
+    const trialPayment = await PaymentHistory.create({
       userId,
       orderId: `trial-${userId}-${Date.now()}`,
       amount: 0,
@@ -84,6 +81,8 @@ export const createPaymentOrder: AppHandler = async (req, res) => {
       plan,
       expiresAt: new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000),
     });
+
+    await activatePlan(userId, trialPayment._id);
 
     res.json({
       success: true,

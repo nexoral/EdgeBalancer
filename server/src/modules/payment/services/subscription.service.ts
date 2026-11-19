@@ -1,62 +1,62 @@
+import { Types } from 'mongoose';
 import { User } from '../../../models/User';
 import type { IUser } from '../../../models/User';
+import { PaymentHistory } from '../../../models/PaymentHistory';
 import { setPlanCache, removePlanCache, isUserPro as isUserProCached } from '../../../utils/proCache';
-import { PLANS, type PlanType } from '../../../config/plans';
+import { PLANS, resolvePlan, type PlanType } from '../../../config/plans';
 import type { AppHandler } from '../../../types/http';
 
-/** Get the resolved active plan for a user */
 export async function getUserPlan(userId: string): Promise<{ plan: PlanType; expiresAt: Date | null }> {
   try {
-    const user = await User.findById(userId).select('plan planExpiresAt').lean();
-    if (!user) return { plan: 'free', expiresAt: null };
-    const plan = user.plan || 'free';
-    if (plan !== 'free' && user.planExpiresAt && user.planExpiresAt <= new Date()) {
-      return { plan: 'free', expiresAt: null };
-    }
-    return { plan: plan as PlanType, expiresAt: user.planExpiresAt ?? null };
+    const user = await User.findById(userId).populate<{ paymentId: any }>('paymentId').lean();
+    if (!user || !user.paymentId) return { plan: 'free', expiresAt: null };
+    const payment = user.paymentId;
+    const plan = (payment.plan || 'free') as PlanType;
+    const expiresAt = payment.expiresAt ? new Date(payment.expiresAt) : null;
+    const resolved = resolvePlan(plan, expiresAt);
+    return { plan: resolved, expiresAt: resolved === 'free' ? null : expiresAt };
   } catch {
-    // Invalid ObjectId (e.g. "test-user-id" in unit tests) — treat as free without throwing CastError
     return { plan: 'free', expiresAt: null };
   }
 }
 
-/** Check if user has Pro plan (backward compat) */
 export async function isUserPro(userId: string): Promise<boolean> {
   return isUserProCached(userId);
 }
 
-/** Activate a plan for a user */
-export async function activatePlan(userId: string, planType: PlanType): Promise<IUser> {
-  const user = await User.findById(userId);
+export async function activatePlan(userId: string, paymentHistoryId: Types.ObjectId | string): Promise<IUser> {
+  const user = await User.findById(userId).populate<{ paymentId: any }>('paymentId');
   if (!user) throw new Error('User not found');
 
-  const config = PLANS[planType];
-  if (!config || config.durationDays === 0) throw new Error('Invalid plan type');
+  const payment = await PaymentHistory.findById(paymentHistoryId);
+  if (!payment) throw new Error('Payment record not found');
 
+  const config = PLANS[payment.plan as PlanType];
   const now = new Date();
-  const oldPlan = user.plan;
-  const oldExpiry = user.planExpiresAt;
-  user.plan = planType;
-  user.hasEverSubscribed = true;
+  const oldPayment = user.paymentId;
+  const oldExpiry = oldPayment?.expiresAt ? new Date(oldPayment.expiresAt) : null;
+  const oldPlan = oldPayment?.plan;
 
-  // If already on same plan and not expired, extend. Otherwise start fresh.
-  if (oldPlan === planType && oldExpiry && oldExpiry > now) {
-    user.planExpiresAt = new Date(oldExpiry.getTime() + config.durationDays * 24 * 60 * 60 * 1000);
-  } else {
-    user.planExpiresAt = new Date(now.getTime() + config.durationDays * 24 * 60 * 60 * 1000);
+  if (config?.durationDays) {
+    if (oldPlan === payment.plan && oldExpiry && oldExpiry > now) {
+      payment.expiresAt = new Date(oldExpiry.getTime() + config.durationDays * 24 * 60 * 60 * 1000);
+    } else {
+      payment.expiresAt = new Date(now.getTime() + config.durationDays * 24 * 60 * 60 * 1000);
+    }
+    await payment.save();
   }
 
+  user.paymentId = payment._id;
+  user.hasEverSubscribed = true;
   await user.save();
 
-  // Update Redis cache
-  await setPlanCache(userId, planType, user.planExpiresAt);
+  await setPlanCache(userId, payment.plan as PlanType, payment.expiresAt ?? null);
 
   return user;
 }
 
-/** Downgrade user to free (called when plan expires or manually) */
 export async function downgradeToFree(userId: string): Promise<void> {
-  await User.findByIdAndUpdate(userId, { plan: 'free', planExpiresAt: null });
+  await User.findByIdAndUpdate(userId, { paymentId: null });
   await removePlanCache(userId);
 }
 

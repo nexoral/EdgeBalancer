@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { User } from '../../models/User';
+import { PaymentHistory } from '../../models/PaymentHistory';
 import type { JwtPayload } from '../../utils/jwt';
 
 const secret = () => process.env.JWT_SECRET!;
@@ -16,7 +17,7 @@ export async function createTestUser(overrides: {
   name?: string;
   email?: string;
   firebaseUid?: string;
-  plan?: 'free' | 'trial' | 'student' | 'pro';
+  plan?: 'free' | 'trial' | 'student' | 'pro' | 'student-annual' | 'pro-annual';
   planExpiresAt?: Date | null;
 } = {}) {
   const name = overrides.name ?? 'Test User';
@@ -25,14 +26,32 @@ export async function createTestUser(overrides: {
     ? null
     : overrides.planExpiresAt ?? (overrides.plan ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) : undefined);
 
+  let paymentId = null;
+  if (overrides.plan && overrides.plan !== 'free') {
+    const payment = await PaymentHistory.create({
+      userId: new (User.base.Types.ObjectId)(),
+      orderId: `test-order-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      amount: 299,
+      currency: 'INR',
+      status: 'SUCCESS',
+      plan: overrides.plan,
+      expiresAt: planExpiresAt ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    });
+    paymentId = payment._id;
+  }
+
   const user = await User.create({
     name,
     email: rawEmail.toLowerCase(),
     username: `u${Date.now()}${Math.floor(Math.random() * 9999)}`,
     ...(overrides.firebaseUid ? { firebaseUid: overrides.firebaseUid } : {}),
-    ...(overrides.plan ? { plan: overrides.plan } : {}),
-    ...(planExpiresAt !== undefined ? { planExpiresAt } : {}),
+    ...(paymentId ? { paymentId, hasEverSubscribed: true } : {}),
   });
+
+  if (paymentId) {
+    await PaymentHistory.findByIdAndUpdate(paymentId, { userId: user._id });
+    await user.populate('paymentId');
+  }
 
   const token = makeTestJwt({
     userId: user._id.toString(),

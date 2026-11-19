@@ -2,7 +2,7 @@ import { PaymentHistory } from '../../../models/PaymentHistory';
 import { User } from '../../../models/User';
 import { PLANS, type PlanType, resolvePlan } from '../../../config/plans';
 import { createOrder } from '../services/cashfree.service';
-import { activatePlan } from '../services/subscription.service';
+import { getUserPlan } from '../services/subscription.service';
 import type { AppHandler } from '../../../types/http';
 
 const VALID_TO_PLANS: PlanType[] = ['student', 'pro', 'student-annual', 'pro-annual'];
@@ -23,13 +23,13 @@ export const createUpgradeOrder: AppHandler = async (req, res) => {
   const to = toPlan as PlanType;
   const toConfig = PLANS[to];
 
-  const user = await User.findById(userId).select('plan planExpiresAt hasEverSubscribed').lean() as any;
+  const user = await User.findById(userId).select('hasEverSubscribed').lean() as any;
   if (!user) {
     res.status(404);
     throw new Error('User not found');
   }
 
-  const from = resolvePlan(user.plan, user.planExpiresAt) as PlanType;
+  const { plan: from } = await getUserPlan(userId);
 
   if (from === 'free') {
     res.status(400);

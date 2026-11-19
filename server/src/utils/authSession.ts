@@ -28,7 +28,13 @@ export const hasSecondFactor = (user: IUser): boolean => availableMethods(user).
 
 /** The user object every authenticated response returns. Secrets never appear here. */
 export const toUserPayload = (user: IUser) => {
-  const plan: PlanType = resolvePlan(user.plan, user.planExpiresAt);
+  const payment = user.paymentId && typeof user.paymentId === 'object' && 'plan' in user.paymentId
+    ? (user.paymentId as any)
+    : null;
+  const rawPlan = (payment?.plan || 'free') as PlanType;
+  const rawExpiresAt = payment?.expiresAt ? new Date(payment.expiresAt) : null;
+  const plan: PlanType = resolvePlan(rawPlan, rawExpiresAt);
+  const planExpiresAt = plan === 'free' ? null : rawExpiresAt;
   const isSubscribed = plan !== 'free';
   const isPro = plan === 'pro' || plan === 'pro-annual';
 
@@ -52,7 +58,7 @@ export const toUserPayload = (user: IUser) => {
     })),
     preferredSecondFactor: user.preferredSecondFactor ?? null,
     plan,
-    planExpiresAt: user.planExpiresAt ?? null,
+    planExpiresAt,
     isPro,
     isSubscribed,
     hasEverSubscribed: !!user.hasEverSubscribed,

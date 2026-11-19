@@ -77,7 +77,7 @@ export const handleWebhook: AppHandler = async (req, res) => {
     if (cfPaymentId) payment.cfPaymentId = String(cfPaymentId);
     await payment.save();
     try {
-      await activatePlan(payment.userId.toString(), payment.plan as PlanType);
+      await activatePlan(payment.userId.toString(), payment._id);
     } catch (e) {
       payment.status = 'PENDING';
       await payment.save();
