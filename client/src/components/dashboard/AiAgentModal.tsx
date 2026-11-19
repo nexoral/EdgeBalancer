@@ -150,32 +150,170 @@ interface AiPromptCardProps {
   isPro?: boolean;
 }
 
-const PROMPT_RECIPES = [
+interface ArchitectureTemplate {
+  category: 'lb' | 'gateway';
+  badge: string;
+  badgeColor?: string;
+  title: string;
+  summary: string;
+  prompt: string;
+}
+
+const ARCHITECTURE_TEMPLATES: ArchitectureTemplate[] = [
+  // --- Load Balancer Cases (8 Combinations) ---
   {
-    label: 'Failover Cluster',
-    icon: '⚡',
-    prompt: 'Deploy a high-availability failover load balancer named prod-failover on mysite.com with primary origin https://primary.mysite.com (weight 100) and backup https://backup.mysite.com (weight 0), active health checks every 15s.',
+    category: 'lb',
+    badge: 'LB: Failover',
+    badgeColor: 'var(--orange)',
+    title: 'High-Availability Active-Passive Failover',
+    summary: 'Primary + standby origin with 15s health probes, CORS & Smart Placement',
+    prompt:
+      'Create a failover load balancer named "prod-failover" on domain "mysite.com" with subdomain "api" and strategy "failover". Set primary origin https://primary.mysite.com (weight 100) and backup origin https://backup.mysite.com (weight 0). Enable active health checks every 15s probing path "/health", enable CORS for https://app.mysite.com, and enable Smart Placement.',
   },
   {
-    label: 'API Gateway Shield',
-    icon: '🛡️',
-    prompt: 'Create an API gateway on api.mysite.com with upstreams https://srv1.internal.com and https://srv2.internal.com, JWT verification with RBAC, and rate limit 120 req/min keyed by X-API-Key.',
+    category: 'lb',
+    badge: 'LB: Weighted RR',
+    badgeColor: 'var(--accent)',
+    title: 'Weighted Multi-Origin Traffic Cluster',
+    summary: '80/20 split across 2 origins with path routing & 150 req/min rate limit',
+    prompt:
+      'Create a weighted-round-robin load balancer named "api-cluster" on domain "mysite.com" with subdomain "edge" and strategy "weighted-round-robin". Add origins https://srv-primary.mysite.com (weight 80) and https://srv-secondary.mysite.com (weight 20). Path route "/static/*" to origin 1, enable health checks every 30s on "/status", set rate limit to 150 req/min, and enable CORS.',
   },
   {
-    label: 'Geo-Steering Fleet',
-    icon: '🌐',
-    prompt: 'Configure geo-steering on edge.mysite.com routing US visitors to https://us-origin.mysite.com and EU visitors to https://eu-origin.mysite.com with Smart Placement enabled.',
+    category: 'lb',
+    badge: 'LB: Geo-Steering',
+    badgeColor: 'var(--green)',
+    title: 'Global Multi-Region Geo Steering',
+    summary: 'Route NA & EU visitors to regional cloud backends with fallback',
+    prompt:
+      'Deploy a geo-steering load balancer named "global-fleet" on domain "mysite.com" with subdomain "global" and strategy "geo-steering". Route North America (continent NA) to https://us-east.mysite.com (weight 100), Europe (continent EU) to https://eu-west.mysite.com (weight 100), and designate https://us-east.mysite.com as the fallback origin. Enable Smart Placement and 20s health checks.',
   },
   {
-    label: 'Canary 90/10 Split',
-    icon: '🔄',
-    prompt: 'Set up canary routing on app.mysite.com with 90% production traffic to https://prod.internal.com and 10% canary traffic to https://staging.internal.com with response caching.',
+    category: 'lb',
+    badge: 'LB: Sticky Session',
+    badgeColor: 'var(--accent)',
+    title: 'Stateful Cookie Sticky Sessions',
+    summary: 'Consistent visitor affinity with CORS & 100 req/min rate limiting',
+    prompt:
+      'Create a cookie-sticky load balancer named "stateful-app" on domain "mysite.com" with subdomain "portal" and strategy "cookie-sticky". Add origins https://node1.mysite.com (weight 100) and https://node2.mysite.com (weight 100). Enable CORS for https://app.mysite.com, set rate limit to 100 req/min, and enable origin health checks on path "/ready".',
+  },
+  {
+    category: 'lb',
+    badge: 'LB: IP Hash',
+    badgeColor: 'var(--violet)',
+    title: 'Deterministic IP-Hash Sharding',
+    summary: 'Consistent client-to-origin routing for distributed cache & websocket clusters',
+    prompt:
+      'Create an ip-hash load balancer named "cache-shards" on domain "mysite.com" with subdomain "cache" and strategy "ip-hash". Add origins https://cache-a.mysite.com (weight 100), https://cache-b.mysite.com (weight 100), and https://cache-c.mysite.com (weight 100). Enable active health checks every 20s probing "/ping", and enable Smart Placement.',
+  },
+  {
+    category: 'lb',
+    badge: 'LB: Path Router',
+    badgeColor: 'var(--orange)',
+    title: 'Micro-Frontend & Service Path Router',
+    summary: 'Route /api/*, /app/*, and /assets/* to independent dedicated backends',
+    prompt:
+      'Deploy a round-robin load balancer named "mfe-router" on domain "mysite.com" with subdomain "app" and strategy "round-robin". Add origins https://mfe-app.mysite.com (weight 100), https://api-backend.mysite.com (weight 100), and https://cdn-assets.mysite.com (weight 100). Path route "/api/*" to origin 2, path route "/assets/*" to origin 3, and default "/app/*" to origin 1 with CORS enabled.',
+  },
+  {
+    category: 'lb',
+    badge: 'LB: A/B Sticky',
+    badgeColor: 'var(--green)',
+    title: 'Weighted Sticky A/B Release Test',
+    summary: '50/50 initial split with persistent cookie stickiness for user journey',
+    prompt:
+      'Create a weighted-cookie-sticky load balancer named "ab-checkout" on domain "mysite.com" with subdomain "pay" and strategy "weighted-cookie-sticky". Add origins https://checkout-v1.mysite.com (weight 50) and https://checkout-v2.mysite.com (weight 50). Enable CORS for https://mysite.com, set rate limit to 80 req/min, and enable 15s health probes.',
+  },
+  {
+    category: 'lb',
+    badge: 'LB: Regional Pin',
+    badgeColor: 'var(--accent)',
+    title: 'Cloud Region Pinning (Smart Placement)',
+    summary: 'Pin edge compute directly adjacent to AWS us-east-1 origin for minimal latency',
+    prompt:
+      'Deploy a round-robin load balancer named "aws-pinned" on domain "mysite.com" with subdomain "us" and strategy "round-robin". Add origins https://ec2-app-1.internal.com (weight 100) and https://ec2-app-2.internal.com (weight 100). Disable Smart Placement and pin execution directly to region "aws:us-east-1" with 30s health checks and rate limit of 300 req/min.',
+  },
+
+  // --- API Gateway Cases (8 Combinations) ---
+  {
+    category: 'gateway',
+    badge: 'Gateway: JWT & RBAC',
+    badgeColor: 'var(--violet)',
+    title: 'Zero-Trust JWT Auth & Route RBAC',
+    summary: 'HMAC verification, 403 role check on /admin/* & header claim injection',
+    prompt:
+      'Deploy an API gateway named "secure-api" on domain "mysite.com" with subdomain "v1" and upstream https://backend.internal.com (weight 100). Enable JWT authentication with HMAC-SHA256, route-level RBAC requiring role "admin" on path "/admin/*", and downstream claim injection injecting X-User-Id and X-User-Roles headers.',
+  },
+  {
+    category: 'gateway',
+    badge: 'Gateway: Rate Limit',
+    badgeColor: 'var(--orange)',
+    title: 'Identity Rate Limiting & Path Throttling',
+    summary: '120 req/min per X-API-Key with strict 10 req/min throttle on /login/*',
+    prompt:
+      'Create an API gateway named "metered-gw" on domain "mysite.com" with subdomain "api" and upstream https://core-api.internal.com. Enable identity-based rate limiting keyed by header "X-API-Key" with a global cap of 120 req/min, and configure a strict per-path rate limit of 10 req/min on path "/auth/login/*".',
+  },
+  {
+    category: 'gateway',
+    badge: 'Gateway: BFF Fan-Out',
+    badgeColor: 'var(--accent)',
+    title: 'BFF Fan-Out & Semantic Edge Cache',
+    summary: 'Parallel multi-upstream aggregation + normalized query cache',
+    prompt:
+      'Deploy an API gateway named "bff-portal" on domain "mysite.com" with subdomain "bff" and upstreams https://users.internal.com (weight 100) and https://orders.internal.com (weight 100). Add a BFF aggregation route on "/dashboard" fanning out to both upstreams, and enable semantic caching on "/public/*" (TTL 300s) with query parameter normalization.',
+  },
+  {
+    category: 'gateway',
+    badge: 'Gateway: Shield & Mask',
+    badgeColor: 'var(--red)',
+    title: 'Contract Shielding & Response Masking',
+    summary: 'Edge 400 rejection for missing fields & sensitive data stripping',
+    prompt:
+      'Create an API gateway named "shield-gateway" on domain "mysite.com" with subdomain "checkout" and upstream https://orders.internal.com. Add contract schema validation on POST "/api/orders" requiring fields "cartId, amount", and add response body shaping on "/api/users/*" stripping sensitive fields "password_hash, ssn".',
+  },
+  {
+    category: 'gateway',
+    badge: 'Gateway: Canary Mirror',
+    badgeColor: 'var(--green)',
+    title: 'Canary Traffic Shadowing (Mirroring)',
+    summary: 'Asynchronously duplicate 15% of live traffic to staging with 0ms latency impact',
+    prompt:
+      'Deploy an API gateway named "canary-api" on domain "mysite.com" with subdomain "gateway" with upstream 1 https://prod.internal.com (weight 100) and upstream 2 https://staging.internal.com (weight 0). Route primary traffic to upstream 1, and enable asynchronous traffic shadowing mirroring 15% of live requests to upstream 2 with 0ms latency impact.',
+  },
+  {
+    category: 'gateway',
+    badge: 'Gateway: Mock Sandbox',
+    badgeColor: 'var(--accent)',
+    title: 'Synthetic Edge Mocks & Sandbox API',
+    summary: 'Serve mock endpoints at edge for instant frontend testing without backend',
+    prompt:
+      'Deploy an API gateway named "mock-sandbox" on domain "mysite.com" with subdomain "sandbox" and upstream https://dev-null.internal.com. Add mock route GET "/mock/user" returning status 200 with JSON {"id": 1, "status": "active"}, mock route POST "/mock/checkout" returning status 201 with JSON {"orderId": "mock-123"}, and enable CORS for *.',
+  },
+  {
+    category: 'gateway',
+    badge: 'Gateway: Public API',
+    badgeColor: 'var(--orange)',
+    title: 'Public Developer API with Query Caching',
+    summary: 'Normalize search queries, strip tracking tags & enforce 60 req/min per IP',
+    prompt:
+      'Create an API gateway named "dev-api" on domain "mysite.com" with subdomain "public" and upstream https://api-read.internal.com. Enable semantic caching on "/v1/search/*" and "/v1/catalog/*" (TTL 600s) with query parameter sorting and stripping of utm_* and fbclid, rate limit 60 req/min, and enable CORS.',
+  },
+  {
+    category: 'gateway',
+    badge: 'Gateway: Full Stack',
+    badgeColor: 'var(--violet)',
+    title: 'Enterprise All-in-One Shielded Gateway',
+    summary: 'RBAC Auth + Identity Rate Limit + BFF Fan-Out + Semantic Cache + Masking',
+    prompt:
+      'Deploy an API gateway named "enterprise-gw" on domain "mysite.com" with subdomain "api" and upstreams https://core.internal.com and https://analytics.internal.com. Enable JWT auth with RBAC (admin role on "/admin/*"), identity rate limiting by "X-API-Key" (200 req/min), BFF aggregation on "/overview", semantic caching on "/public/*" (TTL 300s), and response body shaping stripping "secret_key, token".',
   },
 ];
 
 export function AiPromptCard({ value, onChange, onSubmit, disabled, isPro }: AiPromptCardProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isFocused, setIsFocused] = useState(false);
+  const [activeTab, setActiveTab] = useState<'all' | 'lb' | 'gateway'>('all');
+  const [appliedTitle, setAppliedTitle] = useState<string | null>(null);
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -187,6 +325,20 @@ export function AiPromptCard({ value, onChange, onSubmit, disabled, isPro }: AiP
   }, [value]);
 
   const canSubmit = !disabled && value.trim().length > 0;
+
+  const handleApplyTemplate = (tpl: ArchitectureTemplate) => {
+    if (disabled) return;
+    onChange(tpl.prompt);
+    setAppliedTitle(tpl.title);
+    setTimeout(() => setAppliedTitle(null), 1800);
+    textareaRef.current?.focus();
+  };
+
+  const filteredTemplates = ARCHITECTURE_TEMPLATES.filter((tpl) => {
+    if (activeTab === 'lb') return tpl.category === 'lb';
+    if (activeTab === 'gateway') return tpl.category === 'gateway';
+    return true;
+  });
 
   if (!isPro) {
     return (
@@ -204,7 +356,7 @@ export function AiPromptCard({ value, onChange, onSubmit, disabled, isPro }: AiP
             <Icons.Lock size={15} style={{ color: 'var(--text-3)' }} />
           </div>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>Autonomous Edge Copilot</div>
+            <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>Autonomous Edge Ai</div>
             <div style={{ fontSize: 12, color: 'var(--text-3)' }}>Natural language architecture synthesis is available on Pro</div>
           </div>
         </div>
@@ -216,152 +368,280 @@ export function AiPromptCard({ value, onChange, onSubmit, disabled, isPro }: AiP
   }
 
   return (
-    <div
-      className="feature-card animate-slide-up"
-      style={{
-        padding: 'clamp(18px, 3vw, 24px)',
-        marginBottom: 'clamp(20px, 3vw, 28px)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 14,
-        background: 'var(--bg-1)',
-        border: '1px solid var(--line-2)',
-        boxShadow: 'var(--shadow)',
-      }}
-    >
-      {/* Precision Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            padding: '3px 9px', borderRadius: 999,
-            background: 'var(--bg-2)', border: '1px solid var(--line)',
-            fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-2)',
-          }}>
-            <span style={{
-              width: 6, height: 6, borderRadius: '50%',
-              background: disabled ? 'var(--accent)' : 'var(--green)',
-              display: 'inline-block',
-            }} className={disabled ? 'animate-pulse' : ''} />
-            <span style={{ fontWeight: 600, letterSpacing: '0.04em' }}>EDGE COPILOT</span>
-          </div>
-          <span style={{ fontSize: 12, color: 'var(--text-3)' }} className="hide-sm">
-            Autonomous multi-model synthesis
-          </span>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className="hide-sm" style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>
-            Press
-          </span>
-          <kbd className="mono" style={{
-            fontSize: 10, padding: '2px 6px', borderRadius: 4,
-            background: 'var(--bg-2)', border: '1px solid var(--line)', color: 'var(--text-3)',
-          }}>
-            ↵ Enter
-          </kbd>
-        </div>
-      </div>
-
-      {/* Input Container */}
-      <div style={{
-        position: 'relative',
-        borderRadius: 'var(--radius-lg)',
-        border: `1px solid ${isFocused ? 'var(--accent)' : 'var(--line)'}`,
-        background: 'var(--bg)',
-        boxShadow: isFocused ? '0 0 0 3px var(--accent-dim)' : 'inset 0 1px 2px rgba(0,0,0,0.02)',
-        transition: 'border-color 150ms ease, box-shadow 150ms ease',
-        padding: '12px 14px',
-      }}>
-        <textarea
-          ref={textareaRef}
-          rows={3}
-          maxLength={MAX_PROMPT_LENGTH}
-          value={value}
-          disabled={disabled}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
-          onChange={(e) => onChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              if (!disabled && value.trim().length > 0) onSubmit();
-            }
-          }}
-          placeholder="Describe your desired fleet topology in plain English... e.g. 'Deploy an API gateway on api.mysite.com with JWT auth, rate limiting at 100 req/min, and 2 upstream microservices'"
-          style={{
-            width: '100%',
-            background: 'transparent',
-            border: 'none',
-            outline: 'none',
-            resize: 'none',
-            minHeight: 64,
-            lineHeight: 1.6,
-            fontSize: 14,
-            color: 'var(--text)',
-          }}
-        />
-
-        {/* Quick Starters */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', paddingTop: 8, borderTop: '1px solid var(--line)' }}>
-          <span style={{ fontSize: 11, color: 'var(--text-3)', marginRight: 2, fontFamily: 'var(--mono)' }}>Quick starters:</span>
-          {PROMPT_RECIPES.map((recipe) => (
-            <button
-              key={recipe.label}
-              type="button"
-              disabled={disabled}
-              onClick={() => {
-                onChange(recipe.prompt);
-                textareaRef.current?.focus();
-              }}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 5,
-                padding: '3px 9px', borderRadius: 999,
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 460px), 1fr))',
+      gap: 'clamp(14px, 2vw, 20px)',
+      marginBottom: 'clamp(20px, 3vw, 28px)',
+      alignItems: 'stretch',
+    }}>
+      {/* Left Column: Natural Language Input Studio */}
+      <div
+        className="feature-card animate-slide-up"
+        style={{
+          padding: 'clamp(18px, 2.5vw, 22px)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+          background: 'var(--bg-1)',
+          border: '1px solid var(--line-2)',
+          boxShadow: 'var(--shadow)',
+          justifyContent: 'space-between',
+        }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '3px 8px', borderRadius: 999,
                 background: 'var(--bg-2)', border: '1px solid var(--line)',
-                fontSize: 11, color: 'var(--text-2)', cursor: 'pointer',
-                transition: 'background 120ms, border-color 120ms, color 120ms',
+                fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-2)',
+              }}>
+                <span style={{
+                  width: 6, height: 6, borderRadius: '50%',
+                  background: disabled ? 'var(--accent)' : 'var(--green)',
+                  display: 'inline-block',
+                }} className={disabled ? 'animate-pulse' : ''} />
+                <span style={{ fontWeight: 600, letterSpacing: '0.04em' }}>EDGE Ai</span>
+              </div>
+              <span style={{ fontSize: 11, color: 'var(--text-3)' }} className="hide-sm">
+                Natural Language Studio
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <kbd className="mono" style={{
+                fontSize: 10, padding: '2px 5px', borderRadius: 4,
+                background: 'var(--bg-2)', border: '1px solid var(--line)', color: 'var(--text-3)',
+              }}>
+                ↵ Enter
+              </kbd>
+            </div>
+          </div>
+
+          {/* Textarea Container */}
+          <div style={{
+            position: 'relative',
+            borderRadius: 'var(--radius)',
+            border: `1px solid ${isFocused ? 'var(--accent)' : 'var(--line)'}`,
+            background: 'var(--bg)',
+            boxShadow: isFocused ? '0 0 0 3px var(--accent-dim)' : 'inset 0 1px 2px rgba(0,0,0,0.02)',
+            transition: 'border-color 150ms ease, box-shadow 150ms ease',
+            padding: '10px 12px',
+          }}>
+            <textarea
+              ref={textareaRef}
+              rows={4}
+              maxLength={MAX_PROMPT_LENGTH}
+              value={value}
+              disabled={disabled}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
+              onChange={(e) => onChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  if (!disabled && value.trim().length > 0) onSubmit();
+                }
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'var(--bg-3)';
-                e.currentTarget.style.borderColor = 'var(--line-2)';
-                e.currentTarget.style.color = 'var(--text)';
+              placeholder="Describe your desired fleet in plain English... or select any architecture template on the right to pre-fill a complete production configuration."
+              style={{
+                width: '100%',
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                resize: 'none',
+                minHeight: 110,
+                lineHeight: 1.6,
+                fontSize: 13.5,
+                color: 'var(--text)',
               }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'var(--bg-2)';
-                e.currentTarget.style.borderColor = 'var(--line)';
-                e.currentTarget.style.color = 'var(--text-2)';
-              }}
+            />
+          </div>
+        </div>
+
+        {/* Footer controls */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          gap: 10, flexWrap: 'wrap', paddingTop: 8, borderTop: '1px solid var(--line)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Icons.Shield size={12} style={{ color: 'var(--text-3)' }} />
+            <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
+              Reversible · Confirmed before mutate
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 'auto' }}>
+            <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>
+              {value.length}/{MAX_PROMPT_LENGTH}
+            </span>
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={onSubmit}
+              disabled={!canSubmit}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px' }}
             >
-              <span>{recipe.icon}</span>
-              <span>{recipe.label}</span>
+              <Icons.Zap size={13} />
+              <span>Deploy</span>
+              <span className="mono" style={{ fontSize: 10, opacity: 0.8 }}>↵</span>
             </button>
-          ))}
+          </div>
         </div>
       </div>
 
-      {/* Footer controls */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Icons.Shield size={13} style={{ color: 'var(--text-3)' }} />
-          <span style={{ fontSize: 12, color: 'var(--text-3)' }}>
-            Safe execution · Destructive ops always require approval
-          </span>
+      {/* Right Column: Pre-Configured Templates Card */}
+      <div
+        className="feature-card animate-slide-up"
+        style={{
+          padding: 'clamp(18px, 2.5vw, 22px)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+          background: 'var(--bg-1)',
+          border: '1px solid var(--line-2)',
+          boxShadow: 'var(--shadow)',
+          justifyContent: 'space-between',
+        }}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {/* Header with Filter Tabs */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Icons.Layers size={14} style={{ color: 'var(--accent)' }} />
+              <span className="kicker" style={{ fontSize: 11, color: 'var(--text-2)' }}>ARCHITECTURE TEMPLATES</span>
+            </div>
+
+            {/* Filter Tabs */}
+            <div style={{ display: 'inline-flex', background: 'var(--bg-2)', padding: 2, borderRadius: 6, border: '1px solid var(--line)' }}>
+              <button
+                type="button"
+                onClick={() => setActiveTab('all')}
+                style={{
+                  padding: '3px 8px', borderRadius: 4, fontSize: 11, fontFamily: 'var(--mono)',
+                  background: activeTab === 'all' ? 'var(--bg)' : 'transparent',
+                  color: activeTab === 'all' ? 'var(--text)' : 'var(--text-3)',
+                  boxShadow: activeTab === 'all' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                All (16)
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('lb')}
+                style={{
+                  padding: '3px 8px', borderRadius: 4, fontSize: 11, fontFamily: 'var(--mono)',
+                  background: activeTab === 'lb' ? 'var(--bg)' : 'transparent',
+                  color: activeTab === 'lb' ? 'var(--text)' : 'var(--text-3)',
+                  boxShadow: activeTab === 'lb' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                LB (8)
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('gateway')}
+                style={{
+                  padding: '3px 8px', borderRadius: 4, fontSize: 11, fontFamily: 'var(--mono)',
+                  background: activeTab === 'gateway' ? 'var(--bg)' : 'transparent',
+                  color: activeTab === 'gateway' ? 'var(--text)' : 'var(--text-3)',
+                  boxShadow: activeTab === 'gateway' ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                Gateway (8)
+              </button>
+            </div>
+          </div>
+
+          <div style={{ fontSize: 12, color: 'var(--text-3)' }}>
+            Click any template to auto-fill complete parameters into the input studio:
+          </div>
+
+          {/* Scrollable Templates List */}
+          <div
+            className="no-scrollbar"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+              maxHeight: 200,
+              overflowY: 'auto',
+              paddingRight: 2,
+            }}
+          >
+            {filteredTemplates.map((tpl) => {
+              const isApplied = appliedTitle === tpl.title;
+              return (
+                <div
+                  key={tpl.title}
+                  onClick={() => handleApplyTemplate(tpl)}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: 'var(--radius)',
+                    background: isApplied ? 'var(--accent-dim)' : 'var(--bg)',
+                    border: `1px solid ${isApplied ? 'var(--accent)' : 'var(--line)'}`,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 3,
+                    transition: 'border-color 140ms ease, background 140ms ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isApplied) {
+                      e.currentTarget.style.borderColor = 'var(--line-2)';
+                      e.currentTarget.style.background = 'var(--bg-2)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isApplied) {
+                      e.currentTarget.style.borderColor = 'var(--line)';
+                      e.currentTarget.style.background = 'var(--bg)';
+                    }
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{
+                        fontSize: 10, fontFamily: 'var(--mono)', padding: '1px 6px', borderRadius: 4,
+                        background: 'var(--bg-3)', color: tpl.badgeColor || 'var(--accent)', fontWeight: 600,
+                      }}>
+                        {tpl.badge}
+                      </span>
+                      <span style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--text)' }}>
+                        {tpl.title}
+                      </span>
+                    </div>
+                    {isApplied ? (
+                      <span style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--green)', fontWeight: 600 }}>
+                        Applied ✓
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: 11, color: 'var(--text-3)' }}>
+                        Use ↵
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-3)', lineHeight: 1.4 }}>
+                    {tpl.summary}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 'auto' }}>
-          <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>
-            {value.length}/{MAX_PROMPT_LENGTH}
-          </span>
-          <button
-            className="btn btn-primary btn-sm"
-            onClick={onSubmit}
-            disabled={!canSubmit}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 16px' }}
-          >
-            <Icons.Zap size={13} />
-            <span>Deploy Architecture</span>
-            <span className="mono" style={{ fontSize: 10, opacity: 0.8 }}>↵</span>
-          </button>
+        {/* Templates Card Footer */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          paddingTop: 8, borderTop: '1px solid var(--line)', fontSize: 11, color: 'var(--text-3)',
+        }}>
+          <span>All required schemas & parameters included</span>
+          <span className="mono" style={{ color: 'var(--accent)' }}>16 templates available</span>
         </div>
       </div>
     </div>
