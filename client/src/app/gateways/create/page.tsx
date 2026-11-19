@@ -100,6 +100,79 @@ const FieldBlock = ({ n, title, subtitle, children }: FieldBlockProps) => (
   </div>
 );
 
+function TagListInput({
+  tags,
+  onChange,
+  placeholder,
+}: {
+  tags: string[];
+  onChange: (tags: string[]) => void;
+  placeholder?: string;
+}) {
+  const [input, setInput] = useState('');
+
+  const addTags = (raw: string) => {
+    const parts = raw.split(',').map(s => s.trim()).filter(Boolean);
+    if (!parts.length) return;
+    const next = [...tags];
+    for (const p of parts) {
+      if (!next.includes(p)) next.push(p);
+    }
+    onChange(next);
+    setInput('');
+  };
+
+  return (
+    <div style={{
+      display: 'flex', flexWrap: 'wrap', gap: 6,
+      border: '1px solid var(--line)', borderRadius: 'var(--radius)',
+      padding: '6px 10px', background: 'var(--bg)', minHeight: 38,
+      alignItems: 'center',
+    }}>
+      {tags.map(t => (
+        <div key={t} style={{
+          display: 'flex', alignItems: 'center', gap: 4,
+          background: 'var(--bg-3)', borderRadius: 4, padding: '2px 8px', fontSize: 12,
+        }}>
+          <span>{t}</span>
+          <button
+            type="button"
+            onClick={() => onChange(tags.filter(x => x !== t))}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: 0, lineHeight: 1 }}
+          >
+            ×
+          </button>
+        </div>
+      ))}
+      <input
+        type="text"
+        className="input-mono"
+        value={input}
+        onChange={e => {
+          if (e.target.value.includes(',')) {
+            addTags(e.target.value);
+          } else {
+            setInput(e.target.value);
+          }
+        }}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === 'Tab') {
+            e.preventDefault();
+            if (input.trim()) addTags(input);
+          } else if (e.key === 'Backspace' && !input && tags.length > 0) {
+            onChange(tags.slice(0, -1));
+          }
+        }}
+        onBlur={() => {
+          if (input.trim()) addTags(input);
+        }}
+        placeholder={placeholder || 'Type and press Enter or comma'}
+        style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 12, flex: 1, minWidth: 160 }}
+      />
+    </div>
+  );
+}
+
 export default function CreateGatewayPage() {
   const router = useRouter();
   const { user } = useAuth();
@@ -1036,9 +1109,16 @@ export default function CreateGatewayPage() {
                       <button type="button" className="btn btn-ghost" onClick={() => update('bodyTransforms', form.bodyTransforms.filter((_, j) => j !== i))} style={{ color: 'var(--red)', padding: '4px 8px' }}>✕</button>
                     </div>
                     <div className="field">
-                      <label className="field-label" style={{ fontSize: 11 }}>Strip Fields (comma-separated, e.g. password_hash, ssn, internal_id)</label>
-                      <input className="input input-mono" placeholder="password_hash, ssn" value={bt.stripFields.join(', ')}
-                        onChange={e => { const next = [...form.bodyTransforms]; next[i] = { ...next[i], stripFields: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }; update('bodyTransforms', next); }} />
+                      <label className="field-label" style={{ fontSize: 11 }}>Strip Fields (type field name then press Enter or comma)</label>
+                      <TagListInput
+                        tags={bt.stripFields || []}
+                        onChange={nextTags => {
+                          const next = [...form.bodyTransforms];
+                          next[i] = { ...next[i], stripFields: nextTags };
+                          update('bodyTransforms', next);
+                        }}
+                        placeholder="password_hash, ssn then Enter or comma"
+                      />
                     </div>
                   </div>
                 ))}
@@ -1072,9 +1152,16 @@ export default function CreateGatewayPage() {
                       <button type="button" className="btn btn-ghost" onClick={() => update('schemaRules', form.schemaRules.filter((_, j) => j !== i))} style={{ color: 'var(--red)', padding: '4px 8px' }}>✕</button>
                     </div>
                     <div className="field">
-                      <label className="field-label" style={{ fontSize: 11 }}>Required JSON Keys (comma-separated, e.g. email, amount)</label>
-                      <input className="input input-mono" placeholder="email, amount, customerId" value={sr.requiredFields.join(', ')}
-                        onChange={e => { const next = [...form.schemaRules]; next[i] = { ...next[i], requiredFields: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }; update('schemaRules', next); }} />
+                      <label className="field-label" style={{ fontSize: 11 }}>Required JSON Keys (type key name then press Enter or comma)</label>
+                      <TagListInput
+                        tags={sr.requiredFields || []}
+                        onChange={nextTags => {
+                          const next = [...form.schemaRules];
+                          next[i] = { ...next[i], requiredFields: nextTags };
+                          update('schemaRules', next);
+                        }}
+                        placeholder="email, amount then Enter or comma"
+                      />
                     </div>
                   </div>
                 ))}
