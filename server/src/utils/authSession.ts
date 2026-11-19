@@ -34,7 +34,7 @@ export const toUserPayload = (user: IUser) => {
   const rawPlan = (payment?.plan || 'free') as PlanType;
   const rawExpiresAt = payment?.expiresAt ? new Date(payment.expiresAt) : null;
   const plan: PlanType = resolvePlan(rawPlan, rawExpiresAt);
-  const planExpiresAt = plan === 'free' ? null : rawExpiresAt;
+  const planExpiresAt = plan === 'free' || !rawExpiresAt ? null : rawExpiresAt.toISOString();
   const isSubscribed = plan !== 'free';
   const isPro = plan === 'pro' || plan === 'pro-annual';
 

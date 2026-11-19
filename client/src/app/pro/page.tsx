@@ -171,6 +171,23 @@ const UNIFIED_FEATURE_SPECS: FeatureSpec[] = [
 type PlanType = 'trial' | 'student' | 'pro' | 'student-annual' | 'pro-annual';
 type BillingPeriod = 'monthly' | 'annual';
 
+function formatRemainingTime(targetIso: string): string {
+  const diff = new Date(targetIso).getTime() - Date.now();
+  if (diff <= 0) return 'expired';
+
+  const totalMinutes = Math.floor(diff / (1000 * 60));
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+  const minutes = totalMinutes % 60;
+
+  const parts: string[] = [];
+  if (days > 0) parts.push(`${days} day${days === 1 ? '' : 's'}`);
+  if (hours > 0 || days > 0) parts.push(`${hours} hour${hours === 1 ? '' : 's'}`);
+  parts.push(`${minutes} minute${minutes === 1 ? '' : 's'}`);
+
+  return `${parts.join(' ')} left`;
+}
+
 export default function ProPage() {
   const { user, loading: authLoading, refreshUser } = useAuth();
   const router = useRouter();
@@ -183,10 +200,21 @@ export default function ProPage() {
   const [selectedPlan, setSelectedPlan] = useState<PlanType>('student');
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('monthly');
   const [phone, setPhone] = useState('');
+  const [remainingTime, setRemainingTime] = useState<string>('');
 
   useEffect(() => {
     if (!authLoading && !user) router.push('/login');
   }, [user, authLoading, router]);
+
+  useEffect(() => {
+    if (!user?.planExpiresAt) return;
+    const updateCountdown = () => {
+      setRemainingTime(formatRemainingTime(user.planExpiresAt!));
+    };
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 60000);
+    return () => clearInterval(interval);
+  }, [user?.planExpiresAt]);
 
   const handleNav = (id: string) => {
     if (id === 'overview') router.push('/overview');
@@ -310,7 +338,13 @@ export default function ProPage() {
   const currentPlan = user.plan || 'free';
   const isActive = user.isSubscribed && user.planExpiresAt && new Date(user.planExpiresAt) > new Date();
   const expiryDate = user.planExpiresAt
-    ? new Date(user.planExpiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+    ? new Date(user.planExpiresAt).toLocaleString(undefined, {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
     : null;
   const canTrial = !user.hasEverSubscribed;
 
@@ -491,7 +525,25 @@ export default function ProPage() {
                         Subscription Active
                       </h2>
                       <p style={{ color: 'var(--text-2)', marginTop: 6, fontSize: 13, lineHeight: 1.5 }}>
-                        Active until <strong style={{ color: 'var(--text)' }}>{expiryDate}</strong> — full tenure applies from any future upgrade, remaining days forfeited.
+                        Active until <strong style={{ color: 'var(--text)' }}>{expiryDate}</strong>
+                        {remainingTime && (
+                          <span style={{
+                            marginLeft: 8,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            padding: '2px 8px',
+                            borderRadius: 999,
+                            background: 'rgba(16, 185, 129, 0.08)',
+                            border: '1px solid rgba(16, 185, 129, 0.25)',
+                            fontSize: 11,
+                            fontFamily: 'var(--mono)',
+                            color: '#10b981',
+                            fontWeight: 600,
+                          }}>
+                            <Icons.History size={11} stroke="#10b981" /> {remainingTime}
+                          </span>
+                        )} — full tenure applies from any future upgrade, remaining days forfeited.
                       </p>
                     </div>
 
