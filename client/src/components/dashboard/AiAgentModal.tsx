@@ -150,8 +150,32 @@ interface AiPromptCardProps {
   isPro?: boolean;
 }
 
+const PROMPT_RECIPES = [
+  {
+    label: 'Failover Cluster',
+    icon: '⚡',
+    prompt: 'Deploy a high-availability failover load balancer named prod-failover on mysite.com with primary origin https://primary.mysite.com (weight 100) and backup https://backup.mysite.com (weight 0), active health checks every 15s.',
+  },
+  {
+    label: 'API Gateway Shield',
+    icon: '🛡️',
+    prompt: 'Create an API gateway on api.mysite.com with upstreams https://srv1.internal.com and https://srv2.internal.com, JWT verification with RBAC, and rate limit 120 req/min keyed by X-API-Key.',
+  },
+  {
+    label: 'Geo-Steering Fleet',
+    icon: '🌐',
+    prompt: 'Configure geo-steering on edge.mysite.com routing US visitors to https://us-origin.mysite.com and EU visitors to https://eu-origin.mysite.com with Smart Placement enabled.',
+  },
+  {
+    label: 'Canary 90/10 Split',
+    icon: '🔄',
+    prompt: 'Set up canary routing on app.mysite.com with 90% production traffic to https://prod.internal.com and 10% canary traffic to https://staging.internal.com with response caching.',
+  },
+];
+
 export function AiPromptCard({ value, onChange, onSubmit, disabled, isPro }: AiPromptCardProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [isFocused, setIsFocused] = useState(false);
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -159,7 +183,6 @@ export function AiPromptCard({ value, onChange, onSubmit, disabled, isPro }: AiP
     el.style.height = 'auto';
     const next = Math.min(el.scrollHeight, MAX_PROMPT_HEIGHT);
     el.style.height = `${next}px`;
-    // Only scroll once the box has stopped growing, otherwise the bar shows on an empty prompt.
     el.style.overflowY = el.scrollHeight > MAX_PROMPT_HEIGHT ? 'auto' : 'hidden';
   }, [value]);
 
@@ -168,14 +191,22 @@ export function AiPromptCard({ value, onChange, onSubmit, disabled, isPro }: AiP
   if (!isPro) {
     return (
       <div className="feature-card" style={{
-        padding: 'clamp(16px, 2.5vw, 24px)',
-        marginBottom: 'clamp(16px, 3vw, 24px)',
+        padding: 'clamp(18px, 3vw, 24px)',
+        marginBottom: 'clamp(20px, 3vw, 28px)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         gap: 16, flexWrap: 'wrap',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Icons.Lock size={15} style={{ color: 'var(--text-3)' }} />
-          <span style={{ fontSize: 13, color: 'var(--text-2)' }}>The AI Agent is a Pro feature</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: 8,
+            background: 'var(--bg-3)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Icons.Lock size={15} style={{ color: 'var(--text-3)' }} />
+          </div>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>Autonomous Edge Copilot</div>
+            <div style={{ fontSize: 12, color: 'var(--text-3)' }}>Natural language architecture synthesis is available on Pro</div>
+          </div>
         </div>
         <Link href="/pro">
           <button className="btn btn-primary btn-sm">Upgrade to Pro</button>
@@ -188,56 +219,150 @@ export function AiPromptCard({ value, onChange, onSubmit, disabled, isPro }: AiP
     <div
       className="feature-card animate-slide-up"
       style={{
-        padding: 'clamp(16px, 2.5vw, 24px)',
-        marginBottom: 'clamp(16px, 3vw, 24px)',
+        padding: 'clamp(18px, 3vw, 24px)',
+        marginBottom: 'clamp(20px, 3vw, 28px)',
         display: 'flex',
         flexDirection: 'column',
-        gap: 'clamp(10px, 2vw, 14px)',
+        gap: 14,
+        background: 'var(--bg-1)',
+        border: '1px solid var(--line-2)',
+        boxShadow: 'var(--shadow)',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <Icons.Zap size={15} style={{ color: 'var(--accent)' }} />
-        <span className="kicker" style={{ fontSize: 'clamp(9px, 2vw, 11px)' }}>Describe it, we deploy it</span>
+      {/* Precision Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '3px 9px', borderRadius: 999,
+            background: 'var(--bg-2)', border: '1px solid var(--line)',
+            fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-2)',
+          }}>
+            <span style={{
+              width: 6, height: 6, borderRadius: '50%',
+              background: disabled ? 'var(--accent)' : 'var(--green)',
+              display: 'inline-block',
+            }} className={disabled ? 'animate-pulse' : ''} />
+            <span style={{ fontWeight: 600, letterSpacing: '0.04em' }}>EDGE COPILOT</span>
+          </div>
+          <span style={{ fontSize: 12, color: 'var(--text-3)' }} className="hide-sm">
+            Autonomous multi-model synthesis
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className="hide-sm" style={{ fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>
+            Press
+          </span>
+          <kbd className="mono" style={{
+            fontSize: 10, padding: '2px 6px', borderRadius: 4,
+            background: 'var(--bg-2)', border: '1px solid var(--line)', color: 'var(--text-3)',
+          }}>
+            ↵ Enter
+          </kbd>
+        </div>
       </div>
 
-      <textarea
-        ref={textareaRef}
-        className="textarea"
-        rows={3}
-        maxLength={MAX_PROMPT_LENGTH}
-        value={value}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            if (!disabled && value.trim().length > 0) onSubmit();
-          }
-        }}
-        placeholder="Create a round-robin load balancer named api-edge on mysite.com with origins https://a.mysite.com and https://b.mysite.com, enable CORS for https://app.mysite.com, rate limit 100 req/min globally and 10 req/min on /login/*, path route /api/* to origin 2, enable health checks every 30s, and use smart placement… (Enter to send, Shift+Enter for newline)"
-        style={{
-          width: '100%',
-          resize: 'none',
-          minHeight: 84,
-          lineHeight: 1.6,
-          fontSize: 'clamp(13px, 2vw, 14px)',
-        }}
-      />
+      {/* Input Container */}
+      <div style={{
+        position: 'relative',
+        borderRadius: 'var(--radius-lg)',
+        border: `1px solid ${isFocused ? 'var(--accent)' : 'var(--line)'}`,
+        background: 'var(--bg)',
+        boxShadow: isFocused ? '0 0 0 3px var(--accent-dim)' : 'inset 0 1px 2px rgba(0,0,0,0.02)',
+        transition: 'border-color 150ms ease, box-shadow 150ms ease',
+        padding: '12px 14px',
+      }}>
+        <textarea
+          ref={textareaRef}
+          rows={3}
+          maxLength={MAX_PROMPT_LENGTH}
+          value={value}
+          disabled={disabled}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              if (!disabled && value.trim().length > 0) onSubmit();
+            }
+          }}
+          placeholder="Describe your desired fleet topology in plain English... e.g. 'Deploy an API gateway on api.mysite.com with JWT auth, rate limiting at 100 req/min, and 2 upstream microservices'"
+          style={{
+            width: '100%',
+            background: 'transparent',
+            border: 'none',
+            outline: 'none',
+            resize: 'none',
+            minHeight: 64,
+            lineHeight: 1.6,
+            fontSize: 14,
+            color: 'var(--text)',
+          }}
+        />
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <span className="hide-sm" style={{ fontSize: 12, color: 'var(--text-3)' }}>
-          Create deploys instantly · destructive steps are confirmed with you first.
-        </span>
-        <div style={{ flex: 1, minWidth: 0 }} />
-        <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>
-          {value.length}/{MAX_PROMPT_LENGTH}
-        </span>
-        <button className="btn btn-primary btn-sm" onClick={onSubmit} disabled={!canSubmit}
-          style={{ flex: '1 1 auto', justifyContent: 'center' }}>
-          <Icons.Zap size={14} />
-          <span className="hide-sm">Execute it</span>
-          <span className="show-sm">Execute</span>
-        </button>
+        {/* Quick Starters */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', paddingTop: 8, borderTop: '1px solid var(--line)' }}>
+          <span style={{ fontSize: 11, color: 'var(--text-3)', marginRight: 2, fontFamily: 'var(--mono)' }}>Quick starters:</span>
+          {PROMPT_RECIPES.map((recipe) => (
+            <button
+              key={recipe.label}
+              type="button"
+              disabled={disabled}
+              onClick={() => {
+                onChange(recipe.prompt);
+                textareaRef.current?.focus();
+              }}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                padding: '3px 9px', borderRadius: 999,
+                background: 'var(--bg-2)', border: '1px solid var(--line)',
+                fontSize: 11, color: 'var(--text-2)', cursor: 'pointer',
+                transition: 'background 120ms, border-color 120ms, color 120ms',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--bg-3)';
+                e.currentTarget.style.borderColor = 'var(--line-2)';
+                e.currentTarget.style.color = 'var(--text)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'var(--bg-2)';
+                e.currentTarget.style.borderColor = 'var(--line)';
+                e.currentTarget.style.color = 'var(--text-2)';
+              }}
+            >
+              <span>{recipe.icon}</span>
+              <span>{recipe.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Footer controls */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Icons.Shield size={13} style={{ color: 'var(--text-3)' }} />
+          <span style={{ fontSize: 12, color: 'var(--text-3)' }}>
+            Safe execution · Destructive ops always require approval
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 'auto' }}>
+          <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>
+            {value.length}/{MAX_PROMPT_LENGTH}
+          </span>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={onSubmit}
+            disabled={!canSubmit}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 16px' }}
+          >
+            <Icons.Zap size={13} />
+            <span>Deploy Architecture</span>
+            <span className="mono" style={{ fontSize: 10, opacity: 0.8 }}>↵</span>
+          </button>
+        </div>
       </div>
     </div>
   );
