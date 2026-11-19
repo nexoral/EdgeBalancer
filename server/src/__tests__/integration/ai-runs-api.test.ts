@@ -204,9 +204,9 @@ describe('GET /api/ai/runs/:id', () => {
     const body = res.json();
     expect(body.success).toBe(true);
     expect(body.data.run.prompt).toBe('create a loadbalancer named test with origin https://example.com');
-    expect(body.data.run.finalModel).toBe('nvidia/nemotron:free');
+    expect(body.data.run.finalModel).toBeUndefined();
+    expect(body.data.run.modelsUsed).toBeUndefined();
     expect(body.data.run.outcome).toBe('success');
-    expect(body.data.run.modelsUsed).toHaveLength(1);
     expect(body.data.run.toolCalls).toHaveLength(1);
     expect(body.data.run.toolCalls[0].args).toEqual({
       name: 'test',

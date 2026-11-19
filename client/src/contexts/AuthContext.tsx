@@ -69,6 +69,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkAuth();
   }, []);
 
+  useEffect(() => {
+    if (!user?.planExpiresAt || user.plan === 'free') return;
+
+    const checkExpiry = () => {
+      const expiresAt = new Date(user.planExpiresAt!).getTime();
+      if (Date.now() >= expiresAt) {
+        setUser((prev) =>
+          prev
+            ? {
+                ...prev,
+                plan: 'free',
+                isSubscribed: false,
+                isPro: false,
+                planExpiresAt: null,
+              }
+            : null
+        );
+        api.getCurrentUser().then((res) => {
+          if (res.success && res.data?.user) {
+            setUser(res.data.user);
+          }
+        }).catch(() => {});
+      }
+    };
+
+    checkExpiry();
+    const timer = setInterval(checkExpiry, 5000);
+    return () => clearInterval(timer);
+  }, [user?.planExpiresAt, user?.plan]);
+
   const loginWithProvider = async (provider: FirebaseAuthProvider): Promise<TwoFactorChallenge> => {
     const auth = getFirebaseAuth();
 

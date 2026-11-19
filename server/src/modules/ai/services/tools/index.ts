@@ -2,6 +2,7 @@ import type { StructuredToolInterface } from '@langchain/core/tools';
 import type { ToolContext } from './types';
 import { collectLbTools } from './lb';
 import { collectGatewayTools } from './gateway';
+import { searchKnowledgeBaseTool } from './search-knowledge-base.tool';
 
 /** Loading one of these is the model stating it means to change something. */
 export const MUTATING_TOOL_NAMES = [
@@ -18,5 +19,5 @@ export const MUTATING_TOOL_NAMES = [
 ];
 
 export function collectDomainTools(ctx: ToolContext): StructuredToolInterface[] {
-  return [...collectLbTools(ctx), ...collectGatewayTools(ctx)];
+  return [...collectLbTools(ctx), ...collectGatewayTools(ctx), searchKnowledgeBaseTool(ctx)];
 }

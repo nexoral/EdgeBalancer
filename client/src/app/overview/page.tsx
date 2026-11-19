@@ -177,14 +177,16 @@ export default function OverviewPage() {
           <Topbar
             crumbs={['Overview']}
             title="Overview"
-            subtitle="Describe what you need, and see your fleet at a glance"
+            subtitle="Autonomous edge infrastructure orchestration & real-time fleet health"
             actions={
-              <button className="btn btn-ghost btn-sm" onClick={fetchLoadBalancers}>
-                <Icons.Refresh size={14} /> <span className="hide-sm">Refresh</span>
+              <button className="btn btn-ghost btn-sm" onClick={fetchLoadBalancers} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Icons.Refresh size={13} />
+                <span className="hide-sm">Refresh Fleet</span>
               </button>
             }
           />
-          <div style={{ padding: 'clamp(16px, 4vw, 32px)', overflow: 'auto', flex: 1 }}>
+          <div style={{ padding: 'clamp(16px, 3.5vw, 32px)', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 'clamp(20px, 3vw, 28px)' }}>
+            {/* AI Agent Studio Card */}
             <AiPromptCard
               value={aiPrompt}
               onChange={setAiPrompt}
@@ -193,48 +195,323 @@ export default function OverviewPage() {
               isPro={user?.isPro}
             />
 
-            {/* Summary — LBs */}
-            <div className="dash-stats" style={{
-              gap: 'clamp(12px, 2vw, 16px)', marginBottom: 'clamp(12px, 2vw, 16px)',
-            }}>
-              {[
-                { l: 'Active balancers', v: loadBalancers.filter(b => b.status === 'active').length, sub: `of ${loadBalancers.length} total` },
-                { l: 'Origins total', v: loadBalancers.reduce((a, b) => a + (b.originCount || 0), 0), sub: 'all checks passing', color: 'var(--green)' },
-              ].map((s, i) => (
-                <div
-                  key={i}
-                  className="feature-card animate-slide-up"
-                  style={{ padding: 'clamp(16px, 2vw, 20px)', animationDelay: `${i * 0.08}s` }}
-                >
-                  <div className="kicker" style={{ fontSize: 'clamp(9px, 2vw, 11px)' }}>{s.l}</div>
-                  <div className="mono" style={{ fontSize: 'clamp(20px, 3vw, 24px)', marginTop: 8, letterSpacing: '-0.02em', color: s.color || 'var(--text)' }}>
-                    {s.v}
-                  </div>
-                  <div style={{ fontSize: 'clamp(11px, 1vw, 12px)', color: 'var(--text-3)', marginTop: 4 }}>{s.sub}</div>
+            {/* Unified 4-Column Mission Control Fleet Metrics */}
+            <div>
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                marginBottom: 12, padding: '0 2px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span className="kicker" style={{ fontSize: 11, color: 'var(--text-3)' }}>FLEET TELEMETRY</span>
+                  <span style={{
+                    fontSize: 10, padding: '1px 6px', borderRadius: 4,
+                    background: 'var(--bg-3)', color: 'var(--text-2)', fontFamily: 'var(--mono)',
+                  }}>
+                    GLOBAL EDGE
+                  </span>
                 </div>
-              ))}
+              </div>
+
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))',
+                gap: 'clamp(12px, 2vw, 16px)',
+              }}>
+                {/* Metric 1: Active Balancers */}
+                <div
+                  onClick={() => router.push('/loadbalancers')}
+                  className="feature-card feature-card-lift animate-slide-up"
+                  style={{
+                    padding: 'clamp(16px, 2.5vw, 20px)', cursor: 'pointer',
+                    display: 'flex', flexDirection: 'column', gap: 10,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{
+                        width: 28, height: 28, borderRadius: 6,
+                        background: 'var(--accent-dim)', color: 'var(--accent)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <Icons.Flow size={15} />
+                      </div>
+                      <span className="kicker" style={{ fontSize: 10 }}>BALANCERS</span>
+                    </div>
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 5,
+                      fontSize: 11, fontFamily: 'var(--mono)', color: loadBalancers.some(b => b.status === 'active') ? 'var(--green)' : 'var(--text-3)',
+                    }}>
+                      <span style={{
+                        width: 6, height: 6, borderRadius: '50%',
+                        background: loadBalancers.some(b => b.status === 'active') ? 'var(--green)' : 'var(--text-3)',
+                      }} />
+                      {loadBalancers.filter(b => b.status === 'active').length} live
+                    </span>
+                  </div>
+
+                  <div className="mono" style={{ fontSize: 'clamp(22px, 3.5vw, 28px)', fontWeight: 600, letterSpacing: '-0.03em', color: 'var(--text)', marginTop: 4 }}>
+                    {loadBalancers.filter(b => b.status === 'active').length}
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-3)', marginTop: 'auto' }}>
+                    <span>of {loadBalancers.length} configured</span>
+                    <span style={{ color: 'var(--accent)', fontSize: 11, fontWeight: 500 }}>Manage →</span>
+                  </div>
+                </div>
+
+                {/* Metric 2: Origins Total */}
+                <div
+                  onClick={() => router.push('/loadbalancers')}
+                  className="feature-card feature-card-lift animate-slide-up"
+                  style={{
+                    padding: 'clamp(16px, 2.5vw, 20px)', cursor: 'pointer',
+                    display: 'flex', flexDirection: 'column', gap: 10,
+                    animationDelay: '0.06s',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{
+                        width: 28, height: 28, borderRadius: 6,
+                        background: 'var(--bg-3)', color: 'var(--text-2)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <Icons.Server size={15} />
+                      </div>
+                      <span className="kicker" style={{ fontSize: 10 }}>ORIGIN NODES</span>
+                    </div>
+                    <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--green)' }}>
+                      probed
+                    </span>
+                  </div>
+
+                  <div className="mono" style={{ fontSize: 'clamp(22px, 3.5vw, 28px)', fontWeight: 600, letterSpacing: '-0.03em', color: 'var(--green)', marginTop: 4 }}>
+                    {loadBalancers.reduce((a, b) => a + (b.originCount || 0), 0)}
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-3)', marginTop: 'auto' }}>
+                    <span>health probes passing</span>
+                    <span style={{ color: 'var(--text-3)', fontSize: 11 }}>View topology →</span>
+                  </div>
+                </div>
+
+                {/* Metric 3: Active Gateways */}
+                <div
+                  onClick={() => router.push('/gateways')}
+                  className="feature-card feature-card-lift animate-slide-up"
+                  style={{
+                    padding: 'clamp(16px, 2.5vw, 20px)', cursor: 'pointer',
+                    display: 'flex', flexDirection: 'column', gap: 10,
+                    animationDelay: '0.12s',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{
+                        width: 28, height: 28, borderRadius: 6,
+                        background: 'var(--accent-dim)', color: 'var(--accent)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <Icons.Shield size={15} />
+                      </div>
+                      <span className="kicker" style={{ fontSize: 10 }}>API GATEWAYS</span>
+                    </div>
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 5,
+                      fontSize: 11, fontFamily: 'var(--mono)', color: gateways.some(g => g.status === 'active') ? 'var(--green)' : 'var(--text-3)',
+                    }}>
+                      <span style={{
+                        width: 6, height: 6, borderRadius: '50%',
+                        background: gateways.some(g => g.status === 'active') ? 'var(--green)' : 'var(--text-3)',
+                      }} />
+                      {gateways.filter(g => g.status === 'active').length} live
+                    </span>
+                  </div>
+
+                  <div className="mono" style={{ fontSize: 'clamp(22px, 3.5vw, 28px)', fontWeight: 600, letterSpacing: '-0.03em', color: 'var(--text)', marginTop: 4 }}>
+                    {gateways.filter(g => g.status === 'active').length}
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-3)', marginTop: 'auto' }}>
+                    <span>of {gateways.length} configured</span>
+                    <span style={{ color: 'var(--accent)', fontSize: 11, fontWeight: 500 }}>Manage →</span>
+                  </div>
+                </div>
+
+                {/* Metric 4: Upstreams Total */}
+                <div
+                  onClick={() => router.push('/gateways')}
+                  className="feature-card feature-card-lift animate-slide-up"
+                  style={{
+                    padding: 'clamp(16px, 2.5vw, 20px)', cursor: 'pointer',
+                    display: 'flex', flexDirection: 'column', gap: 10,
+                    animationDelay: '0.18s',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{
+                        width: 28, height: 28, borderRadius: 6,
+                        background: 'var(--bg-3)', color: 'var(--text-2)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <Icons.Layers size={15} />
+                      </div>
+                      <span className="kicker" style={{ fontSize: 10 }}>UPSTREAMS</span>
+                    </div>
+                    <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--green)' }}>
+                      ready
+                    </span>
+                  </div>
+
+                  <div className="mono" style={{ fontSize: 'clamp(22px, 3.5vw, 28px)', fontWeight: 600, letterSpacing: '-0.03em', color: 'var(--green)', marginTop: 4 }}>
+                    {gateways.reduce((a, g) => a + (g.upstreams?.length || 0), 0)}
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-3)', marginTop: 'auto' }}>
+                    <span>BFF & microservices</span>
+                    <span style={{ color: 'var(--text-3)', fontSize: 11 }}>View routes →</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* Summary — Gateways */}
-            <div className="dash-stats" style={{
-              gap: 'clamp(12px, 2vw, 16px)', marginBottom: 'clamp(20px, 4vw, 32px)',
-            }}>
-              {[
-                { l: 'Active gateways', v: gateways.filter(g => g.status === 'active').length, sub: `of ${gateways.length} total` },
-                { l: 'Upstreams total', v: gateways.reduce((a, g) => a + (g.upstreams?.length || 0), 0), sub: 'all routes ready', color: 'var(--green)' },
-              ].map((s, i) => (
+            {/* Architecture Launchpad */}
+            <div>
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                marginBottom: 12, padding: '0 2px',
+              }}>
+                <span className="kicker" style={{ fontSize: 11, color: 'var(--text-3)' }}>QUICK LAUNCHPAD</span>
+              </div>
+
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))',
+                gap: 'clamp(12px, 2vw, 16px)',
+              }}>
+                {/* Launchpad 1: Load Balancer */}
                 <div
-                  key={i}
-                  className="feature-card animate-slide-up"
-                  style={{ padding: 'clamp(16px, 2vw, 20px)', animationDelay: `${(i + 2) * 0.08}s` }}
+                  className="feature-card feature-card-lift animate-slide-up"
+                  style={{
+                    padding: 'clamp(18px, 2.5vw, 22px)',
+                    display: 'flex', flexDirection: 'column', gap: 12,
+                    justifyContent: 'space-between',
+                  }}
                 >
-                  <div className="kicker" style={{ fontSize: 'clamp(9px, 2vw, 11px)' }}>{s.l}</div>
-                  <div className="mono" style={{ fontSize: 'clamp(20px, 3vw, 24px)', marginTop: 8, letterSpacing: '-0.02em', color: s.color || 'var(--text)' }}>
-                    {s.v}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{
+                        width: 32, height: 32, borderRadius: 8,
+                        background: 'var(--accent-dim)', color: 'var(--accent)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <Icons.Flow size={16} />
+                      </div>
+                      <h4 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Traffic Balancers</h4>
+                    </div>
+                    <p style={{ margin: 0, fontSize: 13, color: 'var(--text-3)', lineHeight: 1.55 }}>
+                      Deploy high-performance round-robin, geo-steering, or failover load balancing across your multi-cloud origin nodes with sub-millisecond edge failover.
+                    </p>
                   </div>
-                  <div style={{ fontSize: 'clamp(11px, 1vw, 12px)', color: 'var(--text-3)', marginTop: 4 }}>{s.sub}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                    <button
+                      className="btn btn-dark btn-sm"
+                      onClick={() => router.push('/loadbalancers/create')}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                    >
+                      <Icons.Plus size={13} />
+                      <span>New Balancer</span>
+                    </button>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => router.push('/loadbalancers')}
+                    >
+                      View All
+                    </button>
+                  </div>
                 </div>
-              ))}
+
+                {/* Launchpad 2: API Gateway */}
+                <div
+                  className="feature-card feature-card-lift animate-slide-up"
+                  style={{
+                    padding: 'clamp(18px, 2.5vw, 22px)',
+                    display: 'flex', flexDirection: 'column', gap: 12,
+                    justifyContent: 'space-between',
+                    animationDelay: '0.08s',
+                  }}
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{
+                        width: 32, height: 32, borderRadius: 8,
+                        background: 'var(--accent-dim)', color: 'var(--accent)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <Icons.Shield size={16} />
+                      </div>
+                      <h4 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Edge API Gateways</h4>
+                    </div>
+                    <p style={{ margin: 0, fontSize: 13, color: 'var(--text-3)', lineHeight: 1.55 }}>
+                      Shield backend microservices with route-level RBAC, identity rate limiting (API key / JWT), BFF fan-out composition, and semantic edge caching.
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                    <button
+                      className="btn btn-dark btn-sm"
+                      onClick={() => router.push('/gateways/create')}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                    >
+                      <Icons.Plus size={13} />
+                      <span>New Gateway</span>
+                    </button>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => router.push('/gateways')}
+                    >
+                      View All
+                    </button>
+                  </div>
+                </div>
+
+                {/* Launchpad 3: AI Copilot Runs */}
+                <div
+                  className="feature-card feature-card-lift animate-slide-up"
+                  style={{
+                    padding: 'clamp(18px, 2.5vw, 22px)',
+                    display: 'flex', flexDirection: 'column', gap: 12,
+                    justifyContent: 'space-between',
+                    animationDelay: '0.16s',
+                  }}
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{
+                        width: 32, height: 32, borderRadius: 8,
+                        background: 'var(--bg-3)', color: 'var(--text-2)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <Icons.History size={16} />
+                      </div>
+                      <h4 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Agent Execution Traces</h4>
+                    </div>
+                    <p style={{ margin: 0, fontSize: 13, color: 'var(--text-3)', lineHeight: 1.55 }}>
+                      Inspect full conversation history, automated tool calls, rollback safety checks, and token compaction metrics across all autonomous deployments.
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => router.push('/ai-runs')}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                    >
+                      <Icons.History size={13} />
+                      <span>Explore Run History →</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </main>

@@ -1,6 +1,6 @@
 {
   "name": "server",
-  "version": "5.13.52",
+  "version": "6.14.53",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -23,6 +23,7 @@
     "@modelcontextprotocol/node": "^2.0.0",
     "@modelcontextprotocol/server": "^2.0.0",
     "@simplewebauthn/server": "^13.3.2",
+    "axiodb": "^28.52.11",
     "axios": "^1.14.0",
     "bullmq": "^5.34.0",
     "cashfree-pg": "^6.0.5",

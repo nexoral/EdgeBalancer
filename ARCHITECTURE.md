@@ -1,6 +1,6 @@
 # EdgeBalancer — System Architecture & Anti-Hallucination Context Map
 
-> **Canonical System Reference**: This document serves as the ground-truth architectural blueprint and zero-grep directory index for human engineers and autonomous AI agents. All statements and file paths in this document reflect verified production code.
+> **Canonical System Reference**: This document serves as the ground-truth architectural blueprint and zero-grep directory index for human engineers and AI agents. All statements and file paths in this document reflect verified production code.
 >
 > **AI Ingestion Format**: Uses Anthropic's hybrid XML-Markdown pattern. Semantic XML tags delineate machine-parsable boundaries to eliminate context bleed and ambiguity, while standard Markdown inside provides optimal human readability.
 

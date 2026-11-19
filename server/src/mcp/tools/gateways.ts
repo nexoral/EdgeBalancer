@@ -69,6 +69,7 @@ export function registerGatewayTools(server: McpServer, user: McpUserContext) {
         corsOrigins: z.array(z.string()).optional(),
         rateLimitEnabled: z.boolean().optional(),
         rateLimitRequestsPerMinute: z.number().optional(),
+        placement: z.object({ smartPlacement: z.boolean(), region: z.string().optional() }).optional(),
       },
     },
     async (input) => {
@@ -113,6 +114,7 @@ export function registerGatewayTools(server: McpServer, user: McpUserContext) {
         if (count >= planConfig.maxGateways) return text({ error: `Your ${planConfig.name} plan allows ${planConfig.maxGateways} gateway(s).` });
       }
       if (params.rateLimitEnabled && !planConfig.hasRateLimit) return text({ error: 'Rate limiting requires a Pro subscription.' });
+      if (!planConfig.canEditPlacement) params.placement = { smartPlacement: true };
 
       const result = await createGatewayOrchestrator({
         userId: user.userId,
@@ -141,6 +143,7 @@ export function registerGatewayTools(server: McpServer, user: McpUserContext) {
         corsOrigins: z.array(z.string()).optional(),
         rateLimitEnabled: z.boolean().optional(),
         rateLimitRequestsPerMinute: z.number().optional(),
+        placement: z.object({ smartPlacement: z.boolean(), region: z.string().optional() }).optional(),
       },
     },
     async (input) => {
@@ -166,11 +169,13 @@ export function registerGatewayTools(server: McpServer, user: McpUserContext) {
         rateLimitEnabled: config.rateLimitEnabled ?? existing.rateLimitEnabled,
         rateLimitRequestsPerMinute: config.rateLimitRequestsPerMinute ?? existing.rateLimitRequestsPerMinute,
         pathRateLimits: (existing as any).pathRateLimits ?? [],
+        placement: config.placement ?? existing.placement ?? { smartPlacement: true },
       };
 
       const { plan } = await getUserPlan(user.userId);
       const planConfig = PLANS[plan];
       if (merged.rateLimitEnabled && !planConfig.hasRateLimit) return text({ error: 'Rate limiting requires a Pro subscription.' });
+      if (!planConfig.canEditPlacement) merged.placement = existing.placement ?? { smartPlacement: true };
 
       const result = await updateGatewayOrchestrator({
         userId: user.userId,

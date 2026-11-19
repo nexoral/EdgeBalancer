@@ -40,7 +40,11 @@ export async function pauseGatewayOrchestrator(params: {
       corsEnabled: false,
       rateLimit: undefined,
     });
-    await deployWorker({ accountId, apiToken, scriptName: gateway.scriptName, workerCode: pausedCode, placement: { smartPlacement: true }, rateLimit: undefined });
+    const placement = gateway.placement ? {
+      smartPlacement: gateway.placement.smartPlacement !== false,
+      region: gateway.placement.region || undefined,
+    } : { smartPlacement: true };
+    await deployWorker({ accountId, apiToken, scriptName: gateway.scriptName, workerCode: pausedCode, placement, rateLimit: undefined });
     await pruneWorkerHistory({ accountId, apiToken, scriptName: gateway.scriptName });
   }
 

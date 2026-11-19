@@ -22,7 +22,7 @@ describe('Sidebar', () => {
   it('renders all navigation items', () => {
     render(<Sidebar current="balancers" {...baseProps} />);
     expect(screen.getAllByText('Load Balancers').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('LB History').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Deployment History').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('AI Runs').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Settings').length).toBeGreaterThanOrEqual(1);
   });

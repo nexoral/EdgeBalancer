@@ -167,9 +167,9 @@ export default function SessionsPage() {
         />
         <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <Topbar
-            crumbs={['Overview', 'LB History']}
-            title="LB History"
-            subtitle="Every time you create or edit a load balancer, a snapshot is saved here"
+            crumbs={['Overview', 'Deployment History']}
+            title="Deployment History"
+            subtitle="Immutable snapshot logs and Worker script versions for all load balancers and API gateways"
           />
           <div style={{ padding: 'clamp(16px, 4vw, 32px)', overflow: 'auto', flex: 1 }}>
             {/* Filter row */}
@@ -202,7 +202,7 @@ export default function SessionsPage() {
               <SessionsEmptyState />
             ) : (
               <>
-                <div className="dash-cards">
+                <div className="dash-cards" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))' }}>
                   {sessions.map(session => (
                     <SessionCard
                       key={session._id}

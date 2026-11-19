@@ -35,7 +35,7 @@ export const Sidebar = ({
     { id: 'overview', icon: 'Grid', label: 'Overview' },
     { id: 'balancers', icon: 'Layers', label: 'Load Balancers' },
     { id: 'gateways', icon: 'Globe', label: 'API Gateways' },
-    { id: 'sessions', icon: 'History', label: 'LB History' },
+    { id: 'sessions', icon: 'History', label: 'Deployment History' },
     { id: 'ai-runs', icon: 'Zap', label: 'AI Runs' },
     { id: 'pro', icon: 'Crown', label: 'EdgeBalancer Pro' },
   ];
@@ -103,7 +103,16 @@ export const Sidebar = ({
                   textOverflow: 'ellipsis',
                 }}
               >
-                Until {new Date(planExpiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                Until {new Date(planExpiresAt)
+                  .toLocaleString('en-IN', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true,
+                  })
+                  .replace(/\b(am|pm)\b/g, (m) => m.toUpperCase())}
               </div>
             </div>
           </div>

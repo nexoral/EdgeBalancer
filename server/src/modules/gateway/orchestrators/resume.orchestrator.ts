@@ -61,7 +61,11 @@ export async function resumeGatewayOrchestrator(params: { userId: string; gatewa
     rateLimit, pathRateLimits: workerConfig.pathRateLimits,
   });
 
-  await deployWorker({ accountId, apiToken, scriptName: gateway.scriptName, workerCode, placement: { smartPlacement: true }, rateLimit });
+  const placement = gateway.placement ? {
+    smartPlacement: gateway.placement.smartPlacement !== false,
+    region: gateway.placement.region || undefined,
+  } : { smartPlacement: true };
+  await deployWorker({ accountId, apiToken, scriptName: gateway.scriptName, workerCode, placement, rateLimit });
 
   const hostname = toHostname(gateway.domain, gateway.subdomain);
   if ((gateway as any).pauseMode === 'release-domain') {

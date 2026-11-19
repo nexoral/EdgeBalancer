@@ -10,6 +10,7 @@ import { Icons } from '@/components/shared/Icons';
 import Link from 'next/link';
 import { DeploymentOverlay, DeploymentSuccessModal } from '@/components/loadbalancers/DeploymentExperience';
 import { MultiSelect } from '@/components/ui/MultiSelect';
+import { ALL_CLOUD_REGIONS, REGIONS_BY_PROVIDER } from '@/lib/cloudRegions';
 import toast from 'react-hot-toast';
 
 const STEPS = [
@@ -20,11 +21,14 @@ const STEPS = [
   { n: 5, label: 'JWT Auth' },
   { n: 6, label: 'Header Transforms' },
   { n: 7, label: 'Caching' },
-  { n: 8, label: 'Canary' },
+  { n: 8, label: 'Canary & Shadow' },
   { n: 9, label: 'IP Rules' },
   { n: 10, label: 'Mock Routes' },
   { n: 11, label: 'Rate Limiting' },
   { n: 12, label: 'CORS' },
+  { n: 13, label: 'Body Shaping' },
+  { n: 14, label: 'Schema Validation' },
+  { n: 15, label: 'Placement' },
 ];
 
 const JWT_ALGORITHMS = [
@@ -97,6 +101,79 @@ const FieldBlock = ({ n, title, subtitle, children }: FieldBlockProps) => (
   </div>
 );
 
+function TagListInput({
+  tags,
+  onChange,
+  placeholder,
+}: {
+  tags: string[];
+  onChange: (tags: string[]) => void;
+  placeholder?: string;
+}) {
+  const [input, setInput] = useState('');
+
+  const addTags = (raw: string) => {
+    const parts = raw.split(',').map(s => s.trim()).filter(Boolean);
+    if (!parts.length) return;
+    const next = [...tags];
+    for (const p of parts) {
+      if (!next.includes(p)) next.push(p);
+    }
+    onChange(next);
+    setInput('');
+  };
+
+  return (
+    <div style={{
+      display: 'flex', flexWrap: 'wrap', gap: 6,
+      border: '1px solid var(--line)', borderRadius: 'var(--radius)',
+      padding: '6px 10px', background: 'var(--bg)', minHeight: 38,
+      alignItems: 'center',
+    }}>
+      {tags.map(t => (
+        <div key={t} style={{
+          display: 'flex', alignItems: 'center', gap: 4,
+          background: 'var(--bg-3)', borderRadius: 4, padding: '2px 8px', fontSize: 12,
+        }}>
+          <span>{t}</span>
+          <button
+            type="button"
+            onClick={() => onChange(tags.filter(x => x !== t))}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: 0, lineHeight: 1 }}
+          >
+            ×
+          </button>
+        </div>
+      ))}
+      <input
+        type="text"
+        className="input-mono"
+        value={input}
+        onChange={e => {
+          if (e.target.value.includes(',')) {
+            addTags(e.target.value);
+          } else {
+            setInput(e.target.value);
+          }
+        }}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === 'Tab') {
+            e.preventDefault();
+            if (input.trim()) addTags(input);
+          } else if (e.key === 'Backspace' && !input && tags.length > 0) {
+            onChange(tags.slice(0, -1));
+          }
+        }}
+        onBlur={() => {
+          if (input.trim()) addTags(input);
+        }}
+        placeholder={placeholder || 'Type and press Enter or comma'}
+        style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 12, flex: 1, minWidth: 160 }}
+      />
+    </div>
+  );
+}
+
 export default function EditGatewayPage() {
   const router = useRouter();
   const params = useParams();
@@ -120,17 +197,41 @@ export default function EditGatewayPage() {
             zoneId: gw.zoneId ?? '',
             upstreams: gw.upstreams?.length ? gw.upstreams : prev.upstreams,
             pathRoutes: gw.pathRoutes ?? [],
+            bffRoutes: gw.bffRoutes ?? [],
             corsEnabled: gw.corsEnabled ?? false,
             corsOrigins: gw.corsOrigins ?? [],
-            jwtAuth: gw.jwtAuthEnabled ? { enabled: true, headerName: gw.jwtHeaderName ?? 'Authorization', algorithms: ['HS256'], issuer: null, secret: '' } : { enabled: false, headerName: 'Authorization', algorithms: ['HS256'], issuer: null, secret: '' },
-            headerTransforms: gw.headerTransforms ?? prev.headerTransforms,
-            cacheConfig: gw.cacheConfig ?? prev.cacheConfig,
-            canary: gw.canary ?? prev.canary,
+            jwtEnabled: gw.jwtAuthEnabled ?? false,
+            jwtHeaderName: gw.jwtHeaderName ?? 'Authorization',
+            jwtAlgorithms: ['HS256'],
+            jwtIssuer: '',
+            jwtSecret: '',
+            rbacRules: gw.jwtRbacRules ?? [],
+            injectHeaders: gw.jwtInjectHeaders ?? false,
+            headerReqSet: gw.headerTransforms?.request?.set?.map((r: any, idx: number) => ({ id: idx + 1, name: r.name, value: r.value })) ?? [],
+            headerReqRemove: gw.headerTransforms?.request?.remove ?? [],
+            headerResSet: gw.headerTransforms?.response?.set?.map((r: any, idx: number) => ({ id: idx + 1, name: r.name, value: r.value })) ?? [],
+            headerResRemove: gw.headerTransforms?.response?.remove ?? [],
+            cacheEnabled: gw.cacheConfig?.enabled ?? false,
+            cacheTtl: gw.cacheConfig?.ttlSeconds ?? 60,
+            cachePaths: gw.cacheConfig?.paths ?? [],
+            normalizeQuery: gw.cacheConfig?.normalizeQuery ?? false,
+            canaryEnabled: gw.canary?.enabled ?? false,
+            canaryPercentage: gw.canary?.percentage ?? 10,
+            canaryUpstreamIndex: gw.canary?.upstreamIndex ?? 0,
+            shadowEnabled: gw.shadowConfig?.enabled ?? false,
+            shadowPercentage: gw.shadowConfig?.percentage ?? 10,
+            shadowUpstreamIndex: gw.shadowConfig?.upstreamIndex ?? 0,
+            bodyTransforms: gw.bodyTransforms ?? [],
+            schemaRules: gw.schemaRules ?? [],
             ipRules: gw.ipRules ?? [],
             mockRoutes: gw.mockRoutes ?? [],
             rateLimitEnabled: gw.rateLimitEnabled ?? false,
-            rateLimitRequestsPerMinute: gw.rateLimitRequestsPerMinute ?? 60,
+            rateLimitRpm: gw.rateLimitRequestsPerMinute ?? 60,
+            rateLimitKeyType: gw.rateLimitKeyType ?? 'ip',
+            rateLimitHeaderName: gw.rateLimitHeaderName ?? 'X-API-Key',
             pathRateLimits: gw.pathRateLimits ?? [],
+            smartPlacement: gw.placement?.smartPlacement !== false,
+            placementHint: gw.placement?.region || '',
           }));
         }
       } catch (e: any) {
@@ -152,6 +253,7 @@ export default function EditGatewayPage() {
   const isPro = !!user?.isPro;
   const isFree = plan === 'free';
   const isTrialOrStudent = plan === 'trial' || plan === 'student' || plan === 'student-annual';
+  const isStudent = isTrialOrStudent;
   const canJwt = !isFree;
   const canCache = !isFree;
   const canCanary = isPro;
@@ -162,6 +264,14 @@ export default function EditGatewayPage() {
   const mockLimit = isPro ? Infinity : isFree ? 2 : 10;
   const routesLimit = isPro ? Infinity : isFree ? 5 : 20;
   const rateLimitRulesLimit = isPro ? Infinity : isFree ? 1 : 5;
+  const rbacLimit = isPro ? Infinity : isFree ? 0 : 5;
+  const schemaLimit = isPro ? Infinity : isFree ? 1 : 5;
+  const bodyShapingLimit = isPro ? Infinity : isFree ? 1 : 5;
+  const canIdentityRateLimit = isPro || isStudent;
+  const canBff = isPro;
+  const canShadow = isPro;
+  const canHeaderInjection = isPro;
+  const canRbac = isPro || isStudent;
 
   const [form, setForm] = useState({
     name: '',
@@ -169,11 +279,14 @@ export default function EditGatewayPage() {
     subdomain: '',
     upstreams: [{ id: 1, url: '', weight: 100 }],
     pathRoutes: [] as Array<{ path: string; upstreamIndex: number; priority: number }>,
+    bffRoutes: [] as Array<{ path: string; upstreamIndices: number[]; priority: number }>,
     jwtEnabled: false,
     jwtHeaderName: 'Authorization',
     jwtAlgorithms: ['HS256'] as string[],
     jwtIssuer: '',
     jwtSecret: '',
+    rbacRules: [] as Array<{ path: string; requiredRoles: string[] }>,
+    injectHeaders: false,
     headerReqSet: [] as Array<{ id: number; name: string; value: string }>,
     headerReqRemove: [] as string[],
     headerResSet: [] as Array<{ id: number; name: string; value: string }>,
@@ -181,16 +294,26 @@ export default function EditGatewayPage() {
     cacheEnabled: false,
     cacheTtl: 60,
     cachePaths: [] as string[],
+    normalizeQuery: false,
     canaryEnabled: false,
     canaryPercentage: 10,
     canaryUpstreamIndex: 0,
+    shadowEnabled: false,
+    shadowPercentage: 10,
+    shadowUpstreamIndex: 0,
     ipRules: [] as Array<{ value: string; action: 'allow' | 'deny' }>,
     mockRoutes: [] as Array<{ path: string; method: string; status: number; body: string; contentType: string }>,
+    bodyTransforms: [] as Array<{ path: string; phase: 'request' | 'response'; stripFields: string[]; renameFields: Array<{ from: string; to: string }> }>,
+    schemaRules: [] as Array<{ path: string; method: string; requiredFields: string[]; fieldTypes: Array<{ field: string; type: 'string' | 'number' | 'boolean' | 'array' }> }>,
     rateLimitEnabled: false,
     rateLimitRpm: 60,
+    rateLimitKeyType: 'ip' as 'ip' | 'header' | 'jwt',
+    rateLimitHeaderName: 'X-API-Key',
     pathRateLimits: [] as Array<{ path: string; requestsPerMinute: number; priority: number }>,
     corsEnabled: false,
     corsOrigins: [] as string[],
+    smartPlacement: true,
+    placementHint: '',
   });
 
   const [corsInput, setCorsInput] = useState('');
@@ -253,7 +376,8 @@ export default function EditGatewayPage() {
     const u = s.url.trim();
     return u.length > 0 && (u.startsWith('http://') || u.startsWith('https://'));
   });
-  const allValid = nameValid && zoneValid && upstreamsValid && !hostnameError;
+  const placementValid = form.smartPlacement || form.placementHint.trim().length > 0;
+  const allValid = nameValid && zoneValid && upstreamsValid && placementValid && !hostnameError;
 
   const redistributeWeights = (arr: typeof form.upstreams) => {
     const n = arr.length;
@@ -312,6 +436,7 @@ export default function EditGatewayPage() {
         subdomain: trimmedSubdomain || undefined,
         upstreams: form.upstreams.map(u => ({ url: u.url.trim(), weight: Number(u.weight) || 1 })),
         pathRoutes: form.pathRoutes.length ? form.pathRoutes : undefined,
+        bffRoutes: canBff && form.bffRoutes.length ? form.bffRoutes : undefined,
         corsEnabled: form.corsEnabled,
         corsOrigins: form.corsOrigins,
         jwtAuth: canJwt ? {
@@ -320,6 +445,8 @@ export default function EditGatewayPage() {
           algorithms: form.jwtAlgorithms.length ? form.jwtAlgorithms : ['HS256'],
           issuer: form.jwtIssuer.trim() || null,
           secret: form.jwtEnabled ? form.jwtSecret : null,
+          rbacRules: canRbac && form.rbacRules.length ? form.rbacRules : [],
+          injectHeaders: canHeaderInjection ? form.injectHeaders : false,
         } : undefined,
         headerTransforms: {
           request: {
@@ -335,12 +462,20 @@ export default function EditGatewayPage() {
           enabled: form.cacheEnabled,
           ttlSeconds: Number(form.cacheTtl) || 60,
           paths: form.cachePaths,
+          normalizeQuery: form.normalizeQuery,
         } : undefined,
         canary: canCanary ? {
           enabled: form.canaryEnabled,
           percentage: Number(form.canaryPercentage) || 10,
           upstreamIndex: Number(form.canaryUpstreamIndex) || 0,
         } : undefined,
+        shadowConfig: canShadow && form.shadowEnabled ? {
+          enabled: true,
+          percentage: Number(form.shadowPercentage) || 10,
+          upstreamIndex: Number(form.shadowUpstreamIndex) || 0,
+        } : undefined,
+        bodyTransforms: form.bodyTransforms.length ? form.bodyTransforms : undefined,
+        schemaRules: form.schemaRules.length ? form.schemaRules : undefined,
         ipRules: form.ipRules.length ? form.ipRules : undefined,
         mockRoutes: form.mockRoutes.length ? form.mockRoutes.map(m => ({
           path: m.path,
@@ -351,7 +486,13 @@ export default function EditGatewayPage() {
         })) : undefined,
         rateLimitEnabled: canRateLimit ? form.rateLimitEnabled : false,
         rateLimitRequestsPerMinute: canRateLimit && form.rateLimitEnabled ? Number(form.rateLimitRpm) || 60 : null,
+        rateLimitKeyType: canIdentityRateLimit ? form.rateLimitKeyType : 'ip',
+        rateLimitHeaderName: canIdentityRateLimit && form.rateLimitKeyType === 'header' ? form.rateLimitHeaderName : undefined,
         pathRateLimits: canRateLimit && form.pathRateLimits.length ? form.pathRateLimits : undefined,
+        placement: {
+          smartPlacement: form.smartPlacement,
+          region: !form.smartPlacement ? form.placementHint.trim() : undefined,
+        },
       };
 
       const operationId = `gateway-create-${Date.now()}`;
@@ -537,6 +678,47 @@ export default function EditGatewayPage() {
                   style={{ fontSize: 13, opacity: routesAtCap ? 0.4 : 1 }}>
                   + Add route {routesLimit !== Infinity && `(${form.pathRoutes.length}/${routesLimit})`}
                 </button>
+
+                <div style={{ marginTop: 16, borderTop: '1px solid var(--line)', paddingTop: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <span style={{ fontSize: 13, fontWeight: 500 }}>BFF Multi-Upstream Fan-Out & Aggregation</span>
+                    <span style={{ fontSize: 11, color: 'var(--accent)', background: 'var(--accent-dim)', padding: '2px 8px', borderRadius: 4 }}>Pro Feature</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 10 }}>
+                    Accept 1 incoming request, fetch multiple internal upstreams in parallel, and return merged JSON.
+                  </div>
+                  {form.bffRoutes.map((b, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+                      <input className="input input-mono" placeholder="/dashboard" value={b.path}
+                        onChange={e => { const next = [...form.bffRoutes]; next[i] = { ...next[i], path: e.target.value }; update('bffRoutes', next); }}
+                        style={{ flex: 2, minWidth: 140 }} />
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', flex: 2, alignItems: 'center' }}>
+                        {form.upstreams.map((_, uIdx) => (
+                          <label key={uIdx} style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, background: 'var(--bg-2)', padding: '4px 8px', borderRadius: 4, cursor: 'pointer' }}>
+                            <input type="checkbox" checked={b.upstreamIndices.includes(uIdx)}
+                              onChange={e => {
+                                const set = new Set(b.upstreamIndices);
+                                if (e.target.checked) set.add(uIdx); else set.delete(uIdx);
+                                const next = [...form.bffRoutes];
+                                next[i] = { ...next[i], upstreamIndices: Array.from(set) };
+                                update('bffRoutes', next);
+                              }} />
+                            Upstream {uIdx + 1}
+                          </label>
+                        ))}
+                      </div>
+                      <button type="button" className="btn btn-ghost" onClick={() => update('bffRoutes', form.bffRoutes.filter((_, j) => j !== i))} style={{ padding: '4px 8px', color: 'var(--red)' }}>✕</button>
+                    </div>
+                  ))}
+                  <button type="button" className="btn btn-ghost" disabled={!canBff}
+                    onClick={() => {
+                      if (!canBff) { toast.error('BFF Multi-Upstream Aggregation requires the Pro plan'); return; }
+                      update('bffRoutes', [...form.bffRoutes, { path: '', upstreamIndices: [0], priority: form.bffRoutes.length + 1 }]);
+                    }}
+                    style={{ fontSize: 12, opacity: canBff ? 1 : 0.4 }}>
+                    + Add BFF Fan-Out Route {!canBff && '(Requires Pro)'}
+                  </button>
+                </div>
               </div>
             </FieldBlock>
 
@@ -579,6 +761,42 @@ export default function EditGatewayPage() {
                         <label className="field-label">Secret <span className="req">*</span></label>
                         <input className="input input-mono" type="password" placeholder="JWT secret" value={form.jwtSecret} onChange={e => update('jwtSecret', e.target.value)} onFocus={() => setActiveStep(5)} />
                         {form.jwtEnabled && !form.jwtSecret.trim() && <div style={{ fontSize: 12, color: 'var(--red)', marginTop: 4 }}>Secret is required when JWT is enabled.</div>}
+                      </div>
+
+                      <div style={{ borderTop: '1px solid var(--line)', paddingTop: 12, marginTop: 4 }}>
+                        <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: canHeaderInjection ? 'pointer' : 'not-allowed', opacity: canHeaderInjection ? 1 : 0.6 }}>
+                          <input type="checkbox" checked={form.injectHeaders} disabled={!canHeaderInjection} onChange={e => update('injectHeaders', e.target.checked)} />
+                          <div>
+                            <span style={{ fontSize: 13, fontWeight: 500 }}>Forward Claims Downstream (X-User-Id, X-User-Roles)</span>
+                            <span style={{ fontSize: 10, color: 'var(--accent)', background: 'var(--accent-dim)', padding: '2px 6px', borderRadius: 4, marginLeft: 8 }}>Pro Only</span>
+                            <div style={{ fontSize: 12, color: 'var(--text-3)' }}>Injects verified claims into upstream requests so internal services do not re-verify JWTs.</div>
+                          </div>
+                        </label>
+                      </div>
+
+                      <div style={{ borderTop: '1px solid var(--line)', paddingTop: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <span style={{ fontSize: 13, fontWeight: 500 }}>Route-Level RBAC {rbacLimit !== Infinity && `(${form.rbacRules.length}/${rbacLimit})`}</span>
+                          <span style={{ fontSize: 10, color: 'var(--accent)', background: 'var(--accent-dim)', padding: '2px 6px', borderRadius: 4 }}>Student / Pro</span>
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 8 }}>Block requests on matching paths with 403 Forbidden unless the token has a required role.</div>
+                        {form.rbacRules.map((r, i) => (
+                          <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+                            <input className="input input-mono" placeholder="/admin/*" value={r.path}
+                              onChange={e => { const next = [...form.rbacRules]; next[i] = { ...next[i], path: e.target.value }; update('rbacRules', next); }} style={{ flex: 2 }} />
+                            <input className="input input-mono" placeholder="admin, manager" value={r.requiredRoles.join(', ')}
+                              onChange={e => { const next = [...form.rbacRules]; next[i] = { ...next[i], requiredRoles: e.target.value.split(',').map(x => x.trim()).filter(Boolean) }; update('rbacRules', next); }} style={{ flex: 2 }} />
+                            <button type="button" className="btn btn-ghost" onClick={() => update('rbacRules', form.rbacRules.filter((_, j) => j !== i))} style={{ color: 'var(--red)', padding: '4px 8px' }}>✕</button>
+                          </div>
+                        ))}
+                        <button type="button" className="btn btn-ghost" disabled={!canRbac || form.rbacRules.length >= rbacLimit}
+                          onClick={() => {
+                            if (!canRbac) { toast.error('RBAC requires a Student or Pro plan.'); return; }
+                            if (form.rbacRules.length >= rbacLimit) { toast.error(`RBAC limit reached (${rbacLimit})`); return; }
+                            update('rbacRules', [...form.rbacRules, { path: '', requiredRoles: ['admin'] }]);
+                          }} style={{ fontSize: 12, opacity: (!canRbac || form.rbacRules.length >= rbacLimit) ? 0.4 : 1 }}>
+                          + Add RBAC rule {!canRbac && '(Requires Student/Pro)'}
+                        </button>
                       </div>
                     </div>
                   )}
@@ -688,18 +906,25 @@ export default function EditGatewayPage() {
                             onFocus={() => setActiveStep(7)} placeholder="/api/* then Enter" style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 12, flex: 1, minWidth: 160 }} />
                         </div>
                       </div>
+                      <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer', marginTop: 4 }}>
+                        <input type="checkbox" checked={form.normalizeQuery} onChange={e => update('normalizeQuery', e.target.checked)} />
+                        <div>
+                          <span style={{ fontSize: 13, fontWeight: 500 }}>Semantic Cache: Strip Tracking & Sort Query Parameters</span>
+                          <div style={{ fontSize: 12, color: 'var(--text-3)' }}>Strips utm_*, fbclid and sorts query keys alphabetically so variations hit the same cache.</div>
+                        </div>
+                      </label>
                     </>
                   )}
                 </div>
               )}
             </FieldBlock>
 
-            <FieldBlock n={8} title="Canary" subtitle="Gradually shift traffic to a canary upstream">
+            <FieldBlock n={8} title="Canary & Traffic Shadowing" subtitle="Gradually shift traffic or mirror live requests asynchronously">
               {!canCanary ? (
                 <div style={{ padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: 'var(--bg-2)', border: '1px solid var(--line)', borderRadius: 'var(--radius)', flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <Icons.Lock size={14} stroke="var(--text-3)" />
-                    <span style={{ fontSize: 13, color: 'var(--text-2)' }}>Canary is a Pro feature</span>
+                    <span style={{ fontSize: 13, color: 'var(--text-2)' }}>Canary & Shadowing are Pro features</span>
                   </div>
                   <Link href="/pro"><button className="btn btn-primary btn-sm">Upgrade to Pro</button></Link>
                 </div>
@@ -710,8 +935,8 @@ export default function EditGatewayPage() {
                       <div style={{ position: 'absolute', top: 2, left: form.canaryEnabled ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: 'var(--bg)', transition: 'left 160ms' }} />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 14, fontWeight: 500 }}>Enable Canary</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 4 }}>Send a percentage of traffic to a specific upstream.</div>
+                      <div style={{ fontSize: 14, fontWeight: 500 }}>Enable Canary Traffic Split</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 4 }}>Send a percentage of live traffic to a specific upstream based on hash.</div>
                     </div>
                     <input type="checkbox" checked={form.canaryEnabled} onChange={e => update('canaryEnabled', e.target.checked)} style={{ display: 'none' }} />
                   </label>
@@ -731,6 +956,33 @@ export default function EditGatewayPage() {
                       </div>
                     </div>
                   )}
+
+                  <div style={{ borderTop: '1px solid var(--line)', paddingTop: 14 }}>
+                    <label style={{ display: 'flex', gap: 14, padding: 14, border: `1px solid ${form.shadowEnabled ? 'var(--accent)' : 'var(--line)'}`, background: form.shadowEnabled ? 'var(--accent-dim)' : 'var(--bg-2)', borderRadius: 'var(--radius)', cursor: 'pointer' }}>
+                      <div style={{ width: 36, height: 20, flexShrink: 0, borderRadius: 999, background: form.shadowEnabled ? 'var(--accent)' : 'var(--bg-3)', position: 'relative', transition: 'background 160ms' }}>
+                        <div style={{ position: 'absolute', top: 2, left: form.shadowEnabled ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: 'var(--bg)', transition: 'left 160ms' }} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 13, fontWeight: 500 }}>Asynchronous Traffic Shadowing (Mirroring)</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 2 }}>Duplicate live requests to a staging upstream via ctx.waitUntil without delaying the user.</div>
+                      </div>
+                      <input type="checkbox" checked={form.shadowEnabled} onChange={e => update('shadowEnabled', e.target.checked)} style={{ display: 'none' }} />
+                    </label>
+                    {form.shadowEnabled && (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
+                        <div>
+                          <label className="field-label">Shadow Target Upstream</label>
+                          <select className="input" value={form.shadowUpstreamIndex} onChange={e => update('shadowUpstreamIndex', Number(e.target.value))}>
+                            {form.upstreams.map((_, i) => <option key={i} value={i}>Upstream {i + 1}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="field-label">Sample % ({form.shadowPercentage}%)</label>
+                          <input className="input" type="number" min={1} max={100} value={form.shadowPercentage} onChange={e => update('shadowPercentage', Number(e.target.value) || 10)} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </FieldBlock>
@@ -808,13 +1060,40 @@ export default function EditGatewayPage() {
                     <input type="checkbox" checked={form.rateLimitEnabled} onChange={e => update('rateLimitEnabled', e.target.checked)} style={{ display: 'none' }} />
                   </label>
                   {form.rateLimitEnabled && (
-                    <div className="field" style={{ maxWidth: 320 }}>
-                      <label className="field-label">Requests per minute</label>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <input className="input input-mono" type="number" min={1} max={100000} value={form.rateLimitRpm}
-                          onChange={e => { if (e.target.value.includes('.')) return; const n = Number.parseInt(e.target.value, 10); update('rateLimitRpm', Number.isNaN(n) ? 60 : Math.min(100000, Math.max(1, n))); }}
-                          onFocus={() => setActiveStep(11)} style={{ flex: 1 }} />
-                        <span style={{ fontSize: 12, color: 'var(--text-3)', whiteSpace: 'nowrap' }}>req / min</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      <div className="field" style={{ maxWidth: 320 }}>
+                        <label className="field-label">Requests per minute</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <input className="input input-mono" type="number" min={1} max={100000} value={form.rateLimitRpm}
+                            onChange={e => { if (e.target.value.includes('.')) return; const n = Number.parseInt(e.target.value, 10); update('rateLimitRpm', Number.isNaN(n) ? 60 : Math.min(100000, Math.max(1, n))); }}
+                            onFocus={() => setActiveStep(11)} style={{ flex: 1 }} />
+                          <span style={{ fontSize: 12, color: 'var(--text-3)', whiteSpace: 'nowrap' }}>req / min</span>
+                        </div>
+                      </div>
+
+                      <div className="field" style={{ maxWidth: 440 }}>
+                        <label className="field-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span>Rate Limit Key Identity</span>
+                          {!canIdentityRateLimit && <span style={{ fontSize: 10, color: 'var(--accent)', background: 'var(--accent-dim)', padding: '2px 6px', borderRadius: 4 }}>Student / Pro</span>}
+                        </label>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <select className="input" value={form.rateLimitKeyType}
+                            onChange={e => {
+                              if (!canIdentityRateLimit && e.target.value !== 'ip') {
+                                toast.error('Identity-based rate limiting requires a Student or Pro plan.');
+                                return;
+                              }
+                              update('rateLimitKeyType', e.target.value);
+                            }} style={{ flex: 1 }}>
+                            <option value="ip">Client IP Address (Default)</option>
+                            <option value="header" disabled={!canIdentityRateLimit}>Custom Header (e.g. X-API-Key)</option>
+                            <option value="jwt" disabled={!canIdentityRateLimit}>JWT Subject (user_id / sub)</option>
+                          </select>
+                          {form.rateLimitKeyType === 'header' && (
+                            <input className="input input-mono" placeholder="X-API-Key" value={form.rateLimitHeaderName}
+                              onChange={e => update('rateLimitHeaderName', e.target.value)} style={{ flex: 1 }} />
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -875,6 +1154,218 @@ export default function EditGatewayPage() {
               </div>
             </FieldBlock>
 
+            <FieldBlock n={13} title="Payload Transformation (Body Shaping)" subtitle={`Strip sensitive response fields or rename JSON keys — ${form.bodyTransforms.length} / ${bodyShapingLimit === Infinity ? '∞' : bodyShapingLimit}`}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {form.bodyTransforms.map((bt, i) => (
+                  <div key={i} style={{ padding: 12, border: '1px solid var(--line)', borderRadius: 'var(--radius)', background: 'var(--bg-2)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input className="input input-mono" placeholder="/api/users/*" value={bt.path}
+                        onChange={e => { const next = [...form.bodyTransforms]; next[i] = { ...next[i], path: e.target.value }; update('bodyTransforms', next); }}
+                        style={{ flex: 2 }} />
+                      <select className="input" value={bt.phase}
+                        onChange={e => { const next = [...form.bodyTransforms]; next[i] = { ...next[i], phase: e.target.value as 'request' | 'response' }; update('bodyTransforms', next); }}
+                        style={{ width: 130 }}>
+                        <option value="response">Response (Mask)</option>
+                        <option value="request">Request (Rewrite)</option>
+                      </select>
+                      <button type="button" className="btn btn-ghost" onClick={() => update('bodyTransforms', form.bodyTransforms.filter((_, j) => j !== i))} style={{ color: 'var(--red)', padding: '4px 8px' }}>✕</button>
+                    </div>
+                    <div className="field">
+                      <label className="field-label" style={{ fontSize: 11 }}>Strip Fields (type field name then press Enter or comma)</label>
+                      <TagListInput
+                        tags={bt.stripFields || []}
+                        onChange={nextTags => {
+                          const next = [...form.bodyTransforms];
+                          next[i] = { ...next[i], stripFields: nextTags };
+                          update('bodyTransforms', next);
+                        }}
+                        placeholder="password_hash, ssn then Enter or comma"
+                      />
+                    </div>
+                  </div>
+                ))}
+                <button type="button" className="btn btn-ghost" disabled={form.bodyTransforms.length >= bodyShapingLimit}
+                  onClick={() => {
+                    if (form.bodyTransforms.length >= bodyShapingLimit) { toast.error(`Payload transform rule limit reached (${bodyShapingLimit})`); return; }
+                    update('bodyTransforms', [...form.bodyTransforms, { path: '', phase: 'response', stripFields: ['password_hash'], renameFields: [] }]);
+                  }}
+                  style={{ fontSize: 12, opacity: form.bodyTransforms.length >= bodyShapingLimit ? 0.4 : 1 }}>
+                  + Add Body Transform {bodyShapingLimit !== Infinity && `(${form.bodyTransforms.length}/${bodyShapingLimit})`}
+                </button>
+              </div>
+            </FieldBlock>
+
+            <FieldBlock n={14} title="Contract & Schema Validation" subtitle={`Shield compute from invalid requests at the edge — ${form.schemaRules.length} / ${schemaLimit === Infinity ? '∞' : schemaLimit}`}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {form.schemaRules.map((sr, i) => (
+                  <div key={i} style={{ padding: 12, border: '1px solid var(--line)', borderRadius: 'var(--radius)', background: 'var(--bg-2)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input className="input input-mono" placeholder="/api/orders" value={sr.path}
+                        onChange={e => { const next = [...form.schemaRules]; next[i] = { ...next[i], path: e.target.value }; update('schemaRules', next); }}
+                        style={{ flex: 2 }} />
+                      <select className="input" value={sr.method}
+                        onChange={e => { const next = [...form.schemaRules]; next[i] = { ...next[i], method: e.target.value }; update('schemaRules', next); }}
+                        style={{ width: 110 }}>
+                        <option value="POST">POST</option>
+                        <option value="PUT">PUT</option>
+                        <option value="PATCH">PATCH</option>
+                        <option value="ANY">ANY</option>
+                      </select>
+                      <button type="button" className="btn btn-ghost" onClick={() => update('schemaRules', form.schemaRules.filter((_, j) => j !== i))} style={{ color: 'var(--red)', padding: '4px 8px' }}>✕</button>
+                    </div>
+                    <div className="field">
+                      <label className="field-label" style={{ fontSize: 11 }}>Required JSON Keys (type key name then press Enter or comma)</label>
+                      <TagListInput
+                        tags={sr.requiredFields || []}
+                        onChange={nextTags => {
+                          const next = [...form.schemaRules];
+                          next[i] = { ...next[i], requiredFields: nextTags };
+                          update('schemaRules', next);
+                        }}
+                        placeholder="email, amount then Enter or comma"
+                      />
+                    </div>
+                  </div>
+                ))}
+                <button type="button" className="btn btn-ghost" disabled={form.schemaRules.length >= schemaLimit}
+                  onClick={() => {
+                    if (form.schemaRules.length >= schemaLimit) { toast.error(`Schema validation limit reached (${schemaLimit})`); return; }
+                    update('schemaRules', [...form.schemaRules, { path: '', method: 'POST', requiredFields: ['email'], fieldTypes: [] }]);
+                  }}
+                  style={{ fontSize: 12, opacity: form.schemaRules.length >= schemaLimit ? 0.4 : 1 }}>
+                  + Add Schema Validation Rule {schemaLimit !== Infinity && `(${form.schemaRules.length}/${schemaLimit})`}
+                </button>
+              </div>
+            </FieldBlock>
+
+            <FieldBlock n={15} title="Placement"
+              subtitle="Optimize edge latency or pin the gateway to a specific cloud region">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <label style={{
+                  display: 'flex', gap: 14, padding: 16,
+                  border: `1px solid ${form.smartPlacement ? 'var(--accent)' : 'var(--line)'}`,
+                  background: form.smartPlacement ? 'var(--accent-dim)' : 'var(--bg-2)',
+                  borderRadius: 'var(--radius)', cursor: user?.isSubscribed ? 'pointer' : 'not-allowed',
+                  position: 'relative', opacity: user?.isSubscribed ? 1 : 0.6,
+                }} onClick={() => { if (user?.isSubscribed) setActiveStep(13); }}>
+                  {!user?.isSubscribed && (
+                    <div style={{
+                      position: 'absolute', top: 8, right: 8,
+                      display: 'flex', alignItems: 'center', gap: 4,
+                      fontSize: 10, color: 'var(--accent)', fontFamily: 'var(--mono)',
+                      fontWeight: 600,
+                    }}>
+                      <Icons.Lock size={10} /> PRO
+                    </div>
+                  )}
+                  <div style={{
+                    width: 36, height: 20, flexShrink: 0,
+                    borderRadius: 999,
+                    background: form.smartPlacement ? 'var(--accent)' : 'var(--bg-3)',
+                    position: 'relative', transition: 'background 160ms',
+                  }}>
+                    <div style={{
+                      position: 'absolute', top: 2, left: form.smartPlacement ? 18 : 2,
+                      width: 16, height: 16, borderRadius: '50%',
+                      background: 'var(--bg)', transition: 'left 160ms',
+                    }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 500 }}>Optimize for Server Speed</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 4 }}>
+                      By default, the gateway runs near your <strong>visitors</strong> for the fastest response. Turn this on if your upstream is slow — the gateway will move closer to your <strong>upstream</strong> instead, cutting round-trip latency.
+                      {!user?.isSubscribed && (
+                        <span style={{ display: 'block', marginTop: 6, color: 'var(--accent)', fontWeight: 500 }}>
+                          Upgrade to Student or Pro to customize placement.
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox" checked={form.smartPlacement}
+                    onChange={e => { if (user?.isSubscribed) update('smartPlacement', e.target.checked); }}
+                    style={{ display: 'none' }}
+                  />
+                </label>
+
+                <div className="field">
+                  <label className="field-label">
+                    Pin to a Cloud Region
+                    {!form.smartPlacement && <span style={{ color: 'var(--red)', marginLeft: 4 }}>*</span>}
+                    {form.smartPlacement && <span style={{ color: 'var(--text-3)', fontWeight: 'normal', fontSize: 11, marginLeft: 4 }}>(disabled when Smart Placement is on)</span>}
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <select
+                      value={ALL_CLOUD_REGIONS.find(r => r.code === form.placementHint) ? form.placementHint : 'custom'}
+                      onChange={(e) => {
+                        if (e.target.value === 'custom') {
+                          update('placementHint', '');
+                        } else {
+                          update('placementHint', e.target.value);
+                        }
+                      }}
+                      onFocus={() => setActiveStep(13)}
+                      disabled={form.smartPlacement}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        border: '1px solid var(--line)',
+                        borderRadius: 'var(--radius)',
+                        background: form.smartPlacement ? 'var(--bg-3)' : 'var(--bg-1)',
+                        color: 'var(--text)',
+                        fontSize: 12,
+                        fontFamily: 'var(--mono)',
+                        cursor: form.smartPlacement ? 'not-allowed' : 'pointer',
+                        opacity: form.smartPlacement ? 0.5 : 1,
+                        colorScheme: 'dark',
+                      }}
+                    >
+                      <option value="">Choose a region to pin the gateway to...</option>
+                      <optgroup label="AWS">
+                        {REGIONS_BY_PROVIDER.aws.map(region => (
+                          <option key={region.code} value={region.code}>{region.name}</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Google Cloud">
+                        {REGIONS_BY_PROVIDER.gcp.map(region => (
+                          <option key={region.code} value={region.code}>{region.name}</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Azure">
+                        {REGIONS_BY_PROVIDER.azure.map(region => (
+                          <option key={region.code} value={region.code}>{region.name}</option>
+                        ))}
+                      </optgroup>
+                      <option value="custom">✏️ Custom (write your own)...</option>
+                    </select>
+                  </div>
+
+                  {!form.smartPlacement && form.placementHint === '' && (
+                    <input
+                      className="input input-mono"
+                      placeholder="e.g., aws:us-east-1, gcp:europe-west1, azure:eastus2"
+                      value={form.placementHint}
+                      onChange={e => update('placementHint', e.target.value)}
+                      onFocus={() => setActiveStep(13)}
+                      style={{ marginTop: 8, fontSize: 12 }}
+                    />
+                  )}
+
+                  {!ALL_CLOUD_REGIONS.find(r => r.code === form.placementHint) && form.placementHint && (
+                    <div style={{ marginTop: 8, padding: 8, background: 'var(--bg-2)', borderRadius: 4, fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-2)' }}>
+                      Custom: {form.placementHint}
+                    </div>
+                  )}
+
+                  <div className="hint" style={{ marginTop: 4 }}>
+                    {form.smartPlacement
+                      ? 'Cloudflare automatically positions the Worker near your upstreams when Smart Placement is enabled.'
+                      : 'Required. Choose a cloud region where your upstream servers are located, or enter a custom hint.'}
+                  </div>
+                </div>
+              </div>
+            </FieldBlock>
+
             <div className="deploy-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', border: '1px solid var(--line)', borderRadius: 'var(--radius-lg)', background: 'var(--bg-1)' }}>
               <div style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-3)' }}>
                 {allValid ? <><span style={{ color: 'var(--green)' }}>✓</span> Ready to deploy • ~90s</> : <>Complete required fields to deploy</>}
@@ -910,6 +1401,7 @@ export default function EditGatewayPage() {
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>IP rules</span><span style={{ color: 'var(--accent)' }}>{form.ipRules.length}</span></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>mocks</span><span style={{ color: 'var(--accent)' }}>{form.mockRoutes.length}</span></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>CORS</span><span style={{ color: form.corsEnabled ? 'var(--green)' : 'var(--text-3)' }}>{form.corsEnabled ? 'on' : 'off'}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>placement</span><span style={{ color: form.smartPlacement ? 'var(--green)' : (form.placementHint ? 'var(--accent)' : 'var(--text-3)') }}>{form.smartPlacement ? 'smart' : form.placementHint || 'edge'}</span></div>
               </div>
             </div>
             <div style={{ padding: 16, border: '1px dashed var(--line-2)', borderRadius: 'var(--radius)', background: 'var(--bg-2)', fontSize: 12, color: 'var(--text-3)', lineHeight: 1.6 }}>

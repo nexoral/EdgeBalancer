@@ -44,6 +44,28 @@ function outcomeLabel(outcome: AiOutcome): string {
 
 // ─── Detail Modal ──────────────────────────────────────────────────
 
+const runDetailCache = new Map<string, Promise<AiRunDetail> | AiRunDetail>();
+
+async function fetchRunDetail(runId: string): Promise<AiRunDetail> {
+  const cached = runDetailCache.get(runId);
+  if (cached) {
+    return cached;
+  }
+  const promise = (async () => {
+    try {
+      const res = await api.getAiRun(runId);
+      const data = res.data.run as AiRunDetail;
+      runDetailCache.set(runId, data);
+      return data;
+    } catch (err) {
+      runDetailCache.delete(runId);
+      throw err;
+    }
+  })();
+  runDetailCache.set(runId, promise);
+  return promise;
+}
+
 function AiRunDetailModal({ runId, onClose }: { runId: string; onClose: () => void }) {
   const [run, setRun] = useState<AiRunDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -52,8 +74,8 @@ function AiRunDetailModal({ runId, onClose }: { runId: string; onClose: () => vo
     let cancelled = false;
     (async () => {
       try {
-        const res = await api.getAiRun(runId);
-        if (!cancelled) setRun(res.data.run);
+        const runData = await fetchRunDetail(runId);
+        if (!cancelled) setRun(runData);
       } catch (err: any) {
         if (!cancelled) toast.error(err.message || 'Failed to load run details');
       } finally {
@@ -76,7 +98,7 @@ function AiRunDetailModal({ runId, onClose }: { runId: string; onClose: () => vo
       ) : !run ? (
         <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-3)' }}>Run not found</div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxHeight: '70vh', overflow: 'auto' }}>
+        <div className="no-scrollbar" style={{ display: 'flex', flexDirection: 'column', gap: 20, maxHeight: '70vh', overflowY: 'auto', scrollBehavior: 'smooth' }}>
           {/* Header */}
           <div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
@@ -130,7 +152,6 @@ function AiRunDetailModal({ runId, onClose }: { runId: string; onClose: () => vo
           {/* Final answer or question, as shown to the user */}
           {run.finalMessage && (
             <div>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: 'var(--text-2)' }}>Agent reply</div>
               <div style={{
                 fontSize: 13.5, lineHeight: 1.65, padding: 14,
                 background: 'var(--bg-2)', borderRadius: 'var(--radius)',
@@ -159,19 +180,44 @@ function AiRunDetailModal({ runId, onClose }: { runId: string; onClose: () => vo
 // ─── Run Card ──────────────────────────────────────────────────────
 
 function AiRunCard({ run, onClick }: { run: AiRunListItem; onClick: () => void }) {
+  const startDate = new Date(run.createdAt);
+  const endDate = new Date(startDate.getTime() + (run.durationMs || 0));
+
+  const startFormatted = startDate.toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  }).replace(/\b(am|pm)\b/g, m => m.toUpperCase());
+
+  const endFormatted = endDate.toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  }).replace(/\b(am|pm)\b/g, m => m.toUpperCase());
+
+  const dateFormatted = startDate.toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+
   return (
     <button
       onClick={onClick}
+      className="feature-card feature-card-lift"
       style={{
         display: 'flex', flexDirection: 'column', gap: 10,
-        padding: 16, border: '1px solid var(--line)', borderRadius: 'var(--radius-lg)',
+        padding: '14px 16px', border: '1px solid var(--line)', borderRadius: 'var(--radius-lg)',
         background: 'var(--bg-1)', cursor: 'pointer', textAlign: 'left',
-        transition: 'border-color 150ms, background 150ms',
+        width: '100%',
+        transition: 'border-color 150ms, background 150ms, transform 150ms',
       }}
       onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--bg-2)'; }}
       onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--line)'; e.currentTarget.style.background = 'var(--bg-1)'; }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
         <span style={{
           fontSize: 11, padding: '2px 8px', borderRadius: 4,
           background: `${outcomeColor(run.outcome)}15`, color: outcomeColor(run.outcome),
@@ -179,20 +225,33 @@ function AiRunCard({ run, onClick }: { run: AiRunListItem; onClick: () => void }
         }}>
           {outcomeLabel(run.outcome)}
         </span>
-        <span style={{ fontSize: 12, color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>
-          {run.finalModel || '—'}
+        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>
+          {dateFormatted} · {relativeTime(run.createdAt)}
         </span>
-        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-3)' }}>{relativeTime(run.createdAt)}</span>
       </div>
+
       <div style={{
-        fontSize: 13, color: 'var(--text)', lineHeight: 1.5,
-        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8,
+        paddingTop: 10, borderTop: '1px solid var(--line)', width: '100%',
       }}>
-        {run.prompt}
-      </div>
-      <div style={{ display: 'flex', gap: 12, fontSize: 11, color: 'var(--text-3)', fontFamily: 'var(--mono)' }}>
-        <span>{run.toolCalls?.length ?? 0} tool{(run.toolCalls?.length ?? 0) !== 1 ? 's' : ''}</span>
-        <span>{formatDuration(run.durationMs)}</span>
+        <div>
+          <div className="kicker" style={{ fontSize: 9, color: 'var(--text-3)' }}>Started</div>
+          <div className="mono" style={{ fontSize: 11, fontWeight: 500, color: 'var(--text)', marginTop: 2 }} title={startFormatted}>
+            {startFormatted}
+          </div>
+        </div>
+        <div>
+          <div className="kicker" style={{ fontSize: 9, color: 'var(--text-3)' }}>Ended</div>
+          <div className="mono" style={{ fontSize: 11, fontWeight: 500, color: 'var(--text)', marginTop: 2 }} title={endFormatted}>
+            {endFormatted}
+          </div>
+        </div>
+        <div>
+          <div className="kicker" style={{ fontSize: 9, color: 'var(--text-3)' }}>Duration</div>
+          <div className="mono" style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', marginTop: 2 }}>
+            {formatDuration(run.durationMs)}
+          </div>
+        </div>
       </div>
     </button>
   );
@@ -231,12 +290,15 @@ export default function AiRunsPage() {
   const [showDetailUpsell, setShowDetailUpsell] = useState(false);
 
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const fetchingRef = useRef(false);
 
   useEffect(() => {
     if (!authLoading && !user) router.push('/login');
   }, [user, authLoading, router]);
 
   const fetchRuns = useCallback(async (reset = false) => {
+    if (fetchingRef.current && !reset) return;
+    fetchingRef.current = true;
     if (reset) setLoading(true);
     else setLoadingMore(true);
     try {
@@ -245,12 +307,18 @@ export default function AiRunsPage() {
         limit: 20,
       });
       const { runs: fetched, nextCursor: cursor, hasMore: more } = res.data;
-      setRuns(prev => reset ? fetched : [...prev, ...fetched]);
+      setRuns(prev => {
+        if (reset) return fetched;
+        const seen = new Set(prev.map(r => r._id));
+        const unique = fetched.filter((r: AiRunListItem) => !seen.has(r._id));
+        return [...prev, ...unique];
+      });
       setNextCursor(cursor);
       setHasMore(more);
     } catch (err: any) {
       toast.error(err.message || 'Failed to load AI runs');
     } finally {
+      fetchingRef.current = false;
       setLoading(false);
       setLoadingMore(false);
     }
@@ -300,8 +368,8 @@ export default function AiRunsPage() {
   };
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)', flexDirection: 'column' }}>
-      <div className="app-shell">
+    <div style={{ display: 'flex', height: '100vh', background: 'var(--bg)', flexDirection: 'column', overflow: 'hidden' }}>
+      <div className="app-shell" style={{ height: '100%', minHeight: 0, overflow: 'hidden' }}>
         <Sidebar
           current="ai-runs"
           onNav={handleNav}
@@ -314,13 +382,13 @@ export default function AiRunsPage() {
           plan={user?.plan}
           planExpiresAt={user?.planExpiresAt}
         />
-        <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%' }}>
           <Topbar
             crumbs={['Overview', 'AI Runs']}
             title="AI Runs"
             subtitle="History of every AI Agent request, its steps and its outcome"
           />
-          <div style={{ padding: 'clamp(16px, 4vw, 32px)', overflow: 'auto', flex: 1 }}>
+          <div className="no-scrollbar" style={{ padding: 'clamp(16px, 4vw, 32px)', overflowY: 'auto', flex: 1, minHeight: 0, scrollBehavior: 'smooth' }}>
             {loading ? (
               <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
                 <div style={{
@@ -339,9 +407,16 @@ export default function AiRunsPage() {
                 }}>
                   <span style={{ fontFamily: 'var(--mono)' }}>{runs.length} runs</span>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {runs.map(run => (
-                    <AiRunCard key={run._id} run={run} onClick={() => openRun(run._id)} />
+                <div
+                  className="dash-cards"
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))',
+                    gap: 16,
+                  }}
+                >
+                  {runs.map((run, idx) => (
+                    <AiRunCard key={`${run._id}-${idx}`} run={run} onClick={() => openRun(run._id)} />
                   ))}
                 </div>
                 <div ref={sentinelRef} style={{ height: 1 }} />

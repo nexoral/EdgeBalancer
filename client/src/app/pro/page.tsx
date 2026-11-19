@@ -23,8 +23,199 @@ const ALL_FEATURES: { free: string | null; student: string | null; pro: string |
   { free: null, student: null, pro: 'Rate Limiting' },
 ];
 
+interface FeatureSpec {
+  titleKey: string;
+  category: string;
+  icon: (p: any) => React.ReactElement;
+  getTitle: (plan: 'free' | 'student' | 'pro') => string;
+  isUnlocked: (plan: 'free' | 'student' | 'pro') => boolean;
+  lockedHint?: string;
+}
+
+const LB_FEATURE_SPECS: FeatureSpec[] = [
+  {
+    titleKey: 'balancers',
+    category: 'Fleet Management',
+    icon: Icons.Server,
+    getTitle: (p) => (p === 'pro' ? 'Unlimited load balancers' : p === 'student' ? 'Up to 10 load balancers' : 'Up to 5 load balancers'),
+    isUnlocked: () => true,
+  },
+  {
+    titleKey: 'strategies',
+    category: 'Traffic Routing Engine',
+    icon: Icons.Flow,
+    getTitle: () => 'All 7 traffic strategies',
+    isUnlocked: () => true,
+  },
+  {
+    titleKey: 'health',
+    category: 'Uptime & Origin Probing',
+    icon: Icons.Activity,
+    getTitle: (p) => (p === 'pro' ? 'Unlimited Health Checks' : p === 'student' ? 'Health Checks (up to 5 LBs)' : 'Health Checks (up to 2 LBs)'),
+    isUnlocked: () => true,
+  },
+];
+
+const GATEWAY_FEATURE_SPECS: FeatureSpec[] = [
+  {
+    titleKey: 'gw-count',
+    category: 'Gateway Fleet',
+    icon: Icons.Globe,
+    getTitle: (p) => (p === 'pro' ? 'Unlimited API Gateways' : p === 'student' ? 'Up to 3 API Gateways' : '1 API Gateway'),
+    isUnlocked: () => true,
+  },
+  {
+    titleKey: 'gw-routes',
+    category: 'Reverse Proxy Routing',
+    icon: Icons.Flow,
+    getTitle: (p) => (p === 'pro' ? 'Unlimited API Routes' : p === 'student' ? 'Up to 20 API Routes' : 'Up to 5 API Routes'),
+    isUnlocked: () => true,
+  },
+  {
+    titleKey: 'gw-jwt',
+    category: 'Token Verification & RBAC',
+    icon: Icons.Key,
+    getTitle: (p) => (p === 'pro' ? 'JWT Auth + Downstream Claims' : p === 'student' ? 'JWT Auth + Route RBAC' : 'JWT Auth (Locked)'),
+    isUnlocked: (p) => p !== 'free',
+    lockedHint: 'Requires Student or Pro',
+  },
+  {
+    titleKey: 'gw-ratelimit',
+    category: 'Traffic Protection',
+    icon: Icons.Shield,
+    getTitle: (p) => (p === 'pro' ? 'Unlimited Identity Rate Limits' : p === 'student' ? 'Identity Rate Limits (5 rules)' : 'IP Rate Limits (1 rule)'),
+    isUnlocked: () => true,
+  },
+  {
+    titleKey: 'gw-cache',
+    category: 'Performance & Edge CDN',
+    icon: Icons.Zap,
+    getTitle: (p) => (p === 'pro' ? 'Edge Cache & Traffic Shadowing' : p === 'student' ? 'Semantic Caching (5 paths)' : 'Edge Caching (Locked)'),
+    isUnlocked: (p) => p !== 'free',
+    lockedHint: 'Requires Student or Pro',
+  },
+  {
+    titleKey: 'gw-bff',
+    category: 'Microservice Aggregator',
+    icon: Icons.Layers,
+    getTitle: (p) => (p === 'pro' ? 'BFF Multi-Upstream Fan-Out' : 'BFF Microservice Fan-Out (Pro)'),
+    isUnlocked: (p) => p === 'pro',
+    lockedHint: 'Requires Pro Plan',
+  },
+  {
+    titleKey: 'gw-shaping',
+    category: 'Payload Transformation',
+    icon: Icons.Edit,
+    getTitle: (p) => (p === 'pro' ? 'Unlimited Payload Reshaping' : p === 'student' ? 'Body Shaping (5 routes)' : 'Basic Body Stripping (1 route)'),
+    isUnlocked: () => true,
+  },
+  {
+    titleKey: 'gw-schema',
+    category: 'Edge Contract Validation',
+    icon: Icons.Check,
+    getTitle: (p) => (p === 'pro' ? 'Unlimited Schema Validation' : p === 'student' ? 'Contract Checks (5 routes)' : 'Basic Field Checks (1 route)'),
+    isUnlocked: () => true,
+  },
+  {
+    titleKey: 'gw-security',
+    category: 'Access Policies & WAF Rules',
+    icon: Icons.Lock,
+    getTitle: (p) => (p === 'pro' ? 'Unlimited Header & IP Rules' : p === 'student' ? '10 Header & 20 IP Rules' : '3 Header & 5 IP Rules'),
+    isUnlocked: () => true,
+  },
+  {
+    titleKey: 'gw-mocks',
+    category: 'API Stubs & Prototyping',
+    icon: Icons.Copy,
+    getTitle: (p) => (p === 'pro' ? 'Unlimited Mock Routes' : p === 'student' ? 'Up to 10 Mock Routes' : 'Up to 2 Mock Routes'),
+    isUnlocked: () => true,
+  },
+  {
+    titleKey: 'gw-canary',
+    category: 'Phased Release Engineering',
+    icon: Icons.Refresh,
+    getTitle: () => 'Canary Splits & Traffic Shadowing',
+    isUnlocked: (p) => p === 'pro',
+    lockedHint: 'Requires Pro Plan',
+  },
+];
+
+const UNIFIED_FEATURE_SPECS: FeatureSpec[] = [
+  {
+    titleKey: 'history',
+    category: 'Audit Logs & Version Snapshots',
+    icon: Icons.History,
+    getTitle: () => 'Deployment History & Snapshots',
+    isUnlocked: () => true,
+  },
+  {
+    titleKey: 'pause-resume',
+    category: 'Fleet Lifecycle Controls',
+    icon: Icons.Zap,
+    getTitle: () => 'Pause / Resume Services',
+    isUnlocked: () => true,
+  },
+  {
+    titleKey: 'placement',
+    category: 'Global Latency Optimization',
+    icon: Icons.Globe,
+    getTitle: (p) => (p === 'free' ? 'Smart Placement (auto, locked)' : 'Custom Smart Placement & Region Pinning'),
+    isUnlocked: (p) => p !== 'free',
+    lockedHint: 'Requires Student or Pro',
+  },
+  {
+    titleKey: 'analytics',
+    category: 'Realtime Edge Telemetry',
+    icon: Icons.Layers,
+    getTitle: () => 'Cloudflare Analytics per Card',
+    isUnlocked: (p) => p !== 'free',
+    lockedHint: 'Requires Student or Pro',
+  },
+  {
+    titleKey: 'download',
+    category: 'Source Script Export',
+    icon: Icons.Download,
+    getTitle: () => 'Download Worker Scripts',
+    isUnlocked: (p) => p !== 'free',
+    lockedHint: 'Requires Student or Pro',
+  },
+  {
+    titleKey: 'rate-limit',
+    category: 'DDoS & Traffic Protection',
+    icon: Icons.Shield,
+    getTitle: (p) => (p === 'pro' ? 'Unlimited Edge Rate Limiting' : 'Edge Rate Limiting'),
+    isUnlocked: (p) => p === 'pro',
+    lockedHint: 'Requires Pro Plan',
+  },
+  {
+    titleKey: 'ai',
+    category: 'Autonomous Fleet Operations',
+    icon: Icons.Crown,
+    getTitle: () => 'AI Agent',
+    isUnlocked: (p) => p === 'pro',
+    lockedHint: 'Requires Pro Plan',
+  },
+];
+
 type PlanType = 'trial' | 'student' | 'pro' | 'student-annual' | 'pro-annual';
 type BillingPeriod = 'monthly' | 'annual';
+
+function formatRemainingTime(targetIso: string): string {
+  const diff = new Date(targetIso).getTime() - Date.now();
+  if (diff <= 0) return 'expired';
+
+  const totalMinutes = Math.floor(diff / (1000 * 60));
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+  const minutes = totalMinutes % 60;
+
+  const parts: string[] = [];
+  if (days > 0) parts.push(`${days} day${days === 1 ? '' : 's'}`);
+  if (hours > 0 || days > 0) parts.push(`${hours} hour${hours === 1 ? '' : 's'}`);
+  parts.push(`${minutes} minute${minutes === 1 ? '' : 's'}`);
+
+  return `${parts.join(' ')} left`;
+}
 
 export default function ProPage() {
   const { user, loading: authLoading, refreshUser } = useAuth();
@@ -38,10 +229,21 @@ export default function ProPage() {
   const [selectedPlan, setSelectedPlan] = useState<PlanType>('student');
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('monthly');
   const [phone, setPhone] = useState('');
+  const [remainingTime, setRemainingTime] = useState<string>('');
 
   useEffect(() => {
     if (!authLoading && !user) router.push('/login');
   }, [user, authLoading, router]);
+
+  useEffect(() => {
+    if (!user?.planExpiresAt) return;
+    const updateCountdown = () => {
+      setRemainingTime(formatRemainingTime(user.planExpiresAt!));
+    };
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 60000);
+    return () => clearInterval(interval);
+  }, [user?.planExpiresAt]);
 
   const handleNav = (id: string) => {
     if (id === 'overview') router.push('/overview');
@@ -165,7 +367,16 @@ export default function ProPage() {
   const currentPlan = user.plan || 'free';
   const isActive = user.isSubscribed && user.planExpiresAt && new Date(user.planExpiresAt) > new Date();
   const expiryDate = user.planExpiresAt
-    ? new Date(user.planExpiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+    ? new Date(user.planExpiresAt)
+        .toLocaleString('en-IN', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        })
+        .replace(/\b(am|pm)\b/g, (m) => m.toUpperCase())
     : null;
   const canTrial = !user.hasEverSubscribed;
 
@@ -213,69 +424,457 @@ export default function ProPage() {
             ];
             const priceMap: Record<string, number> = { free: 0, trial: 0, student: 49, 'student-annual': 470, pro: 299, 'pro-annual': 2870 };
             const currentPrice = priceMap[currentPlan] ?? 0;
-            return (
-            <div style={{ maxWidth: 1000, width: '100%', margin: '0 auto' }}>
-              <div style={{
-                padding: '28px 32px', background: 'linear-gradient(135deg, #f59e0b11, #f9731611)',
-                border: '1px solid #f59e0b44', borderRadius: 'var(--radius-lg)',
-                textAlign: 'center', marginBottom: 24,
-              }}>
-                <div style={{ fontSize: 13, fontFamily: 'var(--mono)', color: '#f59e0b', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{planLabel} ACTIVE</div>
-                <p style={{ color: 'var(--text-2)', marginTop: 8, fontSize: 14 }}>
-                  Active until <strong>{expiryDate}</strong> — full tenure from upgrade, remaining days forfeited.
-                </p>
-                <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 360, margin: '16px auto 0', textAlign: 'left' }}>
-                  {ALL_FEATURES.filter(f => f[featureKey]).map(f => (
-                    <div key={f[featureKey]!} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12.5, color: 'var(--text)' }}>
-                      <Icons.Check size={13} stroke="#f59e0b" style={{ flexShrink: 0 }} /> <span>{f[featureKey]}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            const unlockedLbCount = LB_FEATURE_SPECS.filter(s => s.isUnlocked(featureKey)).length;
+            const unlockedGwCount = GATEWAY_FEATURE_SPECS.filter(s => s.isUnlocked(featureKey)).length;
+            const unlockedUnifiedCount = UNIFIED_FEATURE_SPECS.filter(s => s.isUnlocked(featureKey)).length;
+            const totalUnlocked = unlockedLbCount + unlockedGwCount + unlockedUnifiedCount;
+            const totalFeatures = LB_FEATURE_SPECS.length + GATEWAY_FEATURE_SPECS.length + UNIFIED_FEATURE_SPECS.length;
 
-              <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16, color: 'var(--text)' }}>Upgrade your plan</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16, marginBottom: 24 }}>
-                {UPGRADE_PLANS.map(p => {
-                  const isCurrent = p.key === currentPlan;
-                  const payable = p.price - currentPrice;
-                  const isUpgrade = payable > 0;
-                  return (
-                    <div key={p.key} style={{
-                      padding: 20, background: 'var(--bg-1)', borderRadius: 'var(--radius-lg)',
-                      border: isCurrent ? '2px solid #f59e0b' : isUpgrade ? '1px solid var(--line)' : '1px solid var(--line)',
-                      opacity: !isCurrent && !isUpgrade ? 0.55 : 1,
+            const renderFeatureCard = (item: FeatureSpec) => {
+              const unlocked = item.isUnlocked(featureKey);
+              const title = item.getTitle(featureKey);
+              const IconComponent = item.icon;
+              return (
+                <div
+                  key={item.titleKey}
+                  style={{
+                    padding: '11px 13px',
+                    background: unlocked ? 'var(--bg)' : 'var(--bg-2)',
+                    border: unlocked ? '1px solid var(--line)' : '1px dashed var(--line-2)',
+                    borderRadius: 'var(--radius)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 10,
+                    opacity: unlocked ? 1 : 0.62,
+                    transition: 'all 120ms ease',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                    <div style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 'var(--radius-sm)',
+                      background: unlocked ? 'var(--bg-2)' : 'var(--bg-3)',
+                      border: '1px solid var(--line)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      color: unlocked ? 'var(--text)' : 'var(--text-3)',
                     }}>
-                      <div style={{ fontSize: 11, fontFamily: 'var(--mono)', color: isCurrent ? '#f59e0b' : 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{p.label}</div>
-                      <div style={{ fontSize: 26, fontWeight: 700, marginTop: 8 }}>₹{p.price}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 14 }}>{p.duration}</div>
-                      {isCurrent ? (
-                        <button disabled style={{ width: '100%', padding: '10px', fontSize: 13, fontWeight: 600, borderRadius: 'var(--radius)', border: '1px solid #f59e0b', background: '#f59e0b15', color: '#f59e0b', cursor: 'not-allowed' }}>Current plan</button>
-                      ) : isUpgrade ? (
-                        <>
-                          <div style={{ fontSize: 11, color: 'var(--green)', marginBottom: 6 }}>Pay ₹{payable} — save ₹{currentPrice} from current</div>
-                          <button
-                            onClick={() => { setSelectedPlan(p.key); setPhone(''); setError(''); setShowModal(true); (window as any).__upgradeMode = true; (window as any).__upgradePlan = p.key; }}
-                            disabled={loading || polling}
-                            style={{ width: '100%', padding: '10px', fontSize: 13, fontWeight: 600, borderRadius: 'var(--radius)', border: 'none', background: 'linear-gradient(135deg, #3b82f6, #6366f1)', color: '#fff', cursor: 'pointer' }}
-                          >
-                            Upgrade — Pay ₹{payable}
-                          </button>
-                          <div style={{ fontSize: 10, color: 'var(--text-3)', marginTop: 6, textDecoration: 'line-through' }}>Full ₹{p.price} — you save ₹{currentPrice}</div>
-                        </>
-                      ) : (
-                        <button disabled style={{ width: '100%', padding: '10px', fontSize: 12, borderRadius: 'var(--radius)', border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text-3)', cursor: 'not-allowed' }}>Downgrade not available</button>
-                      )}
+                      {unlocked ? <IconComponent size={15} stroke="var(--text)" /> : <Icons.Lock size={14} stroke="var(--text-3)" />}
                     </div>
-                  );
-                })}
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        color: unlocked ? 'var(--text)' : 'var(--text-2)',
+                        lineHeight: 1.35,
+                      }}>
+                        {title}
+                      </div>
+                      <div style={{
+                        fontSize: 10.5,
+                        color: unlocked ? 'var(--text-3)' : '#f59e0b',
+                        marginTop: 2,
+                        lineHeight: 1.3,
+                      }}>
+                        {unlocked ? item.category : item.lockedHint || 'Requires Upgrade'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    padding: '2px 7px',
+                    borderRadius: 999,
+                    background: unlocked ? 'rgba(16, 185, 129, 0.08)' : 'rgba(245, 158, 11, 0.08)',
+                    border: unlocked ? '1px solid rgba(16, 185, 129, 0.25)' : '1px solid rgba(245, 158, 11, 0.25)',
+                    fontSize: 10.5,
+                    fontWeight: 600,
+                    color: unlocked ? '#10b981' : '#f59e0b',
+                    flexShrink: 0,
+                  }}>
+                    {unlocked ? (
+                      <>
+                        <Icons.Check size={10} stroke="#10b981" strokeWidth={2.5} />
+                        <span>Active</span>
+                      </>
+                    ) : (
+                      <>
+                        <Icons.Lock size={10} stroke="#f59e0b" strokeWidth={2} />
+                        <span>Locked</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            };
+
+            return (
+              <div style={{ width: '100%' }}>
+                {/* Active Plan Status Hero Card */}
+                <div style={{
+                  position: 'relative',
+                  overflow: 'hidden',
+                  padding: '24px 28px',
+                  background: 'var(--bg-1)',
+                  border: '1px solid var(--line)',
+                  borderRadius: 'var(--radius-lg)',
+                  boxShadow: 'var(--shadow-sm)',
+                  marginBottom: 24,
+                }}>
+                  <div style={{
+                    position: 'absolute', top: 0, left: 0, right: 0, height: 2,
+                    background: 'linear-gradient(90deg, #10b981, #3b82f6)',
+                  }} />
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+                    <div>
+                      <div style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 7,
+                        padding: '4px 10px', borderRadius: 999,
+                        background: 'rgba(16, 185, 129, 0.08)',
+                        border: '1px solid rgba(16, 185, 129, 0.25)',
+                        marginBottom: 10,
+                      }}>
+                        <span style={{
+                          width: 6, height: 6, borderRadius: '50%',
+                          background: '#10b981', display: 'inline-block',
+                          boxShadow: '0 0 6px #10b981',
+                        }} />
+                        <span style={{
+                          fontSize: 11, fontFamily: 'var(--mono)',
+                          color: '#10b981', fontWeight: 600,
+                          letterSpacing: '0.08em', textTransform: 'uppercase',
+                        }}>
+                          {planLabel} ACTIVE
+                        </span>
+                      </div>
+                      <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.02em' }}>
+                        Subscription Active
+                      </h2>
+                      <p style={{ color: 'var(--text-2)', marginTop: 6, fontSize: 13, lineHeight: 1.5 }}>
+                        Active until <strong style={{ color: 'var(--text)' }}>{expiryDate}</strong>
+                        {remainingTime && (
+                          <span style={{
+                            marginLeft: 8,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            padding: '2px 8px',
+                            borderRadius: 999,
+                            background: 'rgba(16, 185, 129, 0.08)',
+                            border: '1px solid rgba(16, 185, 129, 0.25)',
+                            fontSize: 11,
+                            fontFamily: 'var(--mono)',
+                            color: '#10b981',
+                            fontWeight: 600,
+                          }}>
+                            <Icons.History size={11} stroke="#10b981" /> {remainingTime}
+                          </span>
+                        )} — full tenure applies from any future upgrade, remaining days forfeited.
+                      </p>
+                    </div>
+
+                    <div style={{
+                      padding: '10px 16px', background: 'var(--bg-2)',
+                      border: '1px solid var(--line)', borderRadius: 'var(--radius)',
+                      textAlign: 'right', minWidth: 150,
+                    }}>
+                      <div style={{ fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                        Entitlements
+                      </div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginTop: 2 }}>
+                        {totalUnlocked} / {totalFeatures} Unlocked
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section Header */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--text-3)', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600 }}>
+                      Active Plan Entitlements
+                    </div>
+                    <div style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 2 }}>
+                      Configured quotas and capabilities across your infrastructure
+                    </div>
+                  </div>
+                  <span style={{
+                    fontSize: 11, fontFamily: 'var(--mono)', padding: '4px 10px',
+                    borderRadius: 999, background: 'var(--bg-2)', border: '1px solid var(--line)',
+                    color: 'var(--text-2)',
+                  }}>
+                    {unlockedLbCount} Balancer · {unlockedGwCount} Gateway · {unlockedUnifiedCount} Unified Active
+                  </span>
+                </div>
+
+                {/* Side-by-Side Panels: Load Balancers (Left) | API Gateways (Right) */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(480px, 1fr))',
+                  gap: 16,
+                  alignItems: 'start',
+                  marginBottom: 16,
+                }}>
+                  {/* Left Column: Load Balancers */}
+                  <div style={{
+                    background: 'var(--bg-1)',
+                    border: '1px solid var(--line)',
+                    borderRadius: 'var(--radius-lg)',
+                    padding: 18,
+                    boxShadow: 'var(--shadow-sm)',
+                  }}>
+                    <div style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      marginBottom: 14, paddingBottom: 12,
+                      borderBottom: '1px solid var(--line)',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{
+                          width: 32, height: 32, borderRadius: 'var(--radius-sm)',
+                          background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          flexShrink: 0,
+                        }}>
+                          <Icons.Server size={17} stroke="#3b82f6" />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
+                            Load Balancers
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--text-3)' }}>
+                            Traffic routing, origin probing & failover
+                          </div>
+                        </div>
+                      </div>
+                      <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-3)' }}>
+                        {unlockedLbCount} / {LB_FEATURE_SPECS.length} Unlocked
+                      </span>
+                    </div>
+
+                    {/* 2-Column Grid inside Load Balancers panel */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 9 }}>
+                      {LB_FEATURE_SPECS.map(renderFeatureCard)}
+                    </div>
+                  </div>
+
+                  {/* Right Column: API Gateways */}
+                  <div style={{
+                    background: 'var(--bg-1)',
+                    border: '1px solid var(--line)',
+                    borderRadius: 'var(--radius-lg)',
+                    padding: 18,
+                    boxShadow: 'var(--shadow-sm)',
+                  }}>
+                    <div style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      marginBottom: 14, paddingBottom: 12,
+                      borderBottom: '1px solid var(--line)',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{
+                          width: 32, height: 32, borderRadius: 'var(--radius-sm)',
+                          background: 'rgba(168, 85, 247, 0.1)', color: '#a855f7',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          flexShrink: 0,
+                        }}>
+                          <Icons.Globe size={17} stroke="#a855f7" />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
+                            API Gateways
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--text-3)' }}>
+                            Reverse proxy, security policies, auth & caching
+                          </div>
+                        </div>
+                      </div>
+                      <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-3)' }}>
+                        {unlockedGwCount} / {GATEWAY_FEATURE_SPECS.length} Unlocked
+                      </span>
+                    </div>
+
+                    {/* 2-Column Grid inside API Gateways panel */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 9 }}>
+                      {GATEWAY_FEATURE_SPECS.map(renderFeatureCard)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bottom Unified Platform Section */}
+                <div style={{
+                  background: 'var(--bg-1)',
+                  border: '1px solid var(--line)',
+                  borderRadius: 'var(--radius-lg)',
+                  padding: 18,
+                  boxShadow: 'var(--shadow-sm)',
+                  marginBottom: 28,
+                }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    marginBottom: 14, paddingBottom: 12,
+                    borderBottom: '1px solid var(--line)',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{
+                        width: 32, height: 32, borderRadius: 'var(--radius-sm)',
+                        background: 'rgba(16, 185, 129, 0.1)', color: '#10b981',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        flexShrink: 0,
+                      }}>
+                        <Icons.Zap size={17} stroke="#10b981" />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
+                          Unified Platform Capabilities
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-3)' }}>
+                          Account-wide features shared across all load balancers & API gateways
+                        </div>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-3)' }}>
+                      {unlockedUnifiedCount} / {UNIFIED_FEATURE_SPECS.length} Unlocked
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10 }}>
+                    {UNIFIED_FEATURE_SPECS.map(renderFeatureCard)}
+                  </div>
+                </div>
+
+                {/* Upgrade your plan section */}
+                <div style={{ marginBottom: 24 }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>
+                      Upgrade your plan
+                    </div>
+                    <span style={{ fontSize: 12, color: 'var(--text-3)' }}>
+                      Pay only the difference between plans
+                    </span>
+                  </div>
+
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                    gap: 14,
+                    marginBottom: 16,
+                  }}>
+                    {UPGRADE_PLANS.map(p => {
+                      const isCurrent = p.key === currentPlan;
+                      const payable = p.price - currentPrice;
+                      const isUpgrade = payable > 0;
+                      return (
+                        <div
+                          key={p.key}
+                          style={{
+                            padding: 20,
+                            background: 'var(--bg-1)',
+                            borderRadius: 'var(--radius-lg)',
+                            border: isCurrent
+                              ? '1.5px solid #10b981'
+                              : isUpgrade
+                              ? '1px solid var(--line-2)'
+                              : '1px solid var(--line)',
+                            opacity: !isCurrent && !isUpgrade ? 0.5 : 1,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'space-between',
+                          }}
+                        >
+                          <div>
+                            <div style={{
+                              display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8,
+                            }}>
+                              <span style={{
+                                fontSize: 11, fontFamily: 'var(--mono)',
+                                color: isCurrent ? '#10b981' : 'var(--text-3)',
+                                textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600,
+                              }}>
+                                {p.label}
+                              </span>
+                              {isCurrent && (
+                                <span style={{
+                                  fontSize: 10, padding: '2px 6px', borderRadius: 999,
+                                  background: 'rgba(16,185,129,0.12)', color: '#10b981', fontWeight: 700,
+                                }}>
+                                  CURRENT
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: 26, fontWeight: 700, color: 'var(--text)' }}>₹{p.price}</div>
+                            <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 16 }}>{p.duration}</div>
+                          </div>
+
+                          <div>
+                            {isCurrent ? (
+                              <button disabled style={{
+                                width: '100%', padding: '10px', fontSize: 12.5, fontWeight: 600,
+                                borderRadius: 'var(--radius)', border: '1px solid rgba(16,185,129,0.3)',
+                                background: 'rgba(16,185,129,0.08)', color: '#10b981', cursor: 'not-allowed',
+                              }}>
+                                Current active plan
+                              </button>
+                            ) : isUpgrade ? (
+                              <>
+                                <div style={{ fontSize: 11, color: '#10b981', fontWeight: 500, marginBottom: 8 }}>
+                                  Pay ₹{payable} <span style={{ color: 'var(--text-3)' }}>(Save ₹{currentPrice})</span>
+                                </div>
+                                <button
+                                  onClick={() => {
+                                    setSelectedPlan(p.key);
+                                    setPhone('');
+                                    setError('');
+                                    setShowModal(true);
+                                    (window as any).__upgradeMode = true;
+                                    (window as any).__upgradePlan = p.key;
+                                  }}
+                                  disabled={loading || polling}
+                                  style={{
+                                    width: '100%', padding: '10px', fontSize: 13, fontWeight: 600,
+                                    borderRadius: 'var(--radius)', border: 'none',
+                                    background: 'linear-gradient(135deg, #3b82f6, #6366f1)',
+                                    color: '#fff', cursor: 'pointer',
+                                    boxShadow: '0 2px 8px rgba(59, 130, 246, 0.25)',
+                                  }}
+                                >
+                                  Upgrade — Pay ₹{payable}
+                                </button>
+                              </>
+                            ) : (
+                              <button disabled style={{
+                                width: '100%', padding: '10px', fontSize: 12,
+                                borderRadius: 'var(--radius)', border: '1px solid var(--line)',
+                                background: 'var(--bg-2)', color: 'var(--text-3)', cursor: 'not-allowed',
+                              }}>
+                                Downgrade not available
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div style={{
+                    padding: '12px 16px', background: 'var(--bg-1)',
+                    border: '1px solid var(--line)', borderRadius: 'var(--radius)',
+                    fontSize: 12, color: 'var(--text-3)', lineHeight: 1.6,
+                  }}>
+                    Upgrade pays <strong style={{ color: 'var(--text)' }}>difference only</strong> and gives full tenure from now. No accumulation — remaining days of current plan are forfeited. Annual → monthly downgrade is not allowed.
+                  </div>
+                </div>
+
+                {error && <div style={{ marginTop: 16, padding: '12px 16px', background: 'rgba(239,68,68,0.1)', border: '1px solid var(--red)', borderRadius: 'var(--radius)', color: 'var(--red)', fontSize: 13 }}>{error}</div>}
+                {polling && <div style={{ textAlign: 'center', padding: 16, color: '#f59e0b', fontSize: 14 }}>Verifying payment with Cashfree, please wait...</div>}
               </div>
-              <div style={{ padding: '12px 16px', background: 'var(--bg-1)', border: '1px solid var(--line)', borderRadius: 'var(--radius)', fontSize: 12, color: 'var(--text-3)', lineHeight: 1.6 }}>
-                Upgrade pays <strong style={{ color: 'var(--text)' }}>difference only</strong> and gives full tenure from now. No accumulation — remaining days of current plan are forfeited. Annual → monthly downgrade is not allowed.
-              </div>
-              {error && <div style={{ marginTop: 16, padding: '12px 16px', background: 'rgba(239,68,68,0.1)', border: '1px solid var(--red)', borderRadius: 'var(--radius)', color: 'var(--red)', fontSize: 13 }}>{error}</div>}
-              {polling && <div style={{ textAlign: 'center', padding: 16, color: '#f59e0b', fontSize: 14 }}>Verifying payment with Cashfree, please wait...</div>}
-            </div>
-            ); })() : (
+            );
+          })() : (
             <div style={{ maxWidth: 1000, margin: '0 auto' }}>
               {/* Trial banner */}
               {canTrial && (

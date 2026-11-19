@@ -47,6 +47,13 @@ export function createGatewayTool(ctx: ToolContext) {
       if (input.cacheConfig?.enabled && !config.hasCaching) return fail('Response caching requires a paid plan.');
       if (input.canary?.enabled && !config.hasCanary) return fail('Canary splitting is a Pro feature.');
       if (input.rateLimitEnabled && !config.hasRateLimit) return fail('Rate limiting requires an EdgeBalancer Pro subscription');
+      if ((input.rateLimitKeyType === 'header' || input.rateLimitKeyType === 'jwt') && !config.hasIdentityRateLimit) return fail('Identity-based rate limiting requires a Student or Pro plan.');
+      if (Array.isArray(input.bffRoutes) && input.bffRoutes.length > 0 && !config.hasBffAggregation) return fail('BFF Multi-Upstream Aggregation is a Pro feature.');
+      if (input.shadowConfig?.enabled && !config.hasTrafficShadowing) return fail('Traffic Shadowing is a Pro feature.');
+      if (input.jwtAuth?.injectHeaders && !config.hasHeaderInjection) return fail('Downstream Header Injection is a Pro feature.');
+      if (config.maxRbacRules !== -1 && Array.isArray(input.jwtAuth?.rbacRules) && input.jwtAuth.rbacRules.length > config.maxRbacRules) return fail(`Your ${config.name} plan allows ${config.maxRbacRules} RBAC rule(s).`);
+      if (config.maxBodyShapingRules !== -1 && Array.isArray(input.bodyTransforms) && input.bodyTransforms.length > config.maxBodyShapingRules) return fail(`Your ${config.name} plan allows ${config.maxBodyShapingRules} payload transform rule(s).`);
+      if (config.maxSchemaRules !== -1 && Array.isArray(input.schemaRules) && input.schemaRules.length > config.maxSchemaRules) return fail(`Your ${config.name} plan allows ${config.maxSchemaRules} schema validation rule(s).`);
       if (config.maxGatewayRoutes !== -1 && Array.isArray(input.pathRoutes) && input.pathRoutes.length > config.maxGatewayRoutes) return fail(`Your ${config.name} plan allows ${config.maxGatewayRoutes} routing rules per gateway.`);
       if (config.maxGatewayRateLimitRules !== -1 && Array.isArray(input.pathRateLimits) && input.pathRateLimits.length > config.maxGatewayRateLimitRules) return fail(`Your ${config.name} plan allows ${config.maxGatewayRateLimitRules} rate limit rule(s) per gateway.`);
       if (config.maxGatewayHeaderRules !== -1) {
@@ -55,6 +62,7 @@ export function createGatewayTool(ctx: ToolContext) {
       }
       if (config.maxGatewayIpRules !== -1 && Array.isArray(input.ipRules) && input.ipRules.length > config.maxGatewayIpRules) return fail(`Your ${config.name} plan allows ${config.maxGatewayIpRules} IP rules per gateway.`);
       if (config.maxGatewayMockRoutes !== -1 && Array.isArray(input.mockRoutes) && input.mockRoutes.length > config.maxGatewayMockRoutes) return fail(`Your ${config.name} plan allows ${config.maxGatewayMockRoutes} mock routes per gateway.`);
+      if (!config.canEditPlacement) input.placement = { smartPlacement: true };
 
       if (!input.name || typeof input.name !== 'string' || input.name.trim().length < 3) return fail('name must be 3-50 lowercase letters, digits and hyphens');
       if (!input.domain) return fail('domain is required');

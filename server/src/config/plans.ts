@@ -22,6 +22,13 @@ export interface PlanConfig {
   hasJwtAuth: boolean;
   hasCaching: boolean;
   hasCanary: boolean;
+  hasIdentityRateLimit: boolean;
+  hasBffAggregation: boolean;
+  hasTrafficShadowing: boolean;
+  hasHeaderInjection: boolean;
+  maxRbacRules: number;
+  maxSchemaRules: number;
+  maxBodyShapingRules: number;
 }
 
 const ALL_STRATEGIES: string[] = [];
@@ -49,6 +56,13 @@ export const PLANS: Record<PlanType, PlanConfig> = {
     hasJwtAuth: false,
     hasCaching: false,
     hasCanary: false,
+    hasIdentityRateLimit: false,
+    hasBffAggregation: false,
+    hasTrafficShadowing: false,
+    hasHeaderInjection: false,
+    maxRbacRules: 0,
+    maxSchemaRules: 1,
+    maxBodyShapingRules: 1,
   },
   trial: {
     name: "Student's Support — Trial",
@@ -72,6 +86,13 @@ export const PLANS: Record<PlanType, PlanConfig> = {
     hasJwtAuth: true,
     hasCaching: true,
     hasCanary: false,
+    hasIdentityRateLimit: true,
+    hasBffAggregation: false,
+    hasTrafficShadowing: false,
+    hasHeaderInjection: false,
+    maxRbacRules: 5,
+    maxSchemaRules: 5,
+    maxBodyShapingRules: 5,
   },
   student: {
     name: "Student's Support",
@@ -95,6 +116,13 @@ export const PLANS: Record<PlanType, PlanConfig> = {
     hasJwtAuth: true,
     hasCaching: true,
     hasCanary: false,
+    hasIdentityRateLimit: true,
+    hasBffAggregation: false,
+    hasTrafficShadowing: false,
+    hasHeaderInjection: false,
+    maxRbacRules: 5,
+    maxSchemaRules: 5,
+    maxBodyShapingRules: 5,
   },
   pro: {
     name: 'Pro',
@@ -118,6 +146,13 @@ export const PLANS: Record<PlanType, PlanConfig> = {
     hasJwtAuth: true,
     hasCaching: true,
     hasCanary: true,
+    hasIdentityRateLimit: true,
+    hasBffAggregation: true,
+    hasTrafficShadowing: true,
+    hasHeaderInjection: true,
+    maxRbacRules: -1,
+    maxSchemaRules: -1,
+    maxBodyShapingRules: -1,
   },
   'student-annual': {
     name: "Student's Support (Annual)",
@@ -141,6 +176,13 @@ export const PLANS: Record<PlanType, PlanConfig> = {
     hasJwtAuth: true,
     hasCaching: true,
     hasCanary: false,
+    hasIdentityRateLimit: true,
+    hasBffAggregation: false,
+    hasTrafficShadowing: false,
+    hasHeaderInjection: false,
+    maxRbacRules: 5,
+    maxSchemaRules: 5,
+    maxBodyShapingRules: 5,
   },
   'pro-annual': {
     name: 'Pro (Annual)',
@@ -164,6 +206,13 @@ export const PLANS: Record<PlanType, PlanConfig> = {
     hasJwtAuth: true,
     hasCaching: true,
     hasCanary: true,
+    hasIdentityRateLimit: true,
+    hasBffAggregation: true,
+    hasTrafficShadowing: true,
+    hasHeaderInjection: true,
+    maxRbacRules: -1,
+    maxSchemaRules: -1,
+    maxBodyShapingRules: -1,
   },
 };
 
