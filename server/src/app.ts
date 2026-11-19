@@ -46,7 +46,9 @@ export const buildServer = async () => {
   await registerCors(app);
   await registerRateLimit(app);
   await app.register(idempotencyPlugin);
-  await initKnowledgeBase();
+  if (process.env.NODE_ENV !== 'test') {
+    await initKnowledgeBase();
+  }
   registerErrorHandler(app);
   registerContentTypeParser(app);
 
