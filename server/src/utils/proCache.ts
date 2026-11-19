@@ -62,24 +62,28 @@ export async function getUserPlan(userId: string): Promise<UserPlanInfo> {
   }
 
   const promise = (async (): Promise<UserPlanInfo> => {
-    const user = await User.findById(userId).populate<{ paymentId: any }>('paymentId').lean() as any;
-    if (!user || !user.paymentId) {
-      void setPlanCache(userId, 'free', null);
+    try {
+      const user = await User.findById(userId).populate<{ paymentId: any }>('paymentId').lean() as any;
+      if (!user || !user.paymentId) {
+        void setPlanCache(userId, 'free', null);
+        return { plan: 'free', expiresAt: null };
+      }
+
+      const payment = user.paymentId;
+      const plan = (payment.plan || 'free') as PlanType;
+      const expiresAt = payment.expiresAt ? new Date(payment.expiresAt) : null;
+      const resolved = resolvePlan(plan, expiresAt);
+
+      if (resolved !== 'free') {
+        void setPlanCache(userId, resolved, expiresAt);
+      } else {
+        void setPlanCache(userId, 'free', null);
+      }
+
+      return { plan: resolved, expiresAt: resolved === 'free' ? null : expiresAt };
+    } catch {
       return { plan: 'free', expiresAt: null };
     }
-
-    const payment = user.paymentId;
-    const plan = (payment.plan || 'free') as PlanType;
-    const expiresAt = payment.expiresAt ? new Date(payment.expiresAt) : null;
-    const resolved = resolvePlan(plan, expiresAt);
-
-    if (resolved !== 'free') {
-      void setPlanCache(userId, resolved, expiresAt);
-    } else {
-      void setPlanCache(userId, 'free', null);
-    }
-
-    return { plan: resolved, expiresAt: resolved === 'free' ? null : expiresAt };
   })();
 
   inflight.set(userId, promise);

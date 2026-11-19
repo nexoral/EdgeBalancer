@@ -2,22 +2,17 @@ import { Types } from 'mongoose';
 import { User } from '../../../models/User';
 import type { IUser } from '../../../models/User';
 import { PaymentHistory } from '../../../models/PaymentHistory';
-import { setPlanCache, removePlanCache, isUserPro as isUserProCached } from '../../../utils/proCache';
-import { PLANS, resolvePlan, type PlanType } from '../../../config/plans';
+import {
+  getUserPlan as getUserPlanCached,
+  setPlanCache,
+  removePlanCache,
+  isUserPro as isUserProCached,
+} from '../../../utils/proCache';
+import { PLANS, type PlanType } from '../../../config/plans';
 import type { AppHandler } from '../../../types/http';
 
 export async function getUserPlan(userId: string): Promise<{ plan: PlanType; expiresAt: Date | null }> {
-  try {
-    const user = await User.findById(userId).populate<{ paymentId: any }>('paymentId').lean();
-    if (!user || !user.paymentId) return { plan: 'free', expiresAt: null };
-    const payment = user.paymentId;
-    const plan = (payment.plan || 'free') as PlanType;
-    const expiresAt = payment.expiresAt ? new Date(payment.expiresAt) : null;
-    const resolved = resolvePlan(plan, expiresAt);
-    return { plan: resolved, expiresAt: resolved === 'free' ? null : expiresAt };
-  } catch {
-    return { plan: 'free', expiresAt: null };
-  }
+  return getUserPlanCached(userId);
 }
 
 export async function isUserPro(userId: string): Promise<boolean> {
