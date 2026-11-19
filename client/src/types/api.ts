@@ -244,6 +244,7 @@ export interface Gateway {
   rateLimitEnabled: boolean;
   rateLimitRequestsPerMinute: number | null;
   pathRateLimits: PathRateLimit[];
+  placement?: PlacementConfig;
   status: string;
   workerUrl: string;
   createdAt: string;

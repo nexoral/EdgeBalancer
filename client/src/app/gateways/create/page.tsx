@@ -9,6 +9,7 @@ import { Icons } from '@/components/shared/Icons';
 import Link from 'next/link';
 import { DeploymentOverlay, DeploymentSuccessModal } from '@/components/loadbalancers/DeploymentExperience';
 import { MultiSelect } from '@/components/ui/MultiSelect';
+import { ALL_CLOUD_REGIONS, REGIONS_BY_PROVIDER } from '@/lib/cloudRegions';
 import toast from 'react-hot-toast';
 
 const STEPS = [
@@ -24,6 +25,7 @@ const STEPS = [
   { n: 10, label: 'Mock Routes' },
   { n: 11, label: 'Rate Limiting' },
   { n: 12, label: 'CORS' },
+  { n: 13, label: 'Placement' },
 ];
 
 const JWT_ALGORITHMS = [
@@ -150,6 +152,8 @@ export default function CreateGatewayPage() {
     pathRateLimits: [] as Array<{ path: string; requestsPerMinute: number; priority: number }>,
     corsEnabled: false,
     corsOrigins: [] as string[],
+    smartPlacement: true,
+    placementHint: '',
   });
 
   const [corsInput, setCorsInput] = useState('');
@@ -212,7 +216,8 @@ export default function CreateGatewayPage() {
     const u = s.url.trim();
     return u.length > 0 && (u.startsWith('http://') || u.startsWith('https://'));
   });
-  const allValid = nameValid && zoneValid && upstreamsValid && !hostnameError;
+  const placementValid = form.smartPlacement || form.placementHint.trim().length > 0;
+  const allValid = nameValid && zoneValid && upstreamsValid && placementValid && !hostnameError;
 
   const redistributeWeights = (arr: typeof form.upstreams) => {
     const n = arr.length;
@@ -311,6 +316,10 @@ export default function CreateGatewayPage() {
         rateLimitEnabled: canRateLimit ? form.rateLimitEnabled : false,
         rateLimitRequestsPerMinute: canRateLimit && form.rateLimitEnabled ? Number(form.rateLimitRpm) || 60 : null,
         pathRateLimits: canRateLimit && form.pathRateLimits.length ? form.pathRateLimits : undefined,
+        placement: {
+          smartPlacement: form.smartPlacement,
+          region: !form.smartPlacement ? form.placementHint.trim() : undefined,
+        },
       };
 
       const operationId = `gateway-create-${Date.now()}`;
@@ -837,6 +846,134 @@ export default function CreateGatewayPage() {
               </div>
             </FieldBlock>
 
+            <FieldBlock n={13} title="Placement"
+              subtitle="Optimize edge latency or pin the gateway to a specific cloud region">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <label style={{
+                  display: 'flex', gap: 14, padding: 16,
+                  border: `1px solid ${form.smartPlacement ? 'var(--accent)' : 'var(--line)'}`,
+                  background: form.smartPlacement ? 'var(--accent-dim)' : 'var(--bg-2)',
+                  borderRadius: 'var(--radius)', cursor: user?.isSubscribed ? 'pointer' : 'not-allowed',
+                  position: 'relative', opacity: user?.isSubscribed ? 1 : 0.6,
+                }} onClick={() => { if (user?.isSubscribed) setActiveStep(13); }}>
+                  {!user?.isSubscribed && (
+                    <div style={{
+                      position: 'absolute', top: 8, right: 8,
+                      display: 'flex', alignItems: 'center', gap: 4,
+                      fontSize: 10, color: 'var(--accent)', fontFamily: 'var(--mono)',
+                      fontWeight: 600,
+                    }}>
+                      <Icons.Lock size={10} /> PRO
+                    </div>
+                  )}
+                  <div style={{
+                    width: 36, height: 20, flexShrink: 0,
+                    borderRadius: 999,
+                    background: form.smartPlacement ? 'var(--accent)' : 'var(--bg-3)',
+                    position: 'relative', transition: 'background 160ms',
+                  }}>
+                    <div style={{
+                      position: 'absolute', top: 2, left: form.smartPlacement ? 18 : 2,
+                      width: 16, height: 16, borderRadius: '50%',
+                      background: 'var(--bg)', transition: 'left 160ms',
+                    }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 500 }}>Optimize for Server Speed</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 4 }}>
+                      By default, the gateway runs near your <strong>visitors</strong> for the fastest response. Turn this on if your upstream is slow — the gateway will move closer to your <strong>upstream</strong> instead, cutting round-trip latency.
+                      {!user?.isSubscribed && (
+                        <span style={{ display: 'block', marginTop: 6, color: 'var(--accent)', fontWeight: 500 }}>
+                          Upgrade to Student or Pro to customize placement.
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox" checked={form.smartPlacement}
+                    onChange={e => { if (user?.isSubscribed) update('smartPlacement', e.target.checked); }}
+                    style={{ display: 'none' }}
+                  />
+                </label>
+
+                <div className="field">
+                  <label className="field-label">
+                    Pin to a Cloud Region
+                    {!form.smartPlacement && <span style={{ color: 'var(--red)', marginLeft: 4 }}>*</span>}
+                    {form.smartPlacement && <span style={{ color: 'var(--text-3)', fontWeight: 'normal', fontSize: 11, marginLeft: 4 }}>(disabled when Smart Placement is on)</span>}
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <select
+                      value={ALL_CLOUD_REGIONS.find(r => r.code === form.placementHint) ? form.placementHint : 'custom'}
+                      onChange={(e) => {
+                        if (e.target.value === 'custom') {
+                          update('placementHint', '');
+                        } else {
+                          update('placementHint', e.target.value);
+                        }
+                      }}
+                      onFocus={() => setActiveStep(13)}
+                      disabled={form.smartPlacement}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        border: '1px solid var(--line)',
+                        borderRadius: 'var(--radius)',
+                        background: form.smartPlacement ? 'var(--bg-3)' : 'var(--bg-1)',
+                        color: 'var(--text)',
+                        fontSize: 12,
+                        fontFamily: 'var(--mono)',
+                        cursor: form.smartPlacement ? 'not-allowed' : 'pointer',
+                        opacity: form.smartPlacement ? 0.5 : 1,
+                        colorScheme: 'dark',
+                      }}
+                    >
+                      <option value="">Choose a region to pin the gateway to...</option>
+                      <optgroup label="AWS">
+                        {REGIONS_BY_PROVIDER.aws.map(region => (
+                          <option key={region.code} value={region.code}>{region.name}</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Google Cloud">
+                        {REGIONS_BY_PROVIDER.gcp.map(region => (
+                          <option key={region.code} value={region.code}>{region.name}</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Azure">
+                        {REGIONS_BY_PROVIDER.azure.map(region => (
+                          <option key={region.code} value={region.code}>{region.name}</option>
+                        ))}
+                      </optgroup>
+                      <option value="custom">✏️ Custom (write your own)...</option>
+                    </select>
+                  </div>
+
+                  {!form.smartPlacement && form.placementHint === '' && (
+                    <input
+                      className="input input-mono"
+                      placeholder="e.g., aws:us-east-1, gcp:europe-west1, azure:eastus2"
+                      value={form.placementHint}
+                      onChange={e => update('placementHint', e.target.value)}
+                      onFocus={() => setActiveStep(13)}
+                      style={{ marginTop: 8, fontSize: 12 }}
+                    />
+                  )}
+
+                  {!ALL_CLOUD_REGIONS.find(r => r.code === form.placementHint) && form.placementHint && (
+                    <div style={{ marginTop: 8, padding: 8, background: 'var(--bg-2)', borderRadius: 4, fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-2)' }}>
+                      Custom: {form.placementHint}
+                    </div>
+                  )}
+
+                  <div className="hint" style={{ marginTop: 4 }}>
+                    {form.smartPlacement
+                      ? 'Cloudflare automatically positions the Worker near your upstreams when Smart Placement is enabled.'
+                      : 'Required. Choose a cloud region where your upstream servers are located, or enter a custom hint.'}
+                  </div>
+                </div>
+              </div>
+            </FieldBlock>
+
             <div className="deploy-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', border: '1px solid var(--line)', borderRadius: 'var(--radius-lg)', background: 'var(--bg-1)' }}>
               <div style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-3)' }}>
                 {allValid ? <><span style={{ color: 'var(--green)' }}>✓</span> Ready to deploy • ~90s</> : <>Complete required fields to deploy</>}
@@ -872,6 +1009,7 @@ export default function CreateGatewayPage() {
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>IP rules</span><span style={{ color: 'var(--accent)' }}>{form.ipRules.length}</span></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>mocks</span><span style={{ color: 'var(--accent)' }}>{form.mockRoutes.length}</span></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>CORS</span><span style={{ color: form.corsEnabled ? 'var(--green)' : 'var(--text-3)' }}>{form.corsEnabled ? 'on' : 'off'}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>placement</span><span style={{ color: form.smartPlacement ? 'var(--green)' : (form.placementHint ? 'var(--accent)' : 'var(--text-3)') }}>{form.smartPlacement ? 'smart' : form.placementHint || 'edge'}</span></div>
               </div>
             </div>
             <div style={{ padding: 16, border: '1px dashed var(--line-2)', borderRadius: 'var(--radius)', background: 'var(--bg-2)', fontSize: 12, color: 'var(--text-3)', lineHeight: 1.6 }}>

@@ -42,6 +42,10 @@ export function formatGateway(gateway: any) {
     rateLimitRequestsPerMinute: gateway.rateLimitRequestsPerMinute ?? null,
     pathRateLimits: Array.isArray(gateway.pathRateLimits) ? gateway.pathRateLimits : [],
     ipOriginRecords: Array.isArray(gateway.ipOriginRecords) ? gateway.ipOriginRecords : [],
+    placement: {
+      smartPlacement: gateway.placement?.smartPlacement !== false,
+      region: gateway.placement?.region || undefined,
+    },
     status: gateway.status,
     workerUrl: gateway.workerUrl,
     createdAt: gateway.createdAt,

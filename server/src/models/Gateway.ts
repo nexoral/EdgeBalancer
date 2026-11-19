@@ -78,6 +78,10 @@ export interface IGateway extends Document {
   rateLimitRequestsPerMinute: number | null;
   pathRateLimits: Array<{ path: string; requestsPerMinute: number; priority: number }>;
   ipOriginRecords: IGatewayIpRecord[];
+  placement?: {
+    smartPlacement?: boolean;
+    region?: string | null;
+  };
   status: 'active' | 'paused' | 'inactive';
   pauseMode?: 'release-domain' | 'keep-domain';
   workerUrl: string;
@@ -247,6 +251,13 @@ const GatewaySchema = new Schema<IGateway>(
         },
       ],
       default: [],
+    },
+    placement: {
+      type: {
+        smartPlacement: { type: Boolean, default: true },
+        region: { type: String, default: null },
+      },
+      default: { smartPlacement: true },
     },
     status: {
       type: String,

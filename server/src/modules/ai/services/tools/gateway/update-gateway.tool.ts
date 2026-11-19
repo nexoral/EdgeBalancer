@@ -34,10 +34,12 @@ export function updateGatewayTool(ctx: ToolContext) {
         rateLimitEnabled: config.rateLimitEnabled ?? existing.rateLimitEnabled,
         rateLimitRequestsPerMinute: config.rateLimitRequestsPerMinute ?? existing.rateLimitRequestsPerMinute,
         pathRateLimits: config.pathRateLimits ?? existing.pathRateLimits ?? [],
+        placement: (config as any).placement ?? existing.placement ?? { smartPlacement: true },
       };
 
       const { plan: up } = await getUserPlan(ctx.userId);
       const upCfg = PLANS[up];
+      if (!upCfg.canEditPlacement) merged.placement = existing.placement ?? { smartPlacement: true };
       if (merged.jwtAuth?.enabled && !upCfg.hasJwtAuth) return fail('JWT validation requires a paid plan.');
       if (merged.cacheConfig?.enabled && !upCfg.hasCaching) return fail('Response caching requires a paid plan.');
       if (merged.canary?.enabled && !upCfg.hasCanary) return fail('Canary splitting is a Pro feature.');

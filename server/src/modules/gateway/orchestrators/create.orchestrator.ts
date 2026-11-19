@@ -52,6 +52,7 @@ export async function createGatewayOrchestrator(params: {
     rateLimitEnabled,
     rateLimitRequestsPerMinute,
     pathRateLimits,
+    placement,
   } = input;
 
   try {
@@ -100,7 +101,10 @@ export async function createGatewayOrchestrator(params: {
 
     await deployWorker({
       accountId, apiToken, scriptName, workerCode,
-      placement: { smartPlacement: true },
+      placement: {
+        smartPlacement: placement?.smartPlacement !== false,
+        region: placement?.region || undefined,
+      },
       rateLimit,
     });
     await cancellation.throwIfCancelled();
@@ -154,6 +158,10 @@ export async function createGatewayOrchestrator(params: {
       rateLimitRequestsPerMinute: rateLimitRequestsPerMinute ?? null,
       pathRateLimits: pathRateLimits ?? [],
       ipOriginRecords,
+      placement: {
+        smartPlacement: placement?.smartPlacement !== false,
+        region: placement?.region ?? null,
+      },
       status: 'active',
       workerUrl,
     });
@@ -163,7 +171,12 @@ export async function createGatewayOrchestrator(params: {
       await createSession({
         userId, email: userEmail, content: workerCode,
         loadBalancerName: name, domain, subdomain: subdomain ?? null,
-        strategy: 'api-gateway', placement: null, exposeRealOrigin: null,
+        strategy: 'api-gateway',
+        placement: {
+          smartPlacement: placement?.smartPlacement !== false,
+          region: placement?.region || undefined,
+        },
+        exposeRealOrigin: null,
         actionType: 'create', loadBalancerId: createdGateway._id.toString(),
       });
     } catch (e: any) {

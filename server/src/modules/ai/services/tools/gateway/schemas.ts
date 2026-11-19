@@ -118,4 +118,11 @@ export const GATEWAY_CONFIG_PROPERTIES = {
   },
   rateLimitEnabled: { type: 'boolean' },
   rateLimitRequestsPerMinute: { type: 'integer', minimum: 0, maximum: 100000 },
+  placement: {
+    type: 'object',
+    properties: {
+      smartPlacement: { type: 'boolean' },
+      region: { type: 'string', description: 'provider:region, e.g. aws:us-east-1' },
+    },
+  },
 } as const;

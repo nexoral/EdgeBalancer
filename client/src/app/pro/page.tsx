@@ -54,14 +54,6 @@ const LB_FEATURE_SPECS: FeatureSpec[] = [
     getTitle: (p) => (p === 'pro' ? 'Unlimited Health Checks' : p === 'student' ? 'Health Checks (up to 5 LBs)' : 'Health Checks (up to 2 LBs)'),
     isUnlocked: () => true,
   },
-  {
-    titleKey: 'placement',
-    category: 'Global Latency Optimization',
-    icon: Icons.Globe,
-    getTitle: (p) => (p === 'free' ? 'Smart Placement (auto, locked)' : 'Custom Smart Placement'),
-    isUnlocked: (p) => p !== 'free',
-    lockedHint: 'Requires Student or Pro',
-  },
 ];
 
 const GATEWAY_FEATURE_SPECS: FeatureSpec[] = [
@@ -133,6 +125,14 @@ const UNIFIED_FEATURE_SPECS: FeatureSpec[] = [
     icon: Icons.Zap,
     getTitle: () => 'Pause / Resume Services',
     isUnlocked: () => true,
+  },
+  {
+    titleKey: 'placement',
+    category: 'Global Latency Optimization',
+    icon: Icons.Globe,
+    getTitle: (p) => (p === 'free' ? 'Smart Placement (auto, locked)' : 'Custom Smart Placement & Region Pinning'),
+    isUnlocked: (p) => p !== 'free',
+    lockedHint: 'Requires Student or Pro',
   },
   {
     titleKey: 'analytics',

@@ -32,6 +32,7 @@ export interface CreateGatewayInput {
   rateLimitEnabled?: boolean;
   rateLimitRequestsPerMinute?: number;
   pathRateLimits?: Array<{ path: string; requestsPerMinute: number; priority: number }>;
+  placement?: { smartPlacement?: boolean; region?: string | null };
 }
 
 export interface GatewayOrchestratorResult {

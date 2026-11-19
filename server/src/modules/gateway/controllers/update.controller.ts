@@ -73,6 +73,10 @@ export async function updateGateway(req: Request, res: Response, next: NextFunct
       res.status(400); throw new Error('Rate limiting requires an EdgeBalancer Pro subscription');
     }
 
+    if (!config.canEditPlacement) {
+      req.body.placement = existing.placement ?? { smartPlacement: true };
+    }
+
     const result = await updateGatewayOrchestrator({ userId, userEmail: req.user?.email ?? null, gatewayId: id, input: body, cancellation });
     res.json(result);
   } catch (error) {

@@ -36,6 +36,18 @@ function gatewayValidationErrors(body: any, plan: string): string[] {
       if (!['allow', 'deny'].includes(r.action)) errors.push('each ipRule action must be allow or deny');
     }
   }
+  if (body.placement !== undefined && body.placement !== null) {
+    if (typeof body.placement !== 'object') {
+      errors.push('placement must be an object');
+    } else {
+      if (body.placement.smartPlacement !== undefined && typeof body.placement.smartPlacement !== 'boolean') {
+        errors.push('smartPlacement must be a boolean');
+      }
+      if (body.placement.region !== undefined && body.placement.region !== null && typeof body.placement.region !== 'string') {
+        errors.push('region must be a string');
+      }
+    }
+  }
   return errors;
 }
 
@@ -91,6 +103,10 @@ export async function createGateway(req: Request, res: Response, next: NextFunct
 
     if (body.rateLimitEnabled && !config.hasRateLimit) {
       res.status(400); throw new Error('Rate limiting requires an EdgeBalancer Pro subscription');
+    }
+
+    if (!config.canEditPlacement) {
+      req.body.placement = { smartPlacement: true };
     }
 
     const errors = gatewayValidationErrors(body, plan);

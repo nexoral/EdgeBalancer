@@ -55,6 +55,7 @@ export function createGatewayTool(ctx: ToolContext) {
       }
       if (config.maxGatewayIpRules !== -1 && Array.isArray(input.ipRules) && input.ipRules.length > config.maxGatewayIpRules) return fail(`Your ${config.name} plan allows ${config.maxGatewayIpRules} IP rules per gateway.`);
       if (config.maxGatewayMockRoutes !== -1 && Array.isArray(input.mockRoutes) && input.mockRoutes.length > config.maxGatewayMockRoutes) return fail(`Your ${config.name} plan allows ${config.maxGatewayMockRoutes} mock routes per gateway.`);
+      if (!config.canEditPlacement) input.placement = { smartPlacement: true };
 
       if (!input.name || typeof input.name !== 'string' || input.name.trim().length < 3) return fail('name must be 3-50 lowercase letters, digits and hyphens');
       if (!input.domain) return fail('domain is required');

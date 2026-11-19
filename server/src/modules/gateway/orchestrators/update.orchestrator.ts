@@ -146,7 +146,11 @@ export async function updateGatewayOrchestrator(params: {
   try {
     const versionId = await uploadWorkerVersion({
       accountId, apiToken, scriptName: gateway.scriptName, workerCode,
-      placement: { smartPlacement: true }, rateLimit,
+      placement: {
+        smartPlacement: input.placement?.smartPlacement !== false,
+        region: input.placement?.region || undefined,
+      },
+      rateLimit,
     });
     await cancellation.throwIfCancelled();
 
@@ -185,6 +189,10 @@ export async function updateGatewayOrchestrator(params: {
           rateLimitRequestsPerMinute: input.rateLimitRequestsPerMinute ?? null,
           pathRateLimits: input.pathRateLimits ?? [],
           ipOriginRecords: nextIpOriginRecords,
+          placement: {
+            smartPlacement: input.placement?.smartPlacement !== false,
+            region: input.placement?.region ?? null,
+          },
           workerUrl: `https://${nextHostname}`,
         },
       },
@@ -219,7 +227,12 @@ export async function updateGatewayOrchestrator(params: {
       await createSession({
         userId, email: userEmail, content: workerCode,
         loadBalancerName: updated.name, domain: input.domain, subdomain: input.subdomain ?? null,
-        strategy: 'api-gateway', placement: null, exposeRealOrigin: null,
+        strategy: 'api-gateway',
+        placement: {
+          smartPlacement: input.placement?.smartPlacement !== false,
+          region: input.placement?.region || undefined,
+        },
+        exposeRealOrigin: null,
         actionType: 'edit', loadBalancerId: gatewayId,
       });
     } catch (e: any) {
