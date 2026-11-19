@@ -80,22 +80,32 @@ export async function createGatewayOrchestrator(params: {
     const workerConfig = buildGatewayWorkerConfig({
       upstreams: resolved.resolvedOrigins as any, pathRoutes, corsEnabled, corsOrigins, jwtAuth: jwtAuth as any,
       headerTransforms: headerTransforms as any, cacheConfig: cacheConfig as any,
-      canary: canary as any, ipRules: ipRules as any, mockRoutes: mockRoutes as any,
-      rateLimitEnabled, rateLimitRequestsPerMinute, pathRateLimits,
+      canary: canary as any, shadowConfig: input.shadowConfig as any, bffRoutes: input.bffRoutes as any,
+      bodyTransforms: input.bodyTransforms as any, schemaRules: input.schemaRules as any,
+      ipRules: ipRules as any, mockRoutes: mockRoutes as any,
+      rateLimitEnabled, rateLimitRequestsPerMinute,
+      rateLimitKeyType: input.rateLimitKeyType, rateLimitHeaderName: input.rateLimitHeaderName,
+      pathRateLimits,
     });
 
     workerCode = await generateGatewayWorkerCode({
       upstreams: workerConfig.upstreams,
       pathRoutes: workerConfig.pathRoutes as any,
+      bffRoutes: workerConfig.bffRoutes as any,
       corsEnabled: workerConfig.corsEnabled,
       corsOrigins: workerConfig.corsOrigins,
       jwtAuth: workerConfig.jwtAuth,
       headerTransforms: workerConfig.headerTransforms,
       cacheConfig: workerConfig.cacheConfig,
       canary: workerConfig.canary,
+      shadowConfig: workerConfig.shadowConfig,
+      bodyTransforms: workerConfig.bodyTransforms,
+      schemaRules: workerConfig.schemaRules,
       ipRules: workerConfig.ipRules,
       mockRoutes: workerConfig.mockRoutes,
       rateLimit,
+      rateLimitKeyType: workerConfig.rateLimitKeyType,
+      rateLimitHeaderName: workerConfig.rateLimitHeaderName,
       pathRateLimits: workerConfig.pathRateLimits,
     });
 
@@ -116,7 +126,17 @@ export async function createGatewayOrchestrator(params: {
     const workerUrl = await attachDomainToWorker({ accountId, apiToken, hostname, zoneId, scriptName });
     await cancellation.throwIfCancelled();
 
-    let jwtDoc: any = { enabled: false, headerName: 'Authorization', algorithms: ['HS256'], issuer: null, secretEncrypted: null, secretIv: null, secretTag: null };
+    let jwtDoc: any = {
+      enabled: false,
+      headerName: 'Authorization',
+      algorithms: ['HS256'],
+      issuer: null,
+      secretEncrypted: null,
+      secretIv: null,
+      secretTag: null,
+      rbacRules: jwtAuth?.rbacRules ?? [],
+      injectHeaders: jwtAuth?.injectHeaders ?? false,
+    };
     if (jwtAuth?.enabled && jwtAuth.secret) {
       const enc = encryptJwtSecret(jwtAuth.secret);
       jwtDoc = {
@@ -127,6 +147,8 @@ export async function createGatewayOrchestrator(params: {
         secretEncrypted: enc.secretEncrypted,
         secretIv: enc.secretIv,
         secretTag: enc.secretTag,
+        rbacRules: jwtAuth.rbacRules ?? [],
+        injectHeaders: jwtAuth.injectHeaders ?? false,
       };
     }
 
@@ -134,6 +156,7 @@ export async function createGatewayOrchestrator(params: {
     createdGateway = await Gateway.create({
       userId, name, scriptName, domain, subdomain: subdomain || undefined, zoneId,
       upstreams: upstreamsForDb, pathRoutes: pathRoutes ?? [],
+      bffRoutes: input.bffRoutes ?? [],
       corsEnabled: corsEnabled ?? false, corsOrigins: corsOrigins ?? [],
       jwtAuth: jwtDoc,
       headerTransforms: {
@@ -144,18 +167,28 @@ export async function createGatewayOrchestrator(params: {
         enabled: cacheConfig?.enabled ?? false,
         ttlSeconds: cacheConfig?.ttlSeconds ?? 60,
         paths: cacheConfig?.paths ?? [],
+        normalizeQuery: cacheConfig?.normalizeQuery ?? false,
       },
       canary: {
         enabled: canary?.enabled ?? false,
         percentage: canary?.percentage ?? 10,
         upstreamIndex: canary?.upstreamIndex ?? 0,
       },
+      shadowConfig: {
+        enabled: input.shadowConfig?.enabled ?? false,
+        percentage: input.shadowConfig?.percentage ?? 10,
+        upstreamIndex: input.shadowConfig?.upstreamIndex ?? 0,
+      },
+      bodyTransforms: input.bodyTransforms ?? [],
+      schemaRules: input.schemaRules ?? [],
       ipRules: ipRules ?? [],
       mockRoutes: (mockRoutes ?? []).map((m: any) => ({
         path: m.path, method: m.method ?? 'ANY', status: m.status, body: m.body ?? '', contentType: m.contentType ?? 'application/json',
       })),
       rateLimitEnabled: rateLimitEnabled ?? false,
       rateLimitRequestsPerMinute: rateLimitRequestsPerMinute ?? null,
+      rateLimitKeyType: input.rateLimitKeyType ?? 'ip',
+      rateLimitHeaderName: input.rateLimitHeaderName ?? 'X-API-Key',
       pathRateLimits: pathRateLimits ?? [],
       ipOriginRecords,
       placement: {

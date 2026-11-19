@@ -187,7 +187,7 @@ describe('AiRunsPage — runs list', () => {
           prompt: 'test prompt',
           turns: [
             { role: 'user', content: 'test prompt' },
-            { role: 'assistant', content: 'Done.' },
+            { role: 'assistant', content: 'Agent reply' },
           ],
           finalMessage: 'Done.',
           modelsUsed: [{ provider: 'mistral', model: 'mistral-small', ok: true, error: null }],

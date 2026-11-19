@@ -104,6 +104,27 @@ export async function createGateway(req: Request, res: Response, next: NextFunct
     if (body.rateLimitEnabled && !config.hasRateLimit) {
       res.status(400); throw new Error('Rate limiting requires an EdgeBalancer Pro subscription');
     }
+    if ((body.rateLimitKeyType === 'header' || body.rateLimitKeyType === 'jwt') && !config.hasIdentityRateLimit) {
+      res.status(400); throw new Error('Identity-based rate limiting requires a Student or Pro plan.');
+    }
+    if (Array.isArray(body.bffRoutes) && body.bffRoutes.length > 0 && !config.hasBffAggregation) {
+      res.status(400); throw new Error('BFF Multi-Upstream Aggregation is a Pro feature.');
+    }
+    if (body.shadowConfig?.enabled && !config.hasTrafficShadowing) {
+      res.status(400); throw new Error('Traffic Shadowing is a Pro feature.');
+    }
+    if (body.jwtAuth?.injectHeaders && !config.hasHeaderInjection) {
+      res.status(400); throw new Error('Downstream Header Injection is a Pro feature.');
+    }
+    if (config.maxRbacRules !== -1 && Array.isArray(body.jwtAuth?.rbacRules) && body.jwtAuth.rbacRules.length > config.maxRbacRules) {
+      res.status(400); throw new Error(`Your ${config.name} plan allows ${config.maxRbacRules} RBAC rule(s).`);
+    }
+    if (config.maxBodyShapingRules !== -1 && Array.isArray(body.bodyTransforms) && body.bodyTransforms.length > config.maxBodyShapingRules) {
+      res.status(400); throw new Error(`Your ${config.name} plan allows ${config.maxBodyShapingRules} payload transform rule(s).`);
+    }
+    if (config.maxSchemaRules !== -1 && Array.isArray(body.schemaRules) && body.schemaRules.length > config.maxSchemaRules) {
+      res.status(400); throw new Error(`Your ${config.name} plan allows ${config.maxSchemaRules} schema validation rule(s).`);
+    }
 
     if (!config.canEditPlacement) {
       req.body.placement = { smartPlacement: true };

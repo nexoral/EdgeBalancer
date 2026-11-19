@@ -39,18 +39,42 @@ export type WorkerStrategy =
 export interface GatewayWorkerConfig {
   upstreams: Array<{ url: string; weight: number }>;
   pathRoutes?: PathRoute[] & Array<{ upstreamIndex: number }>;
+  bffRoutes?: Array<{ path: string; upstreamIndices: number[]; priority: number }>;
   corsEnabled?: boolean;
   corsOrigins?: string[];
-  jwtAuth?: { enabled: boolean; headerName: string; algorithms: string[]; issuer: string | null; secret: string | null };
+  jwtAuth?: {
+    enabled: boolean;
+    headerName: string;
+    algorithms: string[];
+    issuer: string | null;
+    secret: string | null;
+    rbacRules?: Array<{ path: string; requiredRoles: string[] }>;
+    injectHeaders?: boolean;
+  };
   headerTransforms?: {
     request: { set: Array<{ name: string; value: string }>; remove: string[] };
     response: { set: Array<{ name: string; value: string }>; remove: string[] };
   };
-  cacheConfig?: { enabled: boolean; ttlSeconds: number; paths: string[] };
+  cacheConfig?: { enabled: boolean; ttlSeconds: number; paths: string[]; normalizeQuery?: boolean };
   canary?: { enabled: boolean; percentage: number; upstreamIndex: number };
+  shadowConfig?: { enabled: boolean; percentage: number; upstreamIndex: number };
   ipRules?: Array<{ value: string; action: 'allow' | 'deny' }>;
   mockRoutes?: Array<{ path: string; method: string; status: number; body: string; contentType: string }>;
+  bodyTransforms?: Array<{
+    path: string;
+    phase: 'request' | 'response';
+    stripFields?: string[];
+    renameFields?: Array<{ from: string; to: string }>;
+  }>;
+  schemaRules?: Array<{
+    path: string;
+    method?: string;
+    requiredFields?: string[];
+    fieldTypes?: Array<{ field: string; type: 'string' | 'number' | 'boolean' | 'array' }>;
+  }>;
   rateLimit?: { enabled: boolean; requestsPerMinute: number };
+  rateLimitKeyType?: 'ip' | 'header' | 'jwt';
+  rateLimitHeaderName?: string;
   pathRateLimits?: PathRateLimit[];
 }
 
@@ -107,14 +131,20 @@ export const generateGatewayWorkerCode = async (config: GatewayWorkerConfig, opt
     pathRoutes: (config.pathRoutes ?? []).sort((a: any, b: any) => (a.priority ?? 1) - (b.priority ?? 1)),
     corsEnabled: config.corsEnabled ?? false,
     corsOrigins: config.corsOrigins ?? [],
-    jwtAuth: config.jwtAuth ?? { enabled: false, headerName: 'Authorization', algorithms: ['HS256'], issuer: null, secret: null },
+    jwtAuth: config.jwtAuth ?? { enabled: false, headerName: 'Authorization', algorithms: ['HS256'], issuer: null, secret: null, rbacRules: [], injectHeaders: false },
     headerTransforms: config.headerTransforms ?? { request: { set: [], remove: [] }, response: { set: [], remove: [] } },
-    cacheConfig: config.cacheConfig ?? { enabled: false, ttlSeconds: 60, paths: [] },
+    cacheConfig: config.cacheConfig ?? { enabled: false, ttlSeconds: 60, paths: [], normalizeQuery: false },
     canary: config.canary ?? { enabled: false, percentage: 10, upstreamIndex: 0 },
+    shadowConfig: config.shadowConfig ?? { enabled: false, percentage: 10, upstreamIndex: 0 },
+    bffRoutes: (config.bffRoutes ?? []).sort((a: any, b: any) => (a.priority ?? 1) - (b.priority ?? 1)),
+    bodyTransforms: config.bodyTransforms ?? [],
+    schemaRules: config.schemaRules ?? [],
     ipRules: config.ipRules ?? [],
     mockRoutes: config.mockRoutes ?? [],
     rateLimitEnabled: config.rateLimit?.enabled ?? false,
     rateLimitRequestsPerMinute: config.rateLimit?.requestsPerMinute ?? null,
+    rateLimitKeyType: config.rateLimitKeyType ?? 'ip',
+    rateLimitHeaderName: config.rateLimitHeaderName ?? 'X-API-Key',
     pathRateLimits: (config.pathRateLimits ?? []).sort((a, b) => a.priority - b.priority),
   };
   const workerCode = template.replace('__CONFIG__', JSON.stringify(workerConfig, null, 2));

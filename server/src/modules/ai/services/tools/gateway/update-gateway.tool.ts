@@ -44,6 +44,13 @@ export function updateGatewayTool(ctx: ToolContext) {
       if (merged.cacheConfig?.enabled && !upCfg.hasCaching) return fail('Response caching requires a paid plan.');
       if (merged.canary?.enabled && !upCfg.hasCanary) return fail('Canary splitting is a Pro feature.');
       if (merged.rateLimitEnabled && !upCfg.hasRateLimit) return fail('Rate limiting requires an EdgeBalancer Pro subscription');
+      if ((merged.rateLimitKeyType === 'header' || merged.rateLimitKeyType === 'jwt') && !upCfg.hasIdentityRateLimit) return fail('Identity-based rate limiting requires a Student or Pro plan.');
+      if (Array.isArray(merged.bffRoutes) && merged.bffRoutes.length > 0 && !upCfg.hasBffAggregation) return fail('BFF Multi-Upstream Aggregation is a Pro feature.');
+      if (merged.shadowConfig?.enabled && !upCfg.hasTrafficShadowing) return fail('Traffic Shadowing is a Pro feature.');
+      if (merged.jwtAuth?.injectHeaders && !upCfg.hasHeaderInjection) return fail('Downstream Header Injection is a Pro feature.');
+      if (upCfg.maxRbacRules !== -1 && Array.isArray(merged.jwtAuth?.rbacRules) && merged.jwtAuth.rbacRules.length > upCfg.maxRbacRules) return fail(`Your ${upCfg.name} plan allows ${upCfg.maxRbacRules} RBAC rule(s).`);
+      if (upCfg.maxBodyShapingRules !== -1 && Array.isArray(merged.bodyTransforms) && merged.bodyTransforms.length > upCfg.maxBodyShapingRules) return fail(`Your ${upCfg.name} plan allows ${upCfg.maxBodyShapingRules} payload transform rule(s).`);
+      if (upCfg.maxSchemaRules !== -1 && Array.isArray(merged.schemaRules) && merged.schemaRules.length > upCfg.maxSchemaRules) return fail(`Your ${upCfg.name} plan allows ${upCfg.maxSchemaRules} schema validation rule(s).`);
       if (upCfg.maxGatewayRoutes !== -1 && merged.pathRoutes.length > upCfg.maxGatewayRoutes) return fail(`Your ${upCfg.name} plan allows ${upCfg.maxGatewayRoutes} routing rules per gateway.`);
       if (upCfg.maxGatewayRateLimitRules !== -1 && merged.pathRateLimits.length > upCfg.maxGatewayRateLimitRules) return fail(`Your ${upCfg.name} plan allows ${upCfg.maxGatewayRateLimitRules} rate limit rule(s) per gateway.`);
       const hc = (merged.headerTransforms?.request?.set?.length ?? 0) + (merged.headerTransforms?.request?.remove?.length ?? 0) + (merged.headerTransforms?.response?.set?.length ?? 0) + (merged.headerTransforms?.response?.remove?.length ?? 0);

@@ -80,11 +80,17 @@ export async function updateGatewayOrchestrator(params: {
       algorithms: input.jwtAuth.algorithms ?? ['HS256'],
       issuer: input.jwtAuth.issuer ?? null,
       secretEncrypted: enc.secretEncrypted, secretIv: enc.secretIv, secretTag: enc.secretTag,
+      rbacRules: input.jwtAuth.rbacRules ?? gateway.jwtAuth?.rbacRules ?? [],
+      injectHeaders: input.jwtAuth.injectHeaders ?? gateway.jwtAuth?.injectHeaders ?? false,
     };
   } else if (input.jwtAuth?.enabled === false) {
-    jwtDoc = { enabled: false, headerName: 'Authorization', algorithms: ['HS256'], issuer: null, secretEncrypted: null, secretIv: null, secretTag: null };
+    jwtDoc = { enabled: false, headerName: 'Authorization', algorithms: ['HS256'], issuer: null, secretEncrypted: null, secretIv: null, secretTag: null, rbacRules: [], injectHeaders: false };
   } else {
-    jwtDoc = gateway.jwtAuth;
+    jwtDoc = {
+      ...gateway.jwtAuth,
+      rbacRules: input.jwtAuth?.rbacRules ?? gateway.jwtAuth?.rbacRules ?? [],
+      injectHeaders: input.jwtAuth?.injectHeaders ?? gateway.jwtAuth?.injectHeaders ?? false,
+    };
   }
 
   const rateLimit = input.rateLimitEnabled && input.rateLimitRequestsPerMinute
@@ -94,31 +100,43 @@ export async function updateGatewayOrchestrator(params: {
   const workerConfig = buildGatewayWorkerConfig({
     upstreams: resolvedUpstreams as any,
     pathRoutes: input.pathRoutes,
+    bffRoutes: input.bffRoutes ?? gateway.bffRoutes,
     corsEnabled: input.corsEnabled,
     corsOrigins: input.corsOrigins,
     jwtAuth: jwtDoc,
     headerTransforms: input.headerTransforms as any,
     cacheConfig: input.cacheConfig as any,
     canary: input.canary as any,
+    shadowConfig: input.shadowConfig ?? gateway.shadowConfig,
+    bodyTransforms: input.bodyTransforms ?? gateway.bodyTransforms,
+    schemaRules: input.schemaRules ?? gateway.schemaRules,
     ipRules: input.ipRules as any,
     mockRoutes: input.mockRoutes as any,
     rateLimitEnabled: input.rateLimitEnabled,
     rateLimitRequestsPerMinute: input.rateLimitRequestsPerMinute,
+    rateLimitKeyType: input.rateLimitKeyType ?? gateway.rateLimitKeyType,
+    rateLimitHeaderName: input.rateLimitHeaderName ?? gateway.rateLimitHeaderName,
     pathRateLimits: input.pathRateLimits,
   });
 
   const workerCode = await generateGatewayWorkerCode({
     upstreams: workerConfig.upstreams,
     pathRoutes: workerConfig.pathRoutes as any,
+    bffRoutes: workerConfig.bffRoutes as any,
     corsEnabled: workerConfig.corsEnabled,
     corsOrigins: workerConfig.corsOrigins,
     jwtAuth: workerConfig.jwtAuth,
     headerTransforms: workerConfig.headerTransforms,
     cacheConfig: workerConfig.cacheConfig,
     canary: workerConfig.canary,
+    shadowConfig: workerConfig.shadowConfig,
+    bodyTransforms: workerConfig.bodyTransforms,
+    schemaRules: workerConfig.schemaRules,
     ipRules: workerConfig.ipRules,
     mockRoutes: workerConfig.mockRoutes,
     rateLimit,
+    rateLimitKeyType: workerConfig.rateLimitKeyType,
+    rateLimitHeaderName: workerConfig.rateLimitHeaderName,
     pathRateLimits: workerConfig.pathRateLimits,
   });
 
@@ -175,18 +193,29 @@ export async function updateGatewayOrchestrator(params: {
         $set: {
           domain: input.domain, subdomain: input.subdomain || undefined, zoneId: input.zoneId,
           upstreams: upstreamsForDb, pathRoutes: input.pathRoutes ?? [],
+          bffRoutes: input.bffRoutes !== undefined ? input.bffRoutes : gateway.bffRoutes ?? [],
           corsEnabled: input.corsEnabled ?? false, corsOrigins: input.corsOrigins ?? [],
           jwtAuth: jwtDoc,
           headerTransforms: {
             request: { set: input.headerTransforms?.request?.set ?? [], remove: input.headerTransforms?.request?.remove ?? [] },
             response: { set: input.headerTransforms?.response?.set ?? [], remove: input.headerTransforms?.response?.remove ?? [] },
           },
-          cacheConfig: { enabled: input.cacheConfig?.enabled ?? false, ttlSeconds: input.cacheConfig?.ttlSeconds ?? 60, paths: input.cacheConfig?.paths ?? [] },
+          cacheConfig: {
+            enabled: input.cacheConfig?.enabled ?? false,
+            ttlSeconds: input.cacheConfig?.ttlSeconds ?? 60,
+            paths: input.cacheConfig?.paths ?? [],
+            normalizeQuery: input.cacheConfig?.normalizeQuery ?? false,
+          },
           canary: { enabled: input.canary?.enabled ?? false, percentage: input.canary?.percentage ?? 10, upstreamIndex: input.canary?.upstreamIndex ?? 0 },
+          shadowConfig: input.shadowConfig !== undefined ? input.shadowConfig : gateway.shadowConfig ?? { enabled: false, percentage: 10, upstreamIndex: 0 },
+          bodyTransforms: input.bodyTransforms !== undefined ? input.bodyTransforms : gateway.bodyTransforms ?? [],
+          schemaRules: input.schemaRules !== undefined ? input.schemaRules : gateway.schemaRules ?? [],
           ipRules: input.ipRules ?? [],
           mockRoutes: (input.mockRoutes ?? []).map((m: any) => ({ path: m.path, method: m.method ?? 'ANY', status: m.status, body: m.body ?? '', contentType: m.contentType ?? 'application/json' })),
           rateLimitEnabled: input.rateLimitEnabled ?? false,
           rateLimitRequestsPerMinute: input.rateLimitRequestsPerMinute ?? null,
+          rateLimitKeyType: input.rateLimitKeyType ?? gateway.rateLimitKeyType ?? 'ip',
+          rateLimitHeaderName: input.rateLimitHeaderName ?? gateway.rateLimitHeaderName ?? 'X-API-Key',
           pathRateLimits: input.pathRateLimits ?? [],
           ipOriginRecords: nextIpOriginRecords,
           placement: {

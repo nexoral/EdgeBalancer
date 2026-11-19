@@ -72,6 +72,32 @@ export async function updateGateway(req: Request, res: Response, next: NextFunct
     if (merged.rateLimitEnabled && !config.hasRateLimit) {
       res.status(400); throw new Error('Rate limiting requires an EdgeBalancer Pro subscription');
     }
+    const effectiveKeyType = body.rateLimitKeyType ?? existing.rateLimitKeyType;
+    if ((effectiveKeyType === 'header' || effectiveKeyType === 'jwt') && !config.hasIdentityRateLimit) {
+      res.status(400); throw new Error('Identity-based rate limiting requires a Student or Pro plan.');
+    }
+    const effectiveBff = body.bffRoutes ?? existing.bffRoutes ?? [];
+    if (Array.isArray(effectiveBff) && effectiveBff.length > 0 && !config.hasBffAggregation) {
+      res.status(400); throw new Error('BFF Multi-Upstream Aggregation is a Pro feature.');
+    }
+    const effectiveShadow = body.shadowConfig ?? existing.shadowConfig;
+    if (effectiveShadow?.enabled && !config.hasTrafficShadowing) {
+      res.status(400); throw new Error('Traffic Shadowing is a Pro feature.');
+    }
+    if (merged.jwtAuth?.injectHeaders && !config.hasHeaderInjection) {
+      res.status(400); throw new Error('Downstream Header Injection is a Pro feature.');
+    }
+    if (config.maxRbacRules !== -1 && Array.isArray(merged.jwtAuth?.rbacRules) && merged.jwtAuth.rbacRules.length > config.maxRbacRules) {
+      res.status(400); throw new Error(`Your ${config.name} plan allows ${config.maxRbacRules} RBAC rule(s).`);
+    }
+    const effectiveTransforms = body.bodyTransforms ?? existing.bodyTransforms ?? [];
+    if (config.maxBodyShapingRules !== -1 && Array.isArray(effectiveTransforms) && effectiveTransforms.length > config.maxBodyShapingRules) {
+      res.status(400); throw new Error(`Your ${config.name} plan allows ${config.maxBodyShapingRules} payload transform rule(s).`);
+    }
+    const effectiveSchemas = body.schemaRules ?? existing.schemaRules ?? [];
+    if (config.maxSchemaRules !== -1 && Array.isArray(effectiveSchemas) && effectiveSchemas.length > config.maxSchemaRules) {
+      res.status(400); throw new Error(`Your ${config.name} plan allows ${config.maxSchemaRules} schema validation rule(s).`);
+    }
 
     if (!config.canEditPlacement) {
       req.body.placement = existing.placement ?? { smartPlacement: true };

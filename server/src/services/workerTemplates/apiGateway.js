@@ -18,6 +18,14 @@ function findMatchingRoute(pathname) {
   return null;
 }
 
+function findMatchingBffRoute(pathname) {
+  if (!config.bffRoutes || !config.bffRoutes.length) return null;
+  for (const route of config.bffRoutes) {
+    if (matchPathPattern(route.path, pathname)) return route;
+  }
+  return null;
+}
+
 function findMatchingPathRateLimit(pathname) {
   for (const rl of config.pathRateLimits) {
     if (matchPathPattern(rl.path, pathname)) return rl;
@@ -34,6 +42,24 @@ function findMatchingMock(pathname, method) {
   return null;
 }
 
+function findMatchingBodyTransform(pathname, phase) {
+  if (!config.bodyTransforms || !config.bodyTransforms.length) return null;
+  for (const rule of config.bodyTransforms) {
+    if (rule.phase === phase && matchPathPattern(rule.path, pathname)) return rule;
+  }
+  return null;
+}
+
+function findMatchingSchemaRule(pathname, method) {
+  if (!config.schemaRules || !config.schemaRules.length) return null;
+  for (const rule of config.schemaRules) {
+    if (!matchPathPattern(rule.path, pathname)) continue;
+    if (rule.method && rule.method !== 'ANY' && rule.method !== method) continue;
+    return rule;
+  }
+  return null;
+}
+
 function isPathCacheable(pathname) {
   if (!config.cacheConfig.enabled) return false;
   if (!config.cacheConfig.paths.length) return true;
@@ -41,6 +67,38 @@ function isPathCacheable(pathname) {
     if (matchPathPattern(p, pathname)) return true;
   }
   return false;
+}
+
+function getSemanticCacheKey(request, url) {
+  if (!config.cacheConfig.normalizeQuery) return request;
+  const normalizedUrl = new URL(url.toString());
+  const stripParams = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'fbclid', 'gclid'];
+  for (const p of stripParams) normalizedUrl.searchParams.delete(p);
+  normalizedUrl.searchParams.sort();
+  return new Request(normalizedUrl.toString(), {
+    method: request.method,
+    headers: request.headers,
+  });
+}
+
+function transformJsonData(data, rule) {
+  if (!data || typeof data !== 'object') return data;
+  if (Array.isArray(data)) {
+    return data.map((item) => transformJsonData(item, rule));
+  }
+  const result = { ...data };
+  if (Array.isArray(rule.stripFields)) {
+    for (const f of rule.stripFields) delete result[f];
+  }
+  if (Array.isArray(rule.renameFields)) {
+    for (const ren of rule.renameFields) {
+      if (ren.from && ren.to && result[ren.from] !== undefined) {
+        result[ren.to] = result[ren.from];
+        delete result[ren.from];
+      }
+    }
+  }
+  return result;
 }
 
 export default {
@@ -57,17 +115,44 @@ export default {
     const ipBlocked = enforceIpRules(request);
     if (ipBlocked) return ipBlocked;
 
-    const jwtError = await enforceJwtAuth(request);
-    if (jwtError) return jwtError;
-
-    const limited = await enforceRateLimit(request, env);
-    if (limited) return limited;
-
-    const pathLimited = await enforcePathRateLimit(request, env);
-    if (pathLimited) return pathLimited;
-
     const url = new URL(request.url);
 
+    // 1. JWT Auth + Route RBAC verification
+    const jwtResult = await enforceJwtAuthAndRbac(request, url);
+    if (jwtResult.response) return jwtResult.response;
+    const jwtPayload = jwtResult.payload;
+
+    // 2. Schema / Contract Validation
+    const schemaError = await enforceSchemaValidation(request, url);
+    if (schemaError) return schemaError;
+
+    // 3. Identity-Based or IP-Based Rate Limiting
+    const rateLimitIdentity = getRateLimitIdentity(request, jwtPayload);
+    const limited = await enforceRateLimit(request, env, rateLimitIdentity);
+    if (limited) return limited;
+
+    const pathLimited = await enforcePathRateLimit(request, env, rateLimitIdentity);
+    if (pathLimited) return pathLimited;
+
+    // 4. Request Body Shaping (Mutation)
+    let effectiveRequest = request;
+    const reqBodyRule = findMatchingBodyTransform(url.pathname, 'request');
+    if (reqBodyRule && allowsBody(request.method)) {
+      try {
+        const cloned = request.clone();
+        const json = await cloned.json();
+        const transformed = transformJsonData(json, reqBodyRule);
+        const headers = new Headers(request.headers);
+        headers.set('Content-Type', 'application/json');
+        effectiveRequest = new Request(request.url, {
+          method: request.method,
+          headers,
+          body: JSON.stringify(transformed),
+        });
+      } catch {}
+    }
+
+    // 5. Edge Mock Routes
     const mock = findMatchingMock(url.pathname, request.method);
     if (mock) {
       const headers = new Headers({ 'Content-Type': mock.contentType });
@@ -85,9 +170,11 @@ export default {
       return new Response(mock.body, { status: mock.status, headers });
     }
 
+    // 6. Semantic Cache Match (GET)
+    const cacheKey = getSemanticCacheKey(effectiveRequest, url);
     if (config.cacheConfig.enabled && request.method === 'GET' && isPathCacheable(url.pathname)) {
       try {
-        const cached = await caches.default.match(request);
+        const cached = await caches.default.match(cacheKey);
         if (cached) {
           const headers = new Headers(cached.headers);
           headers.set('X-Cache', 'HIT');
@@ -97,6 +184,13 @@ export default {
       } catch {}
     }
 
+    // 7. BFF Fan-Out Aggregation
+    const bffRoute = findMatchingBffRoute(url.pathname);
+    if (bffRoute && Array.isArray(bffRoute.upstreamIndices) && bffRoute.upstreamIndices.length > 0) {
+      return executeBffAggregation(bffRoute, effectiveRequest, url, jwtPayload);
+    }
+
+    // 8. Single Upstream Selection (Path routing, Canary splitting, or weighted)
     let upstream;
     const pathRoute = findMatchingRoute(url.pathname);
     if (pathRoute) {
@@ -116,21 +210,54 @@ export default {
       return new Response('No upstream available', { status: 502 });
     }
 
-    const response = await proxyToUpstream(upstream, request);
-    const transformed = applyResponseHeaderTransforms(response);
-
-    if (config.cacheConfig.enabled && request.method === 'GET' && transformed.status === 200 && isPathCacheable(url.pathname)) {
-      const cacheHeaders = new Headers(transformed.headers);
-      cacheHeaders.set('Cache-Control', 'public, max-age=' + config.cacheConfig.ttlSeconds);
-      const toCache = new Response(transformed.clone().body, { status: transformed.status, headers: cacheHeaders });
-      if (ctx && ctx.waitUntil) ctx.waitUntil(caches.default.put(request, toCache).catch(function () {}));
-      else { try { await caches.default.put(request, toCache); } catch {} }
-      const outHeaders = new Headers(transformed.headers);
-      outHeaders.set('X-Cache', 'MISS');
-      return new Response(transformed.body, { status: transformed.status, headers: outHeaders });
+    // 9. Asynchronous Traffic Shadowing (Mirroring)
+    if (config.shadowConfig && config.shadowConfig.enabled && config.shadowConfig.percentage > 0) {
+      const shadowUpstream = config.upstreams[config.shadowConfig.upstreamIndex];
+      if (shadowUpstream && Math.random() * 100 < config.shadowConfig.percentage) {
+        const shadowClone = effectiveRequest.clone();
+        if (ctx && ctx.waitUntil) {
+          ctx.waitUntil(proxyToUpstream(shadowUpstream, shadowClone, jwtPayload).catch(function () {}));
+        }
+      }
     }
 
-    return transformed;
+    // 10. Forward to Primary Upstream
+    const rawResponse = await proxyToUpstream(upstream, effectiveRequest, jwtPayload);
+    let finalResponse = rawResponse;
+
+    // 11. Response Body Shaping (Field Stripping / Renaming)
+    const respBodyRule = findMatchingBodyTransform(url.pathname, 'response');
+    if (respBodyRule && rawResponse.status === 200) {
+      const ct = rawResponse.headers.get('content-type') || '';
+      if (ct.includes('application/json')) {
+        try {
+          const json = await rawResponse.clone().json();
+          const transformed = transformJsonData(json, respBodyRule);
+          const headers = new Headers(rawResponse.headers);
+          finalResponse = new Response(JSON.stringify(transformed), {
+            status: rawResponse.status,
+            statusText: rawResponse.statusText,
+            headers,
+          });
+        } catch {}
+      }
+    }
+
+    const transformedResponse = applyResponseHeaderTransforms(finalResponse);
+
+    // 12. Cache Put (GET 200)
+    if (config.cacheConfig.enabled && request.method === 'GET' && transformedResponse.status === 200 && isPathCacheable(url.pathname)) {
+      const cacheHeaders = new Headers(transformedResponse.headers);
+      cacheHeaders.set('Cache-Control', 'public, max-age=' + config.cacheConfig.ttlSeconds);
+      const toCache = new Response(transformedResponse.clone().body, { status: transformedResponse.status, headers: cacheHeaders });
+      if (ctx && ctx.waitUntil) ctx.waitUntil(caches.default.put(cacheKey, toCache).catch(function () {}));
+      else { try { await caches.default.put(cacheKey, toCache); } catch {} }
+      const outHeaders = new Headers(transformedResponse.headers);
+      outHeaders.set('X-Cache', 'MISS');
+      return new Response(transformedResponse.body, { status: transformedResponse.status, headers: outHeaders });
+    }
+
+    return transformedResponse;
   },
 };
 
@@ -139,15 +266,28 @@ const memoryRateWindows = new Map();
 const pathRateWindows = new Map();
 
 function rateLimitedResponse(retryAfter) {
-  return new Response('Rate limit exceeded', {
+  return new Response(JSON.stringify({ error: 'Rate limit exceeded', retryAfter }), {
     status: 429,
-    headers: { 'Retry-After': String(retryAfter), 'Content-Type': 'text/plain' },
+    headers: { 'Retry-After': String(retryAfter), 'Content-Type': 'application/json' },
   });
 }
 
-function memoryRateRecordAndCheck(ip, now, limit) {
+function getRateLimitIdentity(request, jwtPayload) {
+  const mode = config.rateLimitKeyType || 'ip';
+  if (mode === 'header') {
+    const hdr = config.rateLimitHeaderName || 'X-API-Key';
+    const val = request.headers.get(hdr);
+    return val ? 'hdr:' + val.slice(0, 64) : 'ip:' + (request.headers.get('cf-connecting-ip') || '0.0.0.0');
+  }
+  if (mode === 'jwt' && jwtPayload && jwtPayload.sub) {
+    return 'jwt:' + String(jwtPayload.sub).slice(0, 64);
+  }
+  return 'ip:' + (request.headers.get('cf-connecting-ip') || '0.0.0.0');
+}
+
+function memoryRateRecordAndCheck(keyId, now, limit) {
   const cutoff = now - RATE_WINDOW_MS;
-  const key = 'gw:rl:' + ip;
+  const key = 'gw:rl:' + keyId;
   const recent = (memoryRateWindows.get(key) || []).filter((t) => t >= cutoff);
   const allowed = recent.length < limit;
   recent.push(now);
@@ -160,9 +300,9 @@ function memoryRateRecordAndCheck(ip, now, limit) {
   return allowed;
 }
 
-async function cacheRateRecordAndCheck(ip, now, limit) {
+async function cacheRateRecordAndCheck(keyId, now, limit) {
   try {
-    const key = 'https://edgebalancer.local/gw-ratelimit/' + encodeURIComponent(ip);
+    const key = 'https://edgebalancer.local/gw-ratelimit/' + encodeURIComponent(keyId);
     const cutoff = now - RATE_WINDOW_MS;
     let recent = [];
     const cached = await caches.default.match(key);
@@ -187,16 +327,15 @@ async function cacheRateRecordAndCheck(ip, now, limit) {
   }
 }
 
-async function enforceRateLimit(request, env) {
+async function enforceRateLimit(request, env, identity) {
   if (!config.rateLimitEnabled) return null;
   const limit = config.rateLimitRequestsPerMinute || 60;
-  const ip = request.headers.get('cf-connecting-ip') || '0.0.0.0';
   const now = Date.now();
-  if (!memoryRateRecordAndCheck(ip, now, limit)) return rateLimitedResponse(60);
-  const cacheAllowed = await cacheRateRecordAndCheck(ip, now, limit);
+  if (!memoryRateRecordAndCheck(identity, now, limit)) return rateLimitedResponse(60);
+  const cacheAllowed = await cacheRateRecordAndCheck(identity, now, limit);
   if (!cacheAllowed) return rateLimitedResponse(60);
   if (!env.EDGEBALANCER_RATE_LIMITER) return null;
-  const result = await env.EDGEBALANCER_RATE_LIMITER.limit({ key: 'gw:' + ip });
+  const result = await env.EDGEBALANCER_RATE_LIMITER.limit({ key: 'gw:' + identity });
   if (!result.success) {
     const retryAfter = Number.isFinite(result.reset_in_seconds) && result.reset_in_seconds > 0 ? Math.max(1, Math.round(result.reset_in_seconds)) : 60;
     return rateLimitedResponse(retryAfter);
@@ -204,15 +343,14 @@ async function enforceRateLimit(request, env) {
   return null;
 }
 
-async function enforcePathRateLimit(request, env) {
+async function enforcePathRateLimit(request, env, identity) {
   if (!config.pathRateLimits || !config.pathRateLimits.length) return null;
   const url = new URL(request.url);
   const match = findMatchingPathRateLimit(url.pathname);
   if (!match) return null;
-  const ip = request.headers.get('cf-connecting-ip') || '0.0.0.0';
   const now = Date.now();
   const limit = match.requestsPerMinute;
-  const key = 'gw:prl:' + match.path + ':' + ip;
+  const key = 'gw:prl:' + match.path + ':' + identity;
   const cutoff = now - RATE_WINDOW_MS;
   const recent = (pathRateWindows.get(key) || []).filter(function (t) { return t >= cutoff; });
   if (recent.length >= limit) return rateLimitedResponse(60);
@@ -295,17 +433,92 @@ function ipToNumber(ip) {
   return ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
 }
 
-async function enforceJwtAuth(request) {
-  if (!config.jwtAuth.enabled || !config.jwtAuth.secret) return null;
+async function enforceSchemaValidation(request, url) {
+  const rule = findMatchingSchemaRule(url.pathname, request.method);
+  if (!rule || !allowsBody(request.method)) return null;
+  try {
+    const cloned = request.clone();
+    const body = await cloned.json();
+    if (!body || typeof body !== 'object') {
+      return new Response(JSON.stringify({ error: 'Validation failed: Invalid JSON payload' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    if (Array.isArray(rule.requiredFields)) {
+      for (const field of rule.requiredFields) {
+        if (body[field] === undefined || body[field] === null || body[field] === '') {
+          return new Response(JSON.stringify({ error: 'Validation failed: Missing required field "' + field + '"' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      }
+    }
+    if (Array.isArray(rule.fieldTypes)) {
+      for (const ft of rule.fieldTypes) {
+        const val = body[ft.field];
+        if (val !== undefined && val !== null) {
+          const actualType = Array.isArray(val) ? 'array' : typeof val;
+          if (actualType !== ft.type) {
+            return new Response(JSON.stringify({ error: 'Validation failed: Field "' + ft.field + '" must be of type ' + ft.type + ', received ' + actualType }), {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            });
+          }
+        }
+      }
+    }
+  } catch {
+    return new Response(JSON.stringify({ error: 'Validation failed: Malformed JSON payload' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+  return null;
+}
+
+async function enforceJwtAuthAndRbac(request, url) {
+  if (!config.jwtAuth.enabled || !config.jwtAuth.secret) {
+    return { response: null, payload: null };
+  }
   const headerName = config.jwtAuth.headerName || 'Authorization';
   let token = request.headers.get(headerName) || '';
   if (headerName.toLowerCase() === 'authorization' && token.toLowerCase().startsWith('bearer ')) {
     token = token.slice(7).trim();
   }
-  if (!token) return new Response('Missing authentication token', { status: 401 });
-  const valid = await verifyJwtHs256(token, config.jwtAuth.secret, config.jwtAuth);
-  if (!valid) return new Response('Invalid or expired token', { status: 401 });
-  return null;
+  if (!token) {
+    return { response: new Response(JSON.stringify({ error: 'Missing authentication token' }), { status: 401, headers: { 'Content-Type': 'application/json' } }), payload: null };
+  }
+  const verifyResult = await verifyJwtHs256(token, config.jwtAuth.secret, config.jwtAuth);
+  if (!verifyResult || !verifyResult.valid) {
+    return { response: new Response(JSON.stringify({ error: 'Invalid or expired token' }), { status: 401, headers: { 'Content-Type': 'application/json' } }), payload: null };
+  }
+
+  const payload = verifyResult.payload;
+
+  // Enforce route-level RBAC if configured
+  if (Array.isArray(config.jwtAuth.rbacRules) && config.jwtAuth.rbacRules.length > 0) {
+    for (const rule of config.jwtAuth.rbacRules) {
+      if (matchPathPattern(rule.path, url.pathname)) {
+        const userRoles = Array.isArray(payload.roles)
+          ? payload.roles
+          : (typeof payload.role === 'string' ? [payload.role] : []);
+        const hasRequiredRole = rule.requiredRoles.some((r) => userRoles.includes(r));
+        if (!hasRequiredRole) {
+          return {
+            response: new Response(JSON.stringify({ error: 'Forbidden: Insufficient role permissions' }), {
+              status: 403,
+              headers: { 'Content-Type': 'application/json' },
+            }),
+            payload,
+          };
+        }
+      }
+    }
+  }
+
+  return { response: null, payload };
 }
 
 function base64UrlDecode(str) {
@@ -322,26 +535,27 @@ function base64UrlEncode(bytes) {
 
 async function verifyJwtHs256(token, secret, opts) {
   const parts = token.split('.');
-  if (parts.length !== 3) return false;
+  if (parts.length !== 3) return null;
   const [h64, p64, s64] = parts;
   let header, payload;
   try {
     header = JSON.parse(new TextDecoder().decode(base64UrlDecode(h64)));
     payload = JSON.parse(new TextDecoder().decode(base64UrlDecode(p64)));
   } catch {
-    return false;
+    return null;
   }
   const alg = header.alg || 'HS256';
-  if (opts.algorithms && Array.isArray(opts.algorithms) && !opts.algorithms.includes(alg)) return false;
+  if (opts.algorithms && Array.isArray(opts.algorithms) && !opts.algorithms.includes(alg)) return null;
   const hashName = alg === 'HS384' ? 'SHA-384' : alg === 'HS512' ? 'SHA-512' : 'SHA-256';
-  if (payload.exp && typeof payload.exp === 'number' && Date.now() / 1000 > payload.exp) return false;
-  if (payload.nbf && typeof payload.nbf === 'number' && Date.now() / 1000 < payload.nbf) return false;
-  if (opts.issuer && payload.iss !== opts.issuer) return false;
+  if (payload.exp && typeof payload.exp === 'number' && Date.now() / 1000 > payload.exp) return null;
+  if (payload.nbf && typeof payload.nbf === 'number' && Date.now() / 1000 < payload.nbf) return null;
+  if (opts.issuer && payload.iss !== opts.issuer) return null;
   const keyData = new TextEncoder().encode(secret);
   const key = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: hashName }, false, ['verify']);
   const data = new TextEncoder().encode(h64 + '.' + p64);
   const sig = base64UrlDecode(s64);
-  return crypto.subtle.verify('HMAC', key, sig, data);
+  const valid = await crypto.subtle.verify('HMAC', key, sig, data);
+  return valid ? { valid: true, payload } : null;
 }
 
 function hashStringDjb2(str) {
@@ -360,7 +574,6 @@ function shouldRouteToCanary(request) {
   return (hashStringDjb2(key) % 100) < pct;
 }
 
-let rrCursor = 0;
 function selectWeightedUpstream(upstreams) {
   const total = upstreams.reduce((s, u) => s + (u.weight || 1), 0);
   if (total <= 0) return upstreams[0] || null;
@@ -383,7 +596,7 @@ function applyResponseHeaderTransforms(response) {
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
-async function proxyToUpstream(upstream, request) {
+async function proxyToUpstream(upstream, request, jwtPayload) {
   const url = new URL(request.url);
   const upstreamBase = new URL(upstream.url);
   const targetUrl = upstream.url.replace(/\/$/, '') + url.pathname + url.search;
@@ -403,6 +616,14 @@ async function proxyToUpstream(upstream, request) {
   headers.set('X-Forwarded-For', request.headers.get('cf-connecting-ip') || '');
   headers.set('X-Forwarded-Proto', url.protocol.replace(':', ''));
   headers.delete('X-Forwarded-Host');
+
+  // Downstream claim injection
+  if (config.jwtAuth && config.jwtAuth.injectHeaders && jwtPayload) {
+    if (jwtPayload.sub) headers.set('X-User-Id', String(jwtPayload.sub));
+    const roles = Array.isArray(jwtPayload.roles) ? jwtPayload.roles : (jwtPayload.role ? [jwtPayload.role] : []);
+    if (roles.length) headers.set('X-User-Roles', roles.join(','));
+  }
+
   try {
     const response = await fetch(targetUrl, {
       method: request.method,
@@ -413,6 +634,58 @@ async function proxyToUpstream(upstream, request) {
   } catch {
     return new Response('Upstream unavailable', { status: 502 });
   }
+}
+
+async function executeBffAggregation(bffRoute, request, url, jwtPayload) {
+  const upstreamsToFetch = bffRoute.upstreamIndices.map((idx) => config.upstreams[idx]).filter(Boolean);
+  if (!upstreamsToFetch.length) return new Response('No valid BFF upstreams configured', { status: 502 });
+
+  const promises = upstreamsToFetch.map(async (upstream, i) => {
+    const targetUrl = upstream.url.replace(/\/$/, '') + url.pathname + url.search;
+    try {
+      const clonedReq = request.clone();
+      const headers = new Headers(clonedReq.headers);
+      headers.set('Host', new URL(upstream.url).hostname);
+      if (config.jwtAuth && config.jwtAuth.injectHeaders && jwtPayload) {
+        if (jwtPayload.sub) headers.set('X-User-Id', String(jwtPayload.sub));
+        const roles = Array.isArray(jwtPayload.roles) ? jwtPayload.roles : (jwtPayload.role ? [jwtPayload.role] : []);
+        if (roles.length) headers.set('X-User-Roles', roles.join(','));
+      }
+      const res = await fetch(targetUrl, {
+        method: request.method,
+        headers,
+        body: allowsBody(request.method) ? clonedReq.body : undefined,
+      });
+      let data;
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('application/json')) {
+        try { data = await res.json(); } catch { data = await res.text(); }
+      } else {
+        data = await res.text();
+      }
+      return { upstreamIndex: bffRoute.upstreamIndices[i], status: res.status, data };
+    } catch {
+      return { upstreamIndex: bffRoute.upstreamIndices[i], status: 502, error: 'Upstream unreachable' };
+    }
+  });
+
+  const results = await Promise.allSettled(promises);
+  const aggregated = {};
+  for (const r of results) {
+    if (r.status === 'fulfilled') {
+      aggregated['upstream_' + r.value.upstreamIndex] = r.value;
+    }
+  }
+  const headers = new Headers({ 'Content-Type': 'application/json' });
+  if (config.corsEnabled) {
+    const origin = request.headers.get('Origin');
+    const allowed = getAllowedOrigin(origin);
+    if (allowed) {
+      headers.set('Access-Control-Allow-Origin', allowed);
+      headers.set('Access-Control-Allow-Credentials', 'true');
+    }
+  }
+  return new Response(JSON.stringify({ success: true, aggregated }), { status: 200, headers });
 }
 
 function allowsBody(method) {

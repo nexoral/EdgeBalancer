@@ -49,6 +49,19 @@ export const GATEWAY_CONFIG_PROPERTIES = {
       algorithms: { type: 'array', items: { type: 'string', enum: ['HS256', 'HS384', 'HS512'] } },
       issuer: { type: 'string', description: 'Expected iss claim, optional' },
       secret: { type: 'string', description: 'HMAC signing secret (shown once, then encrypted at rest)' },
+      rbacRules: {
+        type: 'array',
+        description: 'Route-level RBAC rules requiring specific token roles.',
+        items: {
+          type: 'object',
+          properties: {
+            path: { type: 'string', description: 'Path pattern, e.g. /admin/*' },
+            requiredRoles: { type: 'array', items: { type: 'string' } },
+          },
+          required: ['path', 'requiredRoles'],
+        },
+      },
+      injectHeaders: { type: 'boolean', description: 'Forward verified X-User-Id and X-User-Roles headers downstream. Pro only.' },
     },
   },
   headerTransforms: {
@@ -78,6 +91,7 @@ export const GATEWAY_CONFIG_PROPERTIES = {
       enabled: { type: 'boolean' },
       ttlSeconds: { type: 'integer', minimum: 1, maximum: 86400 },
       paths: { type: 'array', items: { type: 'string' }, description: 'Path patterns eligible for caching; empty = all GET routes' },
+      normalizeQuery: { type: 'boolean', description: 'Normalize and strip marketing query parameters (utm_*) before caching.' },
     },
   },
   canary: {
@@ -87,6 +101,73 @@ export const GATEWAY_CONFIG_PROPERTIES = {
       enabled: { type: 'boolean' },
       percentage: { type: 'integer', minimum: 0, maximum: 100 },
       upstreamIndex: { type: 'integer', minimum: 0 },
+    },
+  },
+  shadowConfig: {
+    type: 'object',
+    description: 'Asynchronous traffic shadowing / mirroring to secondary upstream without delaying response. Pro only.',
+    properties: {
+      enabled: { type: 'boolean' },
+      percentage: { type: 'integer', minimum: 0, maximum: 100 },
+      upstreamIndex: { type: 'integer', minimum: 0 },
+    },
+  },
+  bffRoutes: {
+    type: 'array',
+    description: 'BFF Multi-Upstream Fan-Out routes. Parallel fetch and aggregate JSON responses into 1 payload. Pro only.',
+    items: {
+      type: 'object',
+      properties: {
+        path: { type: 'string' },
+        upstreamIndices: { type: 'array', items: { type: 'integer' } },
+        priority: { type: 'integer', minimum: 1 },
+      },
+      required: ['path', 'upstreamIndices', 'priority'],
+    },
+  },
+  bodyTransforms: {
+    type: 'array',
+    description: 'Request & response body shaping rules (strip sensitive fields, rename JSON keys).',
+    items: {
+      type: 'object',
+      properties: {
+        path: { type: 'string' },
+        phase: { type: 'string', enum: ['request', 'response'] },
+        stripFields: { type: 'array', items: { type: 'string' } },
+        renameFields: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: { from: { type: 'string' }, to: { type: 'string' } },
+            required: ['from', 'to'],
+          },
+        },
+      },
+      required: ['path', 'phase'],
+    },
+  },
+  schemaRules: {
+    type: 'array',
+    description: 'Edge contract & schema validation rules (enforce required JSON fields and types).',
+    items: {
+      type: 'object',
+      properties: {
+        path: { type: 'string' },
+        method: { type: 'string' },
+        requiredFields: { type: 'array', items: { type: 'string' } },
+        fieldTypes: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              field: { type: 'string' },
+              type: { type: 'string', enum: ['string', 'number', 'boolean', 'array'] },
+            },
+            required: ['field', 'type'],
+          },
+        },
+      },
+      required: ['path'],
     },
   },
   ipRules: {
@@ -118,6 +199,8 @@ export const GATEWAY_CONFIG_PROPERTIES = {
   },
   rateLimitEnabled: { type: 'boolean' },
   rateLimitRequestsPerMinute: { type: 'integer', minimum: 0, maximum: 100000 },
+  rateLimitKeyType: { type: 'string', enum: ['ip', 'header', 'jwt'], description: 'Rate limit by IP address, custom API key header, or JWT sub claim. Identity limits require Student/Pro.' },
+  rateLimitHeaderName: { type: 'string', description: 'Header name when rateLimitKeyType is "header", default X-API-Key' },
   placement: {
     type: 'object',
     properties: {
