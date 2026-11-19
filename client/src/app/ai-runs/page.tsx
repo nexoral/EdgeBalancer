@@ -98,7 +98,7 @@ function AiRunDetailModal({ runId, onClose }: { runId: string; onClose: () => vo
       ) : !run ? (
         <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-3)' }}>Run not found</div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxHeight: '70vh', overflow: 'auto' }}>
+        <div className="no-scrollbar" style={{ display: 'flex', flexDirection: 'column', gap: 20, maxHeight: '70vh', overflowY: 'auto', scrollBehavior: 'smooth' }}>
           {/* Header */}
           <div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
@@ -338,7 +338,7 @@ export default function AiRunsPage() {
             title="AI Runs"
             subtitle="History of every AI Agent request, its steps and its outcome"
           />
-          <div style={{ padding: 'clamp(16px, 4vw, 32px)', overflowY: 'auto', flex: 1, minHeight: 0 }}>
+          <div className="no-scrollbar" style={{ padding: 'clamp(16px, 4vw, 32px)', overflowY: 'auto', flex: 1, minHeight: 0, scrollBehavior: 'smooth' }}>
             {loading ? (
               <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
                 <div style={{
