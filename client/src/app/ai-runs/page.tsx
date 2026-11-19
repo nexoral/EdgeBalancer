@@ -290,12 +290,15 @@ export default function AiRunsPage() {
   const [showDetailUpsell, setShowDetailUpsell] = useState(false);
 
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const fetchingRef = useRef(false);
 
   useEffect(() => {
     if (!authLoading && !user) router.push('/login');
   }, [user, authLoading, router]);
 
   const fetchRuns = useCallback(async (reset = false) => {
+    if (fetchingRef.current && !reset) return;
+    fetchingRef.current = true;
     if (reset) setLoading(true);
     else setLoadingMore(true);
     try {
@@ -304,12 +307,18 @@ export default function AiRunsPage() {
         limit: 20,
       });
       const { runs: fetched, nextCursor: cursor, hasMore: more } = res.data;
-      setRuns(prev => reset ? fetched : [...prev, ...fetched]);
+      setRuns(prev => {
+        if (reset) return fetched;
+        const seen = new Set(prev.map(r => r._id));
+        const unique = fetched.filter((r: AiRunListItem) => !seen.has(r._id));
+        return [...prev, ...unique];
+      });
       setNextCursor(cursor);
       setHasMore(more);
     } catch (err: any) {
       toast.error(err.message || 'Failed to load AI runs');
     } finally {
+      fetchingRef.current = false;
       setLoading(false);
       setLoadingMore(false);
     }
@@ -406,8 +415,8 @@ export default function AiRunsPage() {
                     gap: 16,
                   }}
                 >
-                  {runs.map(run => (
-                    <AiRunCard key={run._id} run={run} onClick={() => openRun(run._id)} />
+                  {runs.map((run, idx) => (
+                    <AiRunCard key={`${run._id}-${idx}`} run={run} onClick={() => openRun(run._id)} />
                   ))}
                 </div>
                 <div ref={sentinelRef} style={{ height: 1 }} />
