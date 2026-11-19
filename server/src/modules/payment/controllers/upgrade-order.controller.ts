@@ -2,7 +2,7 @@ import { PaymentHistory } from '../../../models/PaymentHistory';
 import { User } from '../../../models/User';
 import { PLANS, type PlanType, resolvePlan } from '../../../config/plans';
 import { createOrder } from '../services/cashfree.service';
-import { activatePlan } from '../services/subscription.service';
+import { getUserPlan } from '../services/subscription.service';
 import type { AppHandler } from '../../../types/http';
 
 const VALID_TO_PLANS: PlanType[] = ['student', 'pro', 'student-annual', 'pro-annual'];
@@ -23,13 +23,13 @@ export const createUpgradeOrder: AppHandler = async (req, res) => {
   const to = toPlan as PlanType;
   const toConfig = PLANS[to];
 
-  const user = await User.findById(userId).select('plan planExpiresAt hasEverSubscribed').lean() as any;
+  const user = await User.findById(userId).select('hasEverSubscribed').lean() as any;
   if (!user) {
     res.status(404);
     throw new Error('User not found');
   }
 
-  const from = resolvePlan(user.plan, user.planExpiresAt) as PlanType;
+  const { plan: from } = await getUserPlan(userId);
 
   if (from === 'free') {
     res.status(400);
@@ -62,10 +62,20 @@ export const createUpgradeOrder: AppHandler = async (req, res) => {
     throw new Error('Invalid upgrade amount');
   }
 
-  const recentPending = await PaymentHistory.findOne({ userId, status: 'PENDING', createdAt: { $gte: new Date(Date.now() - 15 * 60 * 1000) } }).lean();
+  const PENDING_WINDOW_MS = 15 * 60 * 1000;
+  const recentPending = await PaymentHistory.findOne({
+    userId,
+    status: 'PENDING',
+    createdAt: { $gte: new Date(Date.now() - PENDING_WINDOW_MS) },
+  }).lean();
   if (recentPending) {
-    res.status(409);
-    throw new Error('A pending order already exists. Please complete or wait for it to expire.');
+    const expiresAt = new Date(recentPending.createdAt.getTime() + PENDING_WINDOW_MS).toISOString();
+    res.status(409).json({
+      success: false,
+      message: 'A pending order already exists. Please complete or wait for it to expire.',
+      data: { expiresAt },
+    });
+    return;
   }
 
   // Trial is free but still forfeited — full tenure of new plan from now

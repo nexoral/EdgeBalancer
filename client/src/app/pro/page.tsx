@@ -147,7 +147,14 @@ export default function ProPage() {
       setError('Checking payment status — your plan will activate shortly. Refresh in a moment.');
     } catch (err: any) {
       clearUpgradeFlag();
-      setError(err.response?.data?.message || err.message || 'Something went wrong');
+      const expiresAt = err.data?.expiresAt || err.response?.data?.data?.expiresAt;
+      const baseMsg = err.response?.data?.message || err.message || 'Something went wrong';
+      if (expiresAt) {
+        const localTime = new Date(expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        setError(`${baseMsg} (Expires at ${localTime})`);
+      } else {
+        setError(baseMsg);
+      }
     } finally {
       setLoading(false);
     }

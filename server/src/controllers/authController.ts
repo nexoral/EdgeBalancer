@@ -35,7 +35,7 @@ export const getCurrentUser = async (req: Request, res: Response, next: NextFunc
       throw new Error('Not authenticated');
     }
 
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).populate('paymentId');
     if (!user) {
       res.status(404);
       throw new Error('User not found');
@@ -79,8 +79,8 @@ export const googleAuth = async (req: Request, res: Response, next: NextFunction
 
     // 2. Find or create user
     let user = claimedEmail
-      ? await User.findOne({ $or: [{ firebaseUid: uid }, { email: claimedEmail }] })
-      : await User.findOne({ firebaseUid: uid });
+      ? await User.findOne({ $or: [{ firebaseUid: uid }, { email: claimedEmail }] }).populate('paymentId')
+      : await User.findOne({ firebaseUid: uid }).populate('paymentId');
 
     if (!user) {
       const base = name?.trim() || (claimedEmail ? claimedEmail.split('@')[0] : '') || 'user';

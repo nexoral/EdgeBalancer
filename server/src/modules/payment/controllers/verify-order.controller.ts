@@ -41,7 +41,7 @@ export const verifyPaymentOrder: AppHandler = async (req, res) => {
       const pm = latest?.payment_method;
       if (pm) payment.paymentMethod = typeof pm === 'object' ? Object.keys(pm)[0] : String(pm);
       await payment.save();
-      await activatePlan(userId, payment.plan as PlanType);
+      await activatePlan(userId, payment._id);
       res.json({ success: true, data: { verified: true, status: 'SUCCESS' }, message: 'Payment verified' });
       return;
     }

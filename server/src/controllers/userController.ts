@@ -11,7 +11,7 @@ export const getProfile = async (req: Request, res: Response, next: NextFunction
       throw new Error('Not authenticated');
     }
 
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).populate('paymentId');
     if (!user) {
       res.status(404);
       throw new Error('User not found');

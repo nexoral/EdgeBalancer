@@ -77,7 +77,7 @@ export const handleWebhook: AppHandler = async (req, res) => {
     if (cfPaymentId) payment.cfPaymentId = String(cfPaymentId);
     await payment.save();
     try {
-      await activatePlan(payment.userId.toString(), payment.plan as PlanType);
+      await activatePlan(payment.userId.toString(), payment._id);
     } catch (e) {
       payment.status = 'PENDING';
       await payment.save();
@@ -88,9 +88,14 @@ export const handleWebhook: AppHandler = async (req, res) => {
     payment.status = 'FAILED';
     await payment.save();
     console.log('[Webhook] Payment FAILED for order:', orderId);
-  } else if (eventType === 'USER_DROPPED_PAYMENT') {
-    // User closed checkout — don't change status, they might retry
-    console.log('[Webhook] User dropped payment for order:', orderId);
+  } else if (
+    (eventType === 'USER_DROPPED_PAYMENT' ||
+      eventType === 'PAYMENT_USER_DROPPED_WEBHOOK' ||
+      paymentStatus === 'USER_DROPPED') &&
+    payment.status === 'PENDING'
+  ) {
+    await PaymentHistory.deleteOne({ _id: payment._id, status: 'PENDING' });
+    console.log('[Webhook] User dropped payment, deleted pending order:', orderId);
   }
 
   res.status(200).json({ received: true });
