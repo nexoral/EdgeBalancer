@@ -11,7 +11,7 @@ import mongoose from 'mongoose';
 import type { ConversationTurn } from '../modules/ai/types/ai.types';
 import type { AppRequest as Request, AppResponse as Response, NextFunction } from '../types/http';
 
-const MAX_PROMPT_LENGTH = 2000;
+const MAX_PROMPT_LENGTH = 4000;
 // The client replays its whole conversation chain on every call; a cap keeps the payload —
 // and the tokens re-sent to the model each turn — bounded.
 const MAX_HISTORY_TURNS = 30;

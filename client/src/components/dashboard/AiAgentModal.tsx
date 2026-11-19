@@ -5,20 +5,27 @@ import { Icons } from '@/components/shared/Icons';
 import type { AiEvent, AiOutcome, AiStep, ConversationTurn, LoadBalancer } from '@/types/api';
 import Link from 'next/link';
 
-const MAX_PROMPT_LENGTH = 2000;
+const MAX_PROMPT_LENGTH = 4000;
 const MAX_PROMPT_HEIGHT = 220;
 
 const TOOL_LABELS: Record<string, string> = {
-  find_tools: 'Loading capabilities',
-  list_zones: 'Reading your Cloudflare zones',
-  list_load_balancers: 'Reading your load balancers',
-  create_load_balancer: 'Deploying the load balancer',
-  update_load_balancer: 'Applying the configuration change',
-  delete_load_balancer: 'Deleting the load balancer',
-  pause_load_balancer: 'Pausing the load balancer',
-  resume_load_balancer: 'Resuming the load balancer',
-  web_search: 'Researching an error',
-  fetch_url: 'Reading a reference page',
+  find_tools: 'Looking inside the toolbox',
+  search_knowledge_base: 'Reading books so you do not have to',
+  list_zones: 'Knocking on Cloudflare door',
+  list_load_balancers: 'Counting all your load balancers',
+  list_gateways: 'Checking who is guarding your APIs',
+  create_load_balancer: 'Cooking up a fresh load balancer',
+  update_load_balancer: 'Teaching the load balancer new tricks',
+  delete_load_balancer: 'Throwing this load balancer in the trash',
+  pause_load_balancer: 'Putting the load balancer to sleep',
+  resume_load_balancer: 'Waking up the load balancer with coffee',
+  create_gateway: 'Hiring a bouncer for your API',
+  update_gateway: 'Giving the gatekeeper new rules',
+  delete_gateway: 'Tearing down the front gate',
+  pause_gateway: 'Closing the gate for a quick nap',
+  resume_gateway: 'Opening the gate back up for traffic',
+  web_search: 'Googling the fix like a senior developer',
+  fetch_url: 'Reading that webpage line by line',
 };
 
 const labelFor = (tool: string) => TOOL_LABELS[tool] ?? tool.replace(/_/g, ' ');
@@ -80,14 +87,14 @@ export function applyAiEvent(state: AiRunState, event: AiEvent): AiRunState {
     case 'compaction_start':
       return {
         ...state,
-        statusMessage: 'Compacting conversation history',
+        statusMessage: 'Tidying up the chat so my brain does not explode',
         steps: [
           ...state.steps,
           {
-            label: 'Compacting conversation history',
+            label: 'Packing the chat into a smaller suitcase',
             state: 'running',
             detail: event.payload.tokensBefore
-              ? `Context reached ~${event.payload.tokensBefore.toLocaleString()} tokens`
+              ? `Chat was getting way too noisy (~${event.payload.tokensBefore.toLocaleString()} tokens)`
               : undefined,
           },
         ],
@@ -97,13 +104,13 @@ export function applyAiEvent(state: AiRunState, event: AiEvent): AiRunState {
       return {
         ...state,
         tokensSaved: (state.tokensSaved ?? 0) + (event.payload.tokensSaved ?? 0),
-        statusMessage: event.payload.ok ? 'Conversation history compacted' : state.statusMessage,
+        statusMessage: event.payload.ok ? 'Chat is clean and light again' : state.statusMessage,
         steps: closeLastStep(
           state.steps,
           event.payload.ok,
           event.payload.ok
-            ? `Saved ${event.payload.tokensSaved.toLocaleString()} tokens (~${event.payload.tokensBefore.toLocaleString()} → ~${event.payload.tokensAfter.toLocaleString()})`
-            : 'Compaction skipped',
+            ? `Trimmed ${event.payload.tokensSaved.toLocaleString()} tokens of useless chatter (~${event.payload.tokensBefore.toLocaleString()} down to ~${event.payload.tokensAfter.toLocaleString()})`
+            : 'Chat was already clean enough',
         ),
       };
 
