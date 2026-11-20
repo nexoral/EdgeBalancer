@@ -4,6 +4,10 @@
 SaaS control plane for deploying and managing Cloudflare Worker-based load balancers without writing Worker code. Users connect a Cloudflare account, configure origins + strategy, and EdgeBalancer generates and deploys the Worker.
 
 ## Rules
+- Before writing code, evaluate in order: (1) Does it need to exist? (2) Already in this codebase? (3) Standard lib / platform native? (4) Already-installed dep — never add a dep for a few lines. (5) One line? Write one line. (6) Otherwise: minimum code that works.
+- Deletion beats addition. Keep values in the form the platform already gives — no unnecessary conversions or wrappers.
+- Bug fix: grep every caller of the touched function first, fix the root cause once in shared code — never patch each callsite separately.
+- End every implementation reply with 1–2 lines: what was skipped/not checked + any risk the user must know.
 - All Cloudflare API calls are **server-only** (never from client). Client calls the backend directly via `NEXT_PUBLIC_API_URL` with httpOnly cookies (`withCredentials: true`).
 - Cloudflare credentials AES-256-GCM encrypted at rest; IV + GCM tag stored alongside. `ENCRYPTION_KEY` must be exactly 64 hex chars — fail fast otherwise.
 - Auth: Firebase OAuth (Google + GitHub) → JWT in httpOnly cookie, 24h expiry. No password login, single sign-in page (`/login`; `/register` 307s to it). Identity anchor is the Firebase `uid` — the provider's claimed email (verified or not) may match into the account that already owns it; the same email is never allowed to create a duplicate account. Firebase's "One account per email address" must be OFF in the console (it otherwise rejects matching GitHub sign-ins with `auth/account-exists-with-different-credential` before our merge can run). 2FA challenge tokens carry `stage` and `authenticate` rejects any token with `stage` — never forge/rename challenge cookies into sessions.
@@ -88,6 +92,9 @@ Test notes:
 - Server tests are integration: real MongoDB via `mongodb-memory-server`, Redis mocked. Two users in one test must get distinct `firebaseUid` values (unique index — nulls collide).
 - AI tests need no API keys and make no network calls (provider + router services mocked; `/api/ai/generate` never exercised).
 - Worker generator tests are unit-level per strategy template.
+
+## Tech Debt Markers
+Mark deliberate simplifications that cut a real corner with a `// ponytail: <ceiling> — <upgrade path>` comment (the one exception to the no-comments rule). Example: `// ponytail: global lock — per-account locks if throughput matters`.
 
 ## Context & Sync
 - `AGENTS.md` is canonical; `CLAUDE.md` points tools back to `AGENTS.md`.
