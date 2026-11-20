@@ -38,12 +38,12 @@ When working in a subsystem, read its scoped `AGENTS.md` for local rules and arc
 1. **Code Decision Ladder**: Before writing code, evaluate in order:
    (1) Does it need to exist? (2) Already in this codebase? (3) Standard lib / platform native? (4) Already-installed dep — never add a dep for a few lines. (5) One line? Write one line. (6) Otherwise: minimum code that works.
 2. **Deletion beats addition**: Keep values in the form the platform already gives — no unnecessary conversions or wrappers.
-3. **Map scope before writing**: List every place your change must reach (callers, tests, fixtures, config, exports) and what it could break. That is scope. Extra features are not.
+3. **Research before edit — zero trial-and-error**: Trace call chains and contracts first; map scope (callers, tests, fixtures, config, exports) and what it could break. No speculative fixes or naive shortcuts that fail under concurrency.
 4. **Bug fix protocol**: Grep every caller of the touched function first, fix the root cause once in shared code — never patch each callsite separately.
 5. **Safeguards preserved**: Code moved or merged keeps its error handling and validation — never silently drop safeguards.
 6. **Hard safety floor**: Never lazy about validation at trust boundaries, error handling that prevents data loss, security, or anything the user asked for.
 7. **Edge cases**: Between options of equal size, take the one correct on edge cases.
-8. **Tests with new logic**: New non-trivial logic (branch, loop, parser, security, whole new script) leaves one small test or assert-based self-check.
+8. **Tests & Zero TS Errors**: New non-trivial logic leaves a small test or assert-based self-check. Never ship compilation errors or broken tests.
 9. **No unnecessary comments**: Code must be self-explanatory. The only exception: `// ponytail: <ceiling> — <upgrade path>` to mark deliberate shortcuts.
 10. **Reply discipline**: End every implementation reply with 1–2 lines: what was skipped/not checked + any risk the user must know.
 </rules>
