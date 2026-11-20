@@ -40,6 +40,7 @@ export interface AiRunState {
   /** Model currently answering — shown top-left of the modal. */
   activeModel: string | null;
   modelNote: string | null;
+  isChangingModel?: boolean;
   outcome: AiOutcome | null;
   message: string;
   loadBalancers: LoadBalancer[];
@@ -54,6 +55,7 @@ export const initialAiRunState: AiRunState = {
   steps: [],
   activeModel: null,
   modelNote: null,
+  isChangingModel: false,
   outcome: null,
   message: '',
   loadBalancers: [],
@@ -67,10 +69,10 @@ export function applyAiEvent(state: AiRunState, event: AiEvent): AiRunState {
       return { ...state, runId: event.payload.runId };
 
     case 'model_active':
-      return { ...state, activeModel: event.payload.model };
+      return { ...state, activeModel: event.payload.model, isChangingModel: false };
 
     case 'model_switch':
-      return { ...state, modelNote: `Falling back to ${event.payload.to}` };
+      return { ...state, modelNote: `Falling back to ${event.payload.to}`, activeModel: event.payload.to, isChangingModel: true };
 
     case 'status':
       return { ...state, statusMessage: event.payload.message, progress: event.payload.progress };
@@ -699,6 +701,73 @@ function useThinkingPhrase(isRunning: boolean, activeStepLabel?: string): string
   return THINKING_PHRASES[index];
 }
 
+function formatModelName(model: string | null): string {
+  if (!model) return '';
+  const clean = model.includes('/') ? model.split('/')[1] : model;
+  return clean.replace(/:free$/, '');
+}
+
+function CasinoRollText({ text, className, style }: { text: string; className?: string; style?: React.CSSProperties }) {
+  const [items, setItems] = useState<{ id: number; text: string; isNew: boolean }[]>([
+    { id: 0, text, isNew: false },
+  ]);
+  const counterRef = useRef(1);
+
+  useEffect(() => {
+    setItems((prev) => {
+      const last = prev[prev.length - 1];
+      if (last && last.text === text) return prev;
+      const nextId = counterRef.current++;
+      return [
+        { id: last ? last.id : 0, text: last ? last.text : text, isNew: false },
+        { id: nextId, text, isNew: true },
+      ];
+    });
+
+    const timer = setTimeout(() => {
+      setItems([{ id: counterRef.current, text, isNew: false }]);
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [text]);
+
+  return (
+    <span
+      style={{
+        display: 'inline-grid',
+        gridTemplateAreas: '"slot"',
+        alignItems: 'center',
+        height: '1.25em',
+        lineHeight: '1.25em',
+        overflow: 'hidden',
+        position: 'relative',
+        verticalAlign: 'middle',
+        ...style,
+      }}
+      className={className}
+    >
+      {items.map((item) => (
+        <span
+          key={item.id}
+          style={{
+            gridArea: 'slot',
+            display: 'inline-flex',
+            alignItems: 'center',
+            whiteSpace: 'nowrap',
+            animation: item.isNew
+              ? 'casinoSlotIn 420ms cubic-bezier(0.16, 1, 0.3, 1.15) forwards'
+              : items.length > 1
+                ? 'casinoSlotOut 420ms cubic-bezier(0.16, 1, 0.3, 1.15) forwards'
+                : 'none',
+          }}
+        >
+          {item.text}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 export function AiAgentModal({ isOpen, run, messages, onCancel, onClose, onReply }: AiAgentModalProps) {
   const finished = run.phase === 'done';
   const succeeded = run.outcome === 'success';
@@ -721,6 +790,23 @@ export function AiAgentModal({ isOpen, run, messages, onCancel, onClose, onReply
     : succeeded
       ? 'All tasks completed successfully'
       : 'Run stopped with issues';
+
+  const statusLabel = finished
+    ? (succeeded ? 'Delivered' : 'Failed')
+    : (activeStep ? 'Working' : 'Thinking');
+
+  const statusTheme = finished
+    ? (succeeded
+        ? { bg: 'rgba(52, 199, 89, 0.12)', color: 'var(--green)', border: '1px solid rgba(52, 199, 89, 0.28)' }
+        : { bg: 'rgba(255, 59, 48, 0.12)', color: 'var(--red)', border: '1px solid rgba(255, 59, 48, 0.28)' })
+    : (activeStep
+        ? { bg: 'rgba(255, 149, 0, 0.12)', color: 'var(--orange)', border: '1px solid rgba(255, 149, 0, 0.28)' }
+        : { bg: 'var(--accent-dim)', color: 'var(--accent)', border: '1px solid var(--accent)' });
+
+  const rawModel = run.activeModel;
+  const isChangingModel = Boolean(run.isChangingModel);
+  const formattedModel = formatModelName(rawModel);
+  const modelDisplayText = isChangingModel ? 'Changing model…' : formattedModel;
 
   const lastIsAssistant = messages.length > 0 && messages[messages.length - 1].role === 'assistant';
   const historyMessages = lastIsAssistant ? messages.slice(0, -1) : messages;
@@ -783,29 +869,58 @@ export function AiAgentModal({ isOpen, run, messages, onCancel, onClose, onReply
               <Icons.Zap size={16} style={{ color: 'var(--accent)' }} />
             </div>
             <div style={{ minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'nowrap', minWidth: 0 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', flexShrink: 0 }}>
                   AI Agent
                 </span>
+
+                {/* Status Badge: Thinking / Working / Delivered / Failed */}
                 <span style={{
                   fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em',
-                  padding: '2px 7px', borderRadius: 999,
-                  background: finished
-                    ? (succeeded ? 'rgba(34, 197, 94, 0.12)' : 'rgba(239, 68, 68, 0.12)')
-                    : 'var(--accent-dim)',
-                  color: finished
-                    ? (succeeded ? 'var(--green)' : 'var(--red)')
-                    : 'var(--accent)',
-                  border: `1px solid ${finished ? (succeeded ? 'var(--green)' : 'var(--red)') : 'var(--accent)'}`,
+                  padding: '2px 8px', borderRadius: 999,
+                  background: statusTheme.bg, color: statusTheme.color, border: statusTheme.border,
+                  display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0,
+                  transition: 'background 0.3s ease, color 0.3s ease, border-color 0.3s ease',
                 }}>
-                  {finished ? (succeeded ? 'Completed' : 'Failed') : 'Active'}
+                  {!finished && (
+                    <span style={{
+                      width: 5, height: 5, borderRadius: '50%',
+                      background: statusTheme.color, flexShrink: 0,
+                    }} className="animate-pulse" />
+                  )}
+                  <CasinoRollText text={statusLabel} />
                 </span>
+
+                {/* Model Badge: Real-time model name or "Changing model…" with Casino Roll */}
+                {modelDisplayText && (
+                  <span
+                    title={rawModel ?? ''}
+                    className="mono"
+                    style={{
+                      fontSize: 10, fontWeight: 500, letterSpacing: '0.02em',
+                      padding: '2px 7px', borderRadius: 'var(--radius-sm, 4px)',
+                      background: isChangingModel ? 'rgba(255, 149, 0, 0.12)' : 'var(--bg-2)',
+                      color: isChangingModel ? 'var(--orange)' : 'var(--text-2)',
+                      border: `1px solid ${isChangingModel ? 'rgba(255, 149, 0, 0.3)' : 'var(--line-2)'}`,
+                      display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 1, minWidth: 0,
+                      maxWidth: 160,
+                      transition: 'all 0.3s ease',
+                    }}
+                  >
+                    <Icons.Zap size={10} style={{ color: isChangingModel ? 'var(--orange)' : 'var(--accent)', flexShrink: 0 }} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <CasinoRollText text={modelDisplayText} />
+                    </span>
+                  </span>
+                )}
+
+                {/* Tokens Saved Badge */}
                 {typeof run.tokensSaved === 'number' && run.tokensSaved > 0 && (
                   <span className="mono animate-fade-in" style={{
                     fontSize: 10, padding: '2px 6px', borderRadius: 'var(--radius-sm, 4px)',
-                    background: 'rgba(34, 197, 94, 0.12)', color: 'var(--green)',
-                    border: '1px solid rgba(34, 197, 94, 0.25)',
-                    display: 'flex', alignItems: 'center', gap: 4,
+                    background: 'rgba(52, 199, 89, 0.12)', color: 'var(--green)',
+                    border: '1px solid rgba(52, 199, 89, 0.25)',
+                    display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0,
                   }}>
                     <Icons.Zap size={10} />
                     {run.tokensSaved.toLocaleString()} tokens saved
