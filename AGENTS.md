@@ -1,112 +1,140 @@
-# EdgeBalancer — Project Context
+# EdgeBalancer — Agent Instructions
 
-## Objective
-SaaS control plane for deploying and managing Cloudflare Worker-based load balancers without writing Worker code. Users connect a Cloudflare account, configure origins + strategy, and EdgeBalancer generates and deploys the Worker.
+<system_overview>
+**EdgeBalancer** — SaaS control plane for deploying and managing Cloudflare Worker-based load balancers without writing Worker code. Users connect a Cloudflare account, configure origins + routing strategy, and EdgeBalancer generates, deploys, and manages Cloudflare Workers via the Cloudflare API v4.
 
-## Rules
-- Before writing code, evaluate in order: (1) Does it need to exist? (2) Already in this codebase? (3) Standard lib / platform native? (4) Already-installed dep — never add a dep for a few lines. (5) One line? Write one line. (6) Otherwise: minimum code that works.
-- Deletion beats addition. Keep values in the form the platform already gives — no unnecessary conversions or wrappers.
-- Bug fix: grep every caller of the touched function first, fix the root cause once in shared code — never patch each callsite separately.
-- End every implementation reply with 1–2 lines: what was skipped/not checked + any risk the user must know.
-- Before writing: map every place the change must reach (callers, tests, fixtures, config, exports) and what it could break. That is scope. Extra features are not.
-- New non-trivial logic (branch, loop, parser, money, security, whole new script) must leave one small test or assert-based self-check. Trivial changes need none.
-- Code moved or merged keeps its error handling and validation — never silently drop safeguards.
-- Between options of equal size, take the one correct on edge cases.
-- Never lazy about: validation at trust boundaries, error handling that prevents data loss, security, anything the user asked for.
-- All Cloudflare API calls are **server-only** (never from client). Client calls the backend directly via `NEXT_PUBLIC_API_URL` with httpOnly cookies (`withCredentials: true`).
-- Cloudflare credentials AES-256-GCM encrypted at rest; IV + GCM tag stored alongside. `ENCRYPTION_KEY` must be exactly 64 hex chars — fail fast otherwise.
-- Auth: Firebase OAuth (Google + GitHub) → JWT in httpOnly cookie, 24h expiry. No password login, single sign-in page (`/login`; `/register` 307s to it). Identity anchor is the Firebase `uid` — the provider's claimed email (verified or not) may match into the account that already owns it; the same email is never allowed to create a duplicate account. Firebase's "One account per email address" must be OFF in the console (it otherwise rejects matching GitHub sign-ins with `auth/account-exists-with-different-credential` before our merge can run). 2FA challenge tokens carry `stage` and `authenticate` rejects any token with `stage` — never forge/rename challenge cookies into sessions.
-- Destructive AI tools call the **same orchestrators** as REST routes (identical rollback semantics). No `ask_user` tool — clarifications are plain prose.
-- No code comments unless asked.
+> For the full system architecture, zero-grep directory map, and anti-hallucination context, read [ARCHITECTURE.md](ARCHITECTURE.md).
+</system_overview>
 
-## Constraints
-- LB `name`: 3–50 chars, lowercase + hyphens, locked after creation. `scriptName` derived from name, unique per user (compound index `{userId, scriptName}`). Worker names unique only within a CF account.
-- 2FA: authenticator TOTP + passkeys only — no SMS/email/recovery codes. 2FA is on iff ≥1 confirmed device (`hasTotp()` in `services/totpService.ts` is the single source of truth).
-- AI model ladder: free OpenRouter tier first, then metered Mistral. Global Redis cooldowns only for quota exhaustion (24h provider / 90s model); 401/403 and transient failures are per-run only. One API key per provider = shared upstream budget.
-- All API responses: `{ success, data, message }`.
+<subsystems_map>
+## Subsystems & Scoped Guides
 
-## Monorepo
+When working in a subsystem, read its scoped `AGENTS.md` for local rules and architecture:
+
+* **`client/`** — Frontend control plane ([client/AGENTS.md](client/AGENTS.md))
+  * Next.js 16 (App Router), React 19, TS strict, Tailwind v4, SSE reader, WebAuthn passkeys
+* **`server/`** — Backend REST API & Worker orchestrator ([server/AGENTS.md](server/AGENTS.md))
+  * Fastify 5, TS strict, Mongoose, Redis rollback locks, Cloudflare Worker generator/deployer
+* **`k8s/`** — Production Kubernetes manifests
+  * Deployment and service definitions
+</subsystems_map>
+
+<constraints>
+## Constraints — never violate
+
+* **Cloudflare API server-only**: Never call CF APIs from the client. All calls route via Fastify backend with httpOnly cookies (`withCredentials: true`).
+* **Credentials AES-256-GCM**: Cloudflare tokens encrypted at rest. IV + GCM tag stored alongside. `ENCRYPTION_KEY` must be exactly 64 hex chars — fail fast otherwise.
+* **Auth**: Firebase OAuth (Google + GitHub) → JWT in httpOnly cookie (24h). Identity anchor is Firebase `uid`. 2FA challenge tokens carry `stage` and `authenticate` rejects any token with `stage`.
+* **LB Names**: 3–50 chars, lowercase + hyphens, locked after creation. `scriptName` derived from name, unique per user (`{userId, scriptName}`).
+* **2FA**: Authenticator TOTP + WebAuthn passkeys only. 2FA is on iff ≥1 confirmed device (`hasTotp()` is single source of truth). Single-use TOTP lock 90s.
+* **Cloudflare Link**: One CF account per EdgeBalancer account (`cloudflareAccountHash` sparse-unique).
+* **Worker Updates**: Use Worker Versions + Deployments API (not script re-deploy). Hostname change = detach → re-attach.
+* **AI Tool Execution**: Destructive AI tools execute for real via the exact same REST orchestrators (identical rollback).
+</constraints>
+
+<rules>
+## Rules — non-negotiable
+
+1. **Code Decision Ladder**: Before writing code, evaluate in order:
+   (1) Does it need to exist? (2) Already in this codebase? (3) Standard lib / platform native? (4) Already-installed dep — never add a dep for a few lines. (5) One line? Write one line. (6) Otherwise: minimum code that works.
+2. **Deletion beats addition**: Keep values in the form the platform already gives — no unnecessary conversions or wrappers.
+3. **Map scope before writing**: List every place your change must reach (callers, tests, fixtures, config, exports) and what it could break. That is scope. Extra features are not.
+4. **Bug fix protocol**: Grep every caller of the touched function first, fix the root cause once in shared code — never patch each callsite separately.
+5. **Safeguards preserved**: Code moved or merged keeps its error handling and validation — never silently drop safeguards.
+6. **Hard safety floor**: Never lazy about validation at trust boundaries, error handling that prevents data loss, security, or anything the user asked for.
+7. **Edge cases**: Between options of equal size, take the one correct on edge cases.
+8. **Tests with new logic**: New non-trivial logic (branch, loop, parser, security, whole new script) leaves one small test or assert-based self-check.
+9. **No unnecessary comments**: Code must be self-explanatory. The only exception: `// ponytail: <ceiling> — <upgrade path>` to mark deliberate shortcuts.
+10. **Reply discipline**: End every implementation reply with 1–2 lines: what was skipped/not checked + any risk the user must know.
+</rules>
+
+<code_standards>
+## Code standards
+
+* **API contract**: All REST responses follow `{ success, data, message }`.
+* **Naming**:
+  * Module files: `kebab-case.{controller,orchestrator,service,types}.ts`
+  * Flat routes/controllers: `camelCase.ts`
+  * React components: `PascalCase.tsx`
+  * Mongoose interfaces: `I` prefix (`IUser`, `ILoadBalancer`)
+* **Create lock & rollback**: Orchestrators claim `lb:create:{accountId}:{scriptName}` via Redis SET NX. Rollback runs **only while holding the lock**.
+* **Idempotency**: POST/PUT routes use `fastifyIdempotency` with `Idempotency-Key` header. Check `cancellation.throwIfCancelled()` between multi-step operations.
+* **Sessions (history)**: Every successful create/edit saves an immutable `Session` snapshot. Set `isActive: false` on update/delete, never edit in place.
+
+## Don't (anti-patterns)
+
+```ts
+// ❌ Never call Cloudflare API from client — all calls route via Fastify backend
+axios.get('https://api.cloudflare.com/client/v4/...');
+// ❌ Never mutate Workers without holding the Redis name lock
+await cloudflareClient.deployWorker(scriptName, code);
+// ❌ Never edit Session snapshots in-place — mark isActive: false and create new
+await Session.findByIdAndUpdate(id, { $set: newConfig });
+// ❌ Never hardcode ENCRYPTION_KEY length checks loosely — must fail fast on !== 64 hex chars
 ```
-EdgeBalancer/
-├── client/   # Next.js 16 (App Router), React 19, TS, Tailwind v4
-├── server/   # Fastify 5, TS strict, Mongoose
-├── k8s/      # deployment.yaml
-└── AGENTS.md # canonical context
-```
+</code_standards>
 
-## Architecture (small)
-**Server** (`server/src/`): `index.ts` + `app.ts` (buildServer). Domain modules in `modules/` (preferred): `controllers/` (one kebab-case file per op) → `orchestrators/` (multi-step, rollback) → `services/` (pure logic). Flat `routes/` + `controllers/` for auth/cloudflare/user/ai. Shared `services/` (CloudflareClient, workerGenerator/Deployment/Deletion/Domain), `utils/` (encryption, jwt, resourceLock, retry), `models/` (User, LoadBalancer, Session, AiRun).
-
-**Client** (`client/src/`): App Router pages under `app/` (landing, overview, loadbalancers CRUD, sessions, settings, login/register, onboarding); components grouped under `components/` (auth, dashboard, loadbalancers, layout, ui, shared); `contexts/AuthContext.tsx`; `lib/api.ts` (axios singleton), `lib/aiStream.ts` (SSE reader).
-
-**Create flow**: validate → decrypt CF credentials → claim Redis name lock → CF script-name check → generate Worker from `workerTemplates/` → deploy → hostname conflict check → attach domain → Mongo insert → session record.
-
-## Naming
-| Scope | Pattern | Example |
-|---|---|---|
-| Module files | `kebab-case.{controller,orchestrator,service,types}.ts` | `assign-domain.controller.ts` |
-| Flat controllers/routes | camelCase | `authRoutes.ts` |
-| Components | `PascalCase.tsx` | `LoadBalancerCard.tsx` |
-| Mongoose interfaces | `I` prefix | `IUser`, `ILoadBalancer` |
-| Client lib/utils | camelCase | `cloudRegions.ts` |
-
-## Key Concepts
-### Create lock & rollback
-Orchestrator claims `lb:create:{accountId}:{scriptName}` via `acquireLock` (Redis SET NX), released in `finally`. CF script PUT is an upsert, so the lock serialises same-name concurrent creates; rollback runs **only while holding the lock** (else it would delete the winning Worker). Redis down → fail open (create proceeds). Migration: drop old global index once per env — `db.loadbalancers.dropIndex('scriptName_1')`.
-
-### Idempotency & cancellation
-POST/PUT LB routes use the `fastifyIdempotency` plugin; clients send an `Idempotency-Key` header. Long ops register an `operationId` in `loadBalancerOperationStore`; `POST /operations/:id/cancel` sets a flag, and orchestrators call `cancellation.throwIfCancelled()` between steps → full rollback.
-
-### 2FA (TOTP + Passkeys)
-- Any number of named TOTP devices in `totpDevices[]`, each with its own AES-GCM encrypted secret. Remove must use a code from a **different** confirmed device; only the last device accepts its own code (that turns 2FA off).
-- Codes single-use for 90s via `acquireLock('totp:used:{userId}:{code}')`; drift ±1 step; all 2FA routes STRICT rate-limited. Client `OtpInput.tsx` auto-submits on 6th digit (no submit button).
-- Passkeys via `@simplewebauthn/server`. Stateless challenges ride inside the signed JWT cookie: `eb_2fa` (login) / `eb_pk_reg` (enroll). `authenticatorSelection` omits `authenticatorAttachment` (keeps USB keys + password managers), `residentKey: 'discouraged'`, `userVerification: 'preferred'`. `rpID` = CLIENT_URL hostname (`WEBAUTHN_RP_ID` overrides).
-- Login symmetric: `POST /auth/google` returns `{ twoFactorRequired, methods, preferred }`; both methods share a "Try another way" control (hidden if only one method).
-
-### AI Agent
-- `POST /api/ai/generate` streams SSE events: `run_start`, `model_active`, `model_switch`, `status`, `tool_start`, `tool_result`, `compaction_start`, `compaction_result`, `done`, `error`. 3 runs per 15 min.
-- Tools: `find_tools`, `list_zones`, `list_load_balancers`, `create/update/delete/pause/resume_load_balancer`. All execute for real via the REST orchestrators.
-- Conversation: client owns transcript, replays as `messages` (≤30 turns × 4000 chars). Client echoes the first `runId` as `conversationId` → one `AiRun` doc per conversation (in-place `$push`+`$slice` update). Stale echo → new standalone doc.
-- Conversation persistence: LangChain message state persisted in Redis (`conversation:{userId}:{conversationId}`) with 30-min TTL (`EX: 1800`), written only upon agent loop completion (`finish()`).
-- Compaction: Surgical compaction via `compaction.service.ts` preserves pinned system prompts, tool schemas, and core constraints while compacting older turns when token budget is pressured.
-- UI/UX (`AiAgentModal.tsx`): Dynamic rotating thinking phrases during inference; WhatsApp/iMessage-style bottom pop animation (`messagePop`); isolated `AiReplyInput` state to prevent modal re-renders and backdrop blur lag; unified non-duplicated message thread (`historyMessages` + `latestAssistantMessage`).
-- Safety: before `update/delete/pause/resume` the agent ends its turn with a prose confirmation (zero-tool ending = success, never RCA), calling the tool only after confirmation or clear intent to proceed (e.g. yes, proceed, go ahead). Loading but not calling a mutating tool is a legitimate pause.
-- Failures: tool fails twice → stop run; 409 conflict → stop on first attempt (never rename/re-target); final model call with `RCA_PROMPT` (no tools) writes the root-cause paragraph. Outcomes: `success` | `failure`.
-- Ladder: free OpenRouter tier (quality-gated large MoE only) → Mistral (ordered by measured rps). Both via `ChatOpenAI` with different `baseURL`. `tryConsume` paces in Redis; router moves down, never waits.
-
-### Cloudflare integration
-- Required token permissions: Workers Scripts Edit, Account Analytics Read, Zone Read, DNS Edit (raw-IP origins). Optional: Workers Routes Read.
-- One Cloudflare account may link to exactly one EdgeBalancer account: a deterministic HMAC-SHA256 fingerprint of the account ID (`cloudflareAccountHash`, sparse-unique) + a pre-save 409 check on both the manual and OAuth connect paths. Disconnecting OAuth clears the fingerprint. Backfill existing users before the unique index builds.
-- Hostname conflict check (`assertHostnameAvailable`) = Custom Domains + Worker Routes. Custom Domain silently beats a Route over the same hostname; `*` wildcards matched, path ignored; routes with no `script` are bypass rules (not conflicts). Route check skipped (warning, never error) on 403/404 or missing zoneId.
-- Updates use Worker Versions + Deployments API (not script re-deploy); hostname change = detach → re-attach. KV not used or bound.
-
-### Sessions (history)
-Every successful create/edit saves a `Session` with the full Worker JS + config snapshot. Immutable logs — marked `isActive: false` on update/delete, never edited.
-
+<testing_and_verification>
 ## Verification (run before ship)
-Client:
+
 ```bash
+# Client
 cd client && npx tsc --noEmit && npm test -- --runInBand
-```
-Server:
-```bash
+
+# Server
 cd server && npx tsc --ignoreDeprecations 6.0 --noEmit && npm run build && npm test
 ```
-Test notes:
-- Client tests require `--runInBand`; Cloudflare + Firebase mocked.
-- Server tests are integration: real MongoDB via `mongodb-memory-server`, Redis mocked. Two users in one test must get distinct `firebaseUid` values (unique index — nulls collide).
-- AI tests need no API keys and make no network calls (provider + router services mocked; `/api/ai/generate` never exercised).
-- Worker generator tests are unit-level per strategy template.
 
-## Tech Debt Markers
-Mark deliberate simplifications that cut a real corner with a `// ponytail: <ceiling> — <upgrade path>` comment (the one exception to the no-comments rule). Example: `// ponytail: global lock — per-account locks if throughput matters`.
+## Graphify Knowledge Graph
+After modifying code files in this session, keep graph current:
+```bash
+python3 -c "from graphify.watch import _rebuild_code; from pathlib import Path; _rebuild_code(Path('.'))"
+```
+</testing_and_verification>
 
-## Context & Sync
-- `AGENTS.md` is canonical; `CLAUDE.md` points tools back to `AGENTS.md`.
-- Keep this file under 300 lines.
+<governance>
+## Ask before action
 
-## graphify
-Knowledge graph at `graphify-out/`.
-- Default codebase search: `graphify query "<question>"` — before any grep/glob/file-read; fall back to raw search only when it returns nothing.
-- Read `graphify-out/GRAPH_REPORT.md` for god nodes/communities before architecture questions; navigate `graphify-out/wiki/index.md` if present.
-- After modifying code files: `python3 -c "from graphify.watch import _rebuild_code; from pathlib import Path; _rebuild_code(Path('.'))"`
+Always ask user permission before:
+* `git commit` or `git push` — confirm message, branch, and remote.
+* Dropping MongoDB collections or indexes (e.g. `dropIndex`).
+* Deploying Cloudflare Workers to live production outside automated test mocks.
+* Spawning autonomous subagents for exploratory tasks.
+
+Do NOT ask permission for:
+* `npx tsc --noEmit` or `npm run build` — run immediately to verify changes.
+* Running unit or scoped integration tests (`npm test`).
+* Codebase searches (`graphify query`, grep, reading files).
+
+## Subagent delegation (when approved)
+
+When user approves deploying subagents:
+1. Subagent must read the target subsystem's `AGENTS.md` before starting work.
+2. Root DOs & DON'Ts summary.
+3. Pointer to [ARCHITECTURE.md](ARCHITECTURE.md) for full system architecture and zero-grep directory maps.
+4. Scope boundary: Subagents may only read code, edit files, and run typecheck/build verification.
+5. Prohibited actions: Subagents must NOT execute `git commit`, `git push`, live Cloudflare mutations, or database migrations. Subagents report completed file diffs back to the parent agent.
+
+## Never assume
+
+* Clarify operational requirements mid-task rather than guessing — wrong assumptions waste time.
+* Never forge challenge tokens or bypass trust boundaries.
+
+## Git
+
+* Commits: conventional format (`feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`).
+* One logical change per commit.
+</governance>
+
+<done_checklist>
+## Done checklist
+
+- [ ] `tsc --noEmit` passes clean (client + server)
+- [ ] `npm run build` passes on server
+- [ ] Tests pass (`npm test`)
+- [ ] No regression in rollback or cancellation paths
+- [ ] Ponytail decision ladder followed (deletion > addition, minimal code)
+- [ ] Error handling and trust boundaries intact
+- [ ] Graphify rebuild executed if code changed
+- [ ] Implementation reply ends with skipped items & risks
+</done_checklist>
