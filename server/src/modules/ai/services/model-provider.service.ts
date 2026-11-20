@@ -5,16 +5,22 @@ import type { ModelDescriptor, ModelProvider } from '../types/ai.types';
 const OPENAI_BASE_URLS: Record<ModelProvider, string> = {
   mistral: 'https://api.mistral.ai/v1',
   openrouter: 'https://openrouter.ai/api/v1',
+  groq: 'https://api.groq.com/openai/v1',
 };
 
 export function getApiKey(provider: ModelProvider): string | undefined {
   if (provider === 'mistral') return process.env.MISTRAL_API_KEY;
   if (provider === 'openrouter') return process.env.OPENROUTER_API_KEY;
+  if (provider === 'groq') return process.env.GROQ_API_KEY;
   return undefined;
 }
 
 export function hasAnyProviderConfigured(): boolean {
-  return Boolean(process.env.OPENROUTER_API_KEY || process.env.MISTRAL_API_KEY);
+  return Boolean(
+    process.env.OPENROUTER_API_KEY ||
+    process.env.MISTRAL_API_KEY ||
+    process.env.GROQ_API_KEY,
+  );
 }
 
 // The SDK default is measured in minutes, and an endpoint that accepts then stalls would hold the

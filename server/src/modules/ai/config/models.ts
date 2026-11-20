@@ -10,6 +10,12 @@ export const FREE_MODELS = [
   'recursive/flint-v1.0:free', // 40B MoE / 2.5B active — Fallback runner (256k context)
 ];
 
+export const GROQ_MODELS = [
+  { model: 'qwen/qwen3.8-27b', rps: 0.50 }, // 613ms latency (30 req/min, 1K RPD, 8k TPM, 131k context)
+  { model: 'openai/gpt-oss-20b', rps: 0.50 }, // 906ms latency (30 req/min, 1K RPD, 8k TPM, 840 t/s, 131k context)
+  { model: 'openai/gpt-oss-120b', rps: 0.50 }, // 1078ms latency (30 req/min, 1K RPD, 8k TPM, 120B reasoning, 131k context)
+];
+
 export const MISTRAL_MODELS = [
   { model: 'voxtral-small-latest', rps: 1.00 }, // 60 req/min (50k TPM, 32k context)
   { model: 'mistral-code-latest', rps: 0.03 }, // 2 req/min (Codestral 256k)
@@ -21,5 +27,6 @@ export const MISTRAL_MODELS = [
 
 export const MODEL_LADDER: ModelDescriptor[] = [
   ...FREE_MODELS.map((model) => ({ provider: 'openrouter' as const, model })),
+  ...GROQ_MODELS.map(({ model, rps }) => ({ provider: 'groq' as const, model, rps })),
   ...MISTRAL_MODELS.map(({ model, rps }) => ({ provider: 'mistral' as const, model, rps })),
 ];

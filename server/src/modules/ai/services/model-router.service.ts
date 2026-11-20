@@ -98,9 +98,18 @@ function classify(error: any, provider: ModelProvider): Disposition {
   if (isAuthFailure(error)) return 'provider-dead';
 
   // OpenRouter free tier is account-wide, so any 429 stands the whole provider down for a day.
-  // Mistral publishes per-model limits, so its 429 only cools that model.
+  // Groq separates daily quota exhaustion (RPD/TPD -> 24h provider stand-down) from rolling minute bursts (RPM/TPM -> 90s model cooldown).
+  // Mistral publishes per-model limits, so its 429 cools that model for 90s.
   if (statusOf(error) === 429) {
-    return provider === 'openrouter' ? 'provider-exhausted' : 'model-exhausted';
+    if (provider === 'openrouter') return 'provider-exhausted';
+    if (provider === 'groq') {
+      const msg = messageOf(error).toLowerCase();
+      if (/per day|\brpd\b|\btpd\b|daily/i.test(msg)) {
+        return 'provider-exhausted';
+      }
+      return 'model-exhausted';
+    }
+    return 'model-exhausted';
   }
 
   return 'transient';
