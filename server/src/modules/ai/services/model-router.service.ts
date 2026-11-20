@@ -34,6 +34,9 @@ export const createRouterState = (): RouterState => ({
   exhaustedProviders: new Set(),
 });
 
+// Process-wide cache of models unavailable on the current subscription tier (403 tier_not_allowed or 0 RPM).
+export const disabledModels = new Set<string>();
+
 const statusOf = (error: any): number | undefined =>
   error?.status ?? error?.statusCode ?? error?.response?.status;
 
@@ -61,19 +64,35 @@ const retryAfterSeconds = (error: any): number | undefined => {
   return Number.isFinite(seconds) && seconds > 0 ? seconds : undefined;
 };
 
+const isTierRestricted = (error: any): boolean => {
+  const status = statusOf(error);
+  const msg = messageOf(error);
+  const limitReq =
+    typeof error?.headers?.get === 'function'
+      ? error.headers.get('x-ratelimit-limit-req-minute')
+      : (error?.headers?.['x-ratelimit-limit-req-minute'] ?? error?.response?.headers?.['x-ratelimit-limit-req-minute']);
+
+  // Mistral & OpenRouter: Model disabled, unsupported tier, or decommissioned (404/403/0 RPM)
+  if (status === 404 && /model|not found|no such model|unknown model/i.test(msg)) return true;
+  if (status === 403 && /tier_not_allowed|subscription tier|not available|no endpoints/i.test(msg)) return true;
+  if (status === 429 && String(limitReq).trim() === '0') return true;
+  return false;
+};
+
 const isAuthFailure = (error: any): boolean => {
   const status = statusOf(error);
   return status === 401 || status === 403 ||
     /\b(401|403|unauthorized|invalid api key|no api key)\b/i.test(messageOf(error));
 };
 
-type Disposition = 'provider-exhausted' | 'model-exhausted' | 'provider-dead' | 'transient';
+type Disposition = 'provider-exhausted' | 'model-exhausted' | 'provider-dead' | 'model-unsupported' | 'transient';
 
 /**
  * Only the first two are shared with other users. A timeout or a 500 is this run's problem alone
  * and is skipped locally, so one user's bad minute never stands a model down for everybody.
  */
 function classify(error: any, provider: ModelProvider): Disposition {
+  if (isTierRestricted(error)) return 'model-unsupported';
   if (isAuthFailure(error)) return 'provider-dead';
 
   // OpenRouter free tier is account-wide, so any 429 stands the whole provider down for a day.
@@ -103,6 +122,7 @@ export async function invokeWithFallback(params: {
   for (const descriptor of MODEL_LADDER) {
     const { provider, model, rps } = descriptor;
 
+    if (disabledModels.has(model)) continue;
     if (deadProviders.has(provider) || exhaustedProviders.has(provider)) continue;
     if (!getApiKey(provider)) continue;
     if (skippedModels.has(model)) continue;
@@ -148,7 +168,11 @@ export async function invokeWithFallback(params: {
 
       const retryAfter = retryAfterSeconds(error);
 
-      if (disposition === 'provider-dead') {
+      if (disposition === 'model-unsupported') {
+        disabledModels.add(model);
+        skippedModels.add(model);
+        log.warn(`${model} is not supported on current subscription tier — dynamically disabled for future requests`);
+      } else if (disposition === 'provider-dead') {
         deadProviders.add(provider);
       } else if (disposition === 'provider-exhausted') {
         exhaustedProviders.add(provider);
