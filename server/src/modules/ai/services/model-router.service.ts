@@ -163,7 +163,6 @@ export async function invokeWithFallback(params: {
 
     lastAttempted = model;
     const startedAt = Date.now();
-    emit('model_active', { model });
 
     try {
       log.info(`calling ${provider}/${model}…`);
