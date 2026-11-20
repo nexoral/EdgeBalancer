@@ -402,6 +402,38 @@ details[open] > summary svg { transform: rotate(180deg); }
 /* AI step animation */
 .ai-step { animation: fadeInUp 320ms cubic-bezier(0.16, 1, 0.3, 1) backwards; }
 
+/* Casino Draw / Slot Machine Reel Roll */
+@keyframes casinoSlotIn {
+  0% {
+    transform: translateY(120%);
+    opacity: 0;
+    filter: blur(2px);
+  }
+  60% {
+    transform: translateY(-10%);
+    opacity: 1;
+    filter: blur(0);
+  }
+  100% {
+    transform: translateY(0%);
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+@keyframes casinoSlotOut {
+  0% {
+    transform: translateY(0%);
+    opacity: 1;
+    filter: blur(0);
+  }
+  100% {
+    transform: translateY(-120%);
+    opacity: 0;
+    filter: blur(2px);
+  }
+}
+
 /* Responsive Typography */
 @media (max-width: 640px) {
   h1 { font-size: clamp(26px, 6vw, 40px) !important; }

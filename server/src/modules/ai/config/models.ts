@@ -1,25 +1,32 @@
 import type { ModelDescriptor } from '../types/ai.types';
 
-// OpenRouter free tier, quality-gated: only large-flagship-class models survive (nano/mini/xs
-// variants removed). Ordered fastest-first by P50 latency (openrouter.ai pages, Aug 21 2026).
-// `openrouter/free` is the auto-router catch-all and always runs last.
+// OpenRouter free tier, quality-gated & verified: ordered best-first by reasoning, tool reliability & parameter scale.
 export const FREE_MODELS = [
-  'nvidia/nemotron-3-super-120b-a12b:free', // 120B MoE / 12B active — 1.25s / 41 tok/s
-  'nvidia/nemotron-3-ultra-550b-a55b:free', // 550B MoE / 55B active — 3.06s / 18 tok/s
-  'z-ai/glm-5.2:free', // flagship reasoning — 3.60s / 104 tok/s
+  'nvidia/nemotron-3-ultra-550b-a55b:free', // 550B MoE / 55B active — Frontier reasoning & orchestration (1M context)
+  'nvidia/nemotron-3.5-super-vl:free', // 120B MoE / 12B active — Fast, accurate tool calling (1M context)
+  'particle-ai/particle-1:free', // DeepSeek V4.1 Flash base — Agentic coding & SWE (1M context)
+  'nvidia/nemotron-3.5-lightning:free', // 30B MoE / 3B active — High-throughput fast calls (1M context)
+  'dots-studio/dots-3-note-preview:free', // 280B MoE / 16B active — Large MoE fallback (512k context)
+  'recursive/flint-v1.0:free', // 40B MoE / 2.5B active — Fallback runner (256k context)
+];
+
+export const GROQ_MODELS = [
+  { model: 'qwen/qwen3.8-27b', rps: 0.50 }, // 613ms latency (30 req/min, 1K RPD, 8k TPM, 131k context)
+  { model: 'openai/gpt-oss-20b', rps: 0.50 }, // 906ms latency (30 req/min, 1K RPD, 8k TPM, 840 t/s, 131k context)
+  { model: 'openai/gpt-oss-120b', rps: 0.50 }, // 1078ms latency (30 req/min, 1K RPD, 8k TPM, 120B reasoning, 131k context)
 ];
 
 export const MISTRAL_MODELS = [
-  { model: 'mistral-code-latest', rps: 2.08 }, // 125 req/min (Codestral 256k)
-  { model: 'ministral-8b-latest', rps: 0.83 }, // 50 req/min (262k context)
-  { model: 'ministral-14b-latest', rps: 0.83 }, // 50 req/min (262k context)
-  { model: 'ministral-3b-latest', rps: 0.83 }, // 50 req/min (131k context)
-  { model: 'mistral-small-latest', rps: 0.83 }, // 50 req/min (262k context)
-  { model: 'mistral-medium-latest', rps: 0.83 }, // 50 req/min (262k context)
-  { model: 'mistral-large-4', rps: 0.07 }, // 4 req/min (1M context flagship)
+  { model: 'voxtral-small-latest', rps: 1.00 }, // 60 req/min (50k TPM, 32k context)
+  { model: 'mistral-code-latest', rps: 0.03 }, // 2 req/min (Codestral 256k)
+  { model: 'ministral-8b-latest', rps: 0.03 }, // 2 req/min (262k context)
+  { model: 'ministral-14b-latest', rps: 0.03 }, // 2 req/min (262k context)
+  { model: 'ministral-3b-latest', rps: 0.03 }, // 2 req/min (131k context)
+  { model: 'open-mistral-7b', rps: 0.03 }, // 2 req/min (40k TPM, 32k context)
 ];
 
 export const MODEL_LADDER: ModelDescriptor[] = [
   ...FREE_MODELS.map((model) => ({ provider: 'openrouter' as const, model })),
+  ...GROQ_MODELS.map(({ model, rps }) => ({ provider: 'groq' as const, model, rps })),
   ...MISTRAL_MODELS.map(({ model, rps }) => ({ provider: 'mistral' as const, model, rps })),
 ];
