@@ -10,13 +10,12 @@ export const FREE_MODELS = [
 ];
 
 export const MISTRAL_MODELS = [
-  { model: 'mistral-code-latest', rps: 2.08 }, // 125 req/min (Codestral 256k)
-  { model: 'ministral-8b-latest', rps: 0.83 }, // 50 req/min (262k context)
-  { model: 'ministral-14b-latest', rps: 0.83 }, // 50 req/min (262k context)
-  { model: 'ministral-3b-latest', rps: 0.83 }, // 50 req/min (131k context)
-  { model: 'mistral-small-latest', rps: 0.83 }, // 50 req/min (262k context)
-  { model: 'mistral-medium-latest', rps: 0.83 }, // 50 req/min (262k context)
-  { model: 'mistral-large-4', rps: 0.07 }, // 4 req/min (1M context flagship)
+  { model: 'voxtral-small-latest', rps: 1.00 }, // 60 req/min (50k TPM, 32k context)
+  { model: 'mistral-code-latest', rps: 0.03 }, // 2 req/min (Codestral 256k)
+  { model: 'ministral-8b-latest', rps: 0.03 }, // 2 req/min (262k context)
+  { model: 'ministral-14b-latest', rps: 0.03 }, // 2 req/min (262k context)
+  { model: 'ministral-3b-latest', rps: 0.03 }, // 2 req/min (131k context)
+  { model: 'open-mistral-7b', rps: 0.03 }, // 2 req/min (40k TPM, 32k context)
 ];
 
 export const MODEL_LADDER: ModelDescriptor[] = [
