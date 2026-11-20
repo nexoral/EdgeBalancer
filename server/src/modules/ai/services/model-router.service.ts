@@ -76,6 +76,8 @@ const isTierRestricted = (error: any): boolean => {
   if (status === 404 && /model|not found|no such model|unknown model/i.test(msg)) return true;
   if (status === 403 && /tier_not_allowed|subscription tier|not available|no endpoints/i.test(msg)) return true;
   if (status === 429 && String(limitReq).trim() === '0') return true;
+  // OpenRouter upstream model congestion/unstable endpoint (dynamically disable this model, keep provider alive)
+  if (status === 429 && /provider returned error|upstream error|temporarily unavailable/i.test(msg)) return true;
   return false;
 };
 

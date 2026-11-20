@@ -1,12 +1,13 @@
 import type { ModelDescriptor } from '../types/ai.types';
 
-// OpenRouter free tier, quality-gated: only large-flagship-class models survive (nano/mini/xs
-// variants removed). Ordered fastest-first by P50 latency (openrouter.ai pages, Aug 21 2026).
-// `openrouter/free` is the auto-router catch-all and always runs last.
+// OpenRouter free tier, quality-gated & verified: ordered best-first by reasoning, tool reliability & parameter scale.
 export const FREE_MODELS = [
-  'nvidia/nemotron-3-super-120b-a12b:free', // 120B MoE / 12B active — 1.25s / 41 tok/s
-  'nvidia/nemotron-3-ultra-550b-a55b:free', // 550B MoE / 55B active — 3.06s / 18 tok/s
-  'z-ai/glm-5.2:free', // flagship reasoning — 3.60s / 104 tok/s
+  'nvidia/nemotron-3-ultra-550b-a55b:free', // 550B MoE / 55B active — Frontier reasoning & orchestration (1M context)
+  'nvidia/nemotron-3.5-super-vl:free', // 120B MoE / 12B active — Fast, accurate tool calling (1M context)
+  'particle-ai/particle-1:free', // DeepSeek V4.1 Flash base — Agentic coding & SWE (1M context)
+  'nvidia/nemotron-3.5-lightning:free', // 30B MoE / 3B active — High-throughput fast calls (1M context)
+  'dots-studio/dots-3-note-preview:free', // 280B MoE / 16B active — Large MoE fallback (512k context)
+  'recursive/flint-v1.0:free', // 40B MoE / 2.5B active — Fallback runner (256k context)
 ];
 
 export const MISTRAL_MODELS = [
