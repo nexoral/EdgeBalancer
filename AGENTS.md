@@ -8,6 +8,11 @@ SaaS control plane for deploying and managing Cloudflare Worker-based load balan
 - Deletion beats addition. Keep values in the form the platform already gives — no unnecessary conversions or wrappers.
 - Bug fix: grep every caller of the touched function first, fix the root cause once in shared code — never patch each callsite separately.
 - End every implementation reply with 1–2 lines: what was skipped/not checked + any risk the user must know.
+- Before writing: map every place the change must reach (callers, tests, fixtures, config, exports) and what it could break. That is scope. Extra features are not.
+- New non-trivial logic (branch, loop, parser, money, security, whole new script) must leave one small test or assert-based self-check. Trivial changes need none.
+- Code moved or merged keeps its error handling and validation — never silently drop safeguards.
+- Between options of equal size, take the one correct on edge cases.
+- Never lazy about: validation at trust boundaries, error handling that prevents data loss, security, anything the user asked for.
 - All Cloudflare API calls are **server-only** (never from client). Client calls the backend directly via `NEXT_PUBLIC_API_URL` with httpOnly cookies (`withCredentials: true`).
 - Cloudflare credentials AES-256-GCM encrypted at rest; IV + GCM tag stored alongside. `ENCRYPTION_KEY` must be exactly 64 hex chars — fail fast otherwise.
 - Auth: Firebase OAuth (Google + GitHub) → JWT in httpOnly cookie, 24h expiry. No password login, single sign-in page (`/login`; `/register` 307s to it). Identity anchor is the Firebase `uid` — the provider's claimed email (verified or not) may match into the account that already owns it; the same email is never allowed to create a duplicate account. Firebase's "One account per email address" must be OFF in the console (it otherwise rejects matching GitHub sign-ins with `auth/account-exists-with-different-credential` before our merge can run). 2FA challenge tokens carry `stage` and `authenticate` rejects any token with `stage` — never forge/rename challenge cookies into sessions.
